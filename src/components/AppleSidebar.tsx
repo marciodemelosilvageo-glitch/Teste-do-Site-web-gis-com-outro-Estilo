@@ -50,7 +50,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
-import { dataSources, propertyNames } from '../data';
+import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { Dashboard } from './Dashboard';
@@ -211,40 +211,233 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     return selectedFeatures[selectedFeatures.length - 1];
   }, [selectedFeatures]);
 
-  // Propriedades filtradas para exibição no Place Card (ocultando fid, códigos numéricos e campos técnicos)
-  const detailProperties = useMemo(() => {
-    if (!activeDetailFeature || !activeDetailFeature.properties) return [];
+  // Extração estruturada de informações amigáveis e descritivas (Nomes, Demografia, Área, Situação e Tipo)
+  const structuredDetails = useMemo(() => {
+    if (!activeDetailFeature || !activeDetailFeature.properties) return null;
     const props = activeDetailFeature.properties;
+
+    // 1. Nomes Oficiais formatados em Title Case (Caixa alta/baixa legível)
+    const rawOficial = activeDetailFeature.name || props.Nome || props.Localidade || props.NM_MUN || props.NM_BAIRRO || '';
+    const nomeOficial = toTitleCase(rawOficial);
+    const nomeMunicipio = toTitleCase(props.NM_MUN || props['Nome do município'] || props.Municipio || props.MUNICIPIO || '');
+    const nomeBairro = toTitleCase(props.NM_BAIRRO || props.Bairro || props.BAIRRO || '');
+    const nomeDistrito = toTitleCase(props.NM_DIST || props.Distrito || props.DISTRITO || '');
+    const nomeSubdistrito = toTitleCase(props.NM_SUBDIST || props.Subdistrito || props.subdistrito || props.Zona || props['Nome do subdistrito'] || '');
+    const nomeComunidade = toTitleCase(props.NM_FCU || (activeDetailFeature.sourceName === 'Comunidades Rurais de Teresina' ? props.Nome : '') || '');
+    const nomeNucleo = toTitleCase(props.NM_NU || '');
+    const nomeAglomerado = toTitleCase(props.NM_AGLOM || '');
+    const nomeLocalidade = toTitleCase(props.Localidade || '');
+    const nomeUf = toTitleCase(props.NM_UF || props.UF || 'Piauí');
+    const nomeRgInt = toTitleCase(props.NM_RGINT || '');
+    const nomeRgI = toTitleCase(props.NM_RGI || '');
+
+    // 2. Área territorial em km²
+    let areaKm2: string | null = null;
+    const rawArea = props.AREA_KM2 != null ? Number(props.AREA_KM2) : (props.Area != null ? Number(props.Area) : (props.area_km2 != null ? Number(props.area_km2) : null));
+    if (rawArea != null && !isNaN(rawArea) && rawArea > 0) {
+      areaKm2 = `${rawArea.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: rawArea < 1 ? 3 : 2 })} km²`;
+    }
+
+    // 3. Situação e Tipo descritivos
+    let situacao = props.SITUACAO || props['Situação detalhada'] || props.NM_SIT || '';
+    if (props.CD_SIT && situationMap[String(props.CD_SIT)]) {
+      situacao = situationMap[String(props.CD_SIT)];
+    }
+    situacao = situacao ? toTitleCase(String(situacao)) : '';
+
+    let tipoDescritivo = props['Tipo do Setor'] || props.tipo || props.NM_TIPO || '';
+    if (props.CD_TIPO && typeMap[String(props.CD_TIPO)]) {
+      tipoDescritivo = typeMap[String(props.CD_TIPO)];
+    }
+    tipoDescritivo = tipoDescritivo ? toTitleCase(String(tipoDescritivo)) : '';
+
+    // 4. Regionalização & Segurança
+    const areaDesenvolvimento = toTitleCase(props['Area de desenvolvimento'] || props['Área de desenvolvimento'] || '');
+    const risp = toTitleCase(props.Risp || props.RISP || '');
+    const aisp = toTitleCase(props.Aisp || props.AISP || '');
+
+    // 5. Métricas Demográficas
+    const popTotal = Number(props['V0001'] || props['Total de pessoas'] || 0);
+    const domTotal = Number(props['V0002'] || props['Total de Domicílios'] || 0);
+    const domParticulares = Number(props['V0003'] || props['Total de Domicílios Particulares'] || 0);
+    const domOcupados = Number(props['V0007'] || props['Total de Domicílios Particulares Ocupados'] || 0);
+    const domColetivos = Number(props['V0004'] || props['Total de Domicílios Coletivos'] || 0);
+
+    const domVagos = domParticulares > 0 && domOcupados > 0 ? Math.max(0, domParticulares - domOcupados) : 0;
+    const taxaVacancia = domParticulares > 0 && domVagos > 0 ? `${((domVagos / domParticulares) * 100).toFixed(1)}%` : null;
+
+    let mediaMoradores: string | null = null;
+    if (props['V0005']) {
+      mediaMoradores = Number(props['V0005']).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    } else if (domOcupados > 0 && popTotal > 0) {
+      mediaMoradores = (popTotal / domOcupados).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    }
+
+    return {
+      nomeOficial,
+      nomeMunicipio,
+      nomeBairro,
+      nomeDistrito,
+      nomeSubdistrito,
+      nomeComunidade,
+      nomeNucleo,
+      nomeAglomerado,
+      nomeLocalidade,
+      nomeUf,
+      nomeRgInt,
+      nomeRgI,
+      areaKm2,
+      situacao,
+      tipoDescritivo,
+      areaDesenvolvimento,
+      risp,
+      aisp,
+      popTotal,
+      domTotal,
+      domParticulares,
+      domOcupados,
+      domColetivos,
+      domVagos,
+      taxaVacancia,
+      mediaMoradores
+    };
+  }, [activeDetailFeature]);
+
+  // Lista ordenada de propriedades amigáveis e descritivas para a seção Detalhes & Propriedades
+  const detailProperties = useMemo(() => {
+    if (!structuredDetails) return [];
+    const d = structuredDetails;
     const items: Array<{ key: string; label: string; value: string }> = [];
 
-    Object.entries(props).forEach(([key, val]) => {
-      // 1. Filtrar códigos técnicos, fid, ids e geometrias
-      if (isCodeOrSystemProperty(key)) return;
+    // Helper de permissão: apenas restringe se expressamente configurado como false
+    const isAllowed = (k: string) => {
+      if (isAdmin) return true;
+      if (!allowedProperties) return true;
+      return allowedProperties[k] !== false;
+    };
 
-      // 2. Verificar permissão administrativa para a propriedade
-      if (allowedProperties && allowedProperties[key] === false) return;
+    // --- GRUPO 1: NOMES OFICIAIS FORMATADOS EM TITLE CASE ---
+    if (d.nomeMunicipio && isAllowed('NM_MUN')) {
+      items.push({ key: 'NM_MUN', label: 'Nome do Município', value: d.nomeMunicipio });
+    }
+    if (d.nomeBairro && isAllowed('NM_BAIRRO')) {
+      items.push({ key: 'NM_BAIRRO', label: 'Nome do Bairro', value: d.nomeBairro });
+    }
+    if (d.nomeDistrito && isAllowed('NM_DIST')) {
+      items.push({ key: 'NM_DIST', label: 'Nome do Distrito', value: d.nomeDistrito });
+    }
+    if (d.nomeSubdistrito && isAllowed('NM_SUBDIST')) {
+      items.push({ key: 'NM_SUBDIST', label: 'Zona / Subdistrito', value: d.nomeSubdistrito });
+    }
+    if (d.nomeComunidade && isAllowed('NM_FCU')) {
+      items.push({ key: 'NM_FCU', label: 'Favela / Comunidade', value: d.nomeComunidade });
+    }
+    if (d.nomeNucleo && isAllowed('NM_NU')) {
+      items.push({ key: 'NM_NU', label: 'Núcleo Urbano', value: d.nomeNucleo });
+    }
+    if (d.nomeAglomerado && isAllowed('NM_AGLOM')) {
+      items.push({ key: 'NM_AGLOM', label: 'Aglomerado Rural', value: d.nomeAglomerado });
+    }
+    if (d.nomeLocalidade && isAllowed('Localidade')) {
+      items.push({ key: 'Localidade', label: 'Localidade / Povoado', value: d.nomeLocalidade });
+    }
+    if (d.nomeRgInt && isAllowed('NM_RGINT')) {
+      items.push({ key: 'NM_RGINT', label: 'Região Intermediária', value: d.nomeRgInt });
+    }
+    if (d.nomeRgI && isAllowed('NM_RGI')) {
+      items.push({ key: 'NM_RGI', label: 'Região Imediata', value: d.nomeRgI });
+    }
+    if (d.nomeUf && isAllowed('NM_UF')) {
+      items.push({ key: 'NM_UF', label: 'Nome da UF', value: `${d.nomeUf} (PI)` });
+    }
 
-      // 3. Filtrar valores nulos ou vazios
-      if (val == null || String(val).trim() === '') return;
+    // --- GRUPO 2: ÁREA TERRITORIAL EM KM² ---
+    if (d.areaKm2 && isAllowed('AREA_KM2')) {
+      items.push({ key: 'AREA_KM2', label: 'Área Territorial', value: d.areaKm2 });
+    }
 
-      // 4. Formatação de valores
-      let displayVal = getTranslatedValue(key, val);
-      if (typeof val === 'string' && (key.startsWith('NM_') || key.toLowerCase().includes('nome') || key.toLowerCase().includes('localida') || key.toLowerCase().includes('bairro') || key.toLowerCase().includes('municip') || key.toLowerCase().includes('endereco') || key.toLowerCase().includes('logradouro'))) {
-        displayVal = toTitleCase(displayVal);
-      } else if (key === 'AREA_KM2' && typeof val === 'number') {
-        displayVal = `${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} km²`;
-      }
+    // --- GRUPO 3: SITUAÇÃO E TIPO DESCRITIVOS ---
+    if (d.situacao && isAllowed('SITUACAO')) {
+      items.push({ key: 'SITUACAO', label: 'Situação', value: d.situacao });
+    }
+    if (d.tipoDescritivo && isAllowed('CD_TIPO')) {
+      items.push({ key: 'CD_TIPO', label: 'Tipo do Setor / Feição', value: d.tipoDescritivo });
+    }
 
-      const label = propertyNames[key] || key;
-      items.push({
-        key,
-        label,
-        value: String(displayVal)
+    // --- GRUPO 4: REGIONALIZAÇÃO E SEGURANÇA ---
+    if (d.areaDesenvolvimento && isAllowed('Area de desenvolvimento')) {
+      items.push({ key: 'Area de desenvolvimento', label: 'Área de Desenvolvimento', value: d.areaDesenvolvimento });
+    }
+    if (d.risp && isAllowed('Risp')) {
+      items.push({ key: 'Risp', label: 'RISP', value: d.risp });
+    }
+    if (d.aisp && isAllowed('Aisp')) {
+      items.push({ key: 'Aisp', label: 'AISP', value: d.aisp });
+    }
+
+    // --- GRUPO 5: MÉTRICAS DEMOGRÁFICAS DETALHADAS ---
+    if (d.popTotal > 0 && isAllowed('V0001')) {
+      items.push({ key: 'V0001', label: 'População Total', value: `${d.popTotal.toLocaleString('pt-BR')} hab` });
+    }
+    if (d.domTotal > 0 && isAllowed('V0002')) {
+      items.push({ key: 'V0002', label: 'Total de Domicílios', value: d.domTotal.toLocaleString('pt-BR') });
+    }
+    if (d.domParticulares > 0 && isAllowed('V0003')) {
+      items.push({ key: 'V0003', label: 'Domicílios Particulares', value: d.domParticulares.toLocaleString('pt-BR') });
+    }
+    if (d.domOcupados > 0 && isAllowed('V0007')) {
+      items.push({ key: 'V0007', label: 'Domicílios Particulares Ocupados', value: d.domOcupados.toLocaleString('pt-BR') });
+    }
+    if (d.domColetivos > 0 && isAllowed('V0004')) {
+      items.push({ key: 'V0004', label: 'Domicílios Coletivos', value: d.domColetivos.toLocaleString('pt-BR') });
+    }
+    if (d.domVagos > 0) {
+      items.push({ key: 'dom_vagos', label: 'Domicílios Vagos / Ocasional', value: d.domVagos.toLocaleString('pt-BR') });
+    }
+    if (d.taxaVacancia) {
+      items.push({ key: 'taxa_vacancia', label: 'Taxa de Vacância', value: d.taxaVacancia });
+    }
+    if (d.mediaMoradores && isAllowed('V0005')) {
+      items.push({ key: 'V0005', label: 'Média de Moradores', value: `${d.mediaMoradores} moradores/dom.` });
+    }
+
+    // --- OUTROS ATRIBUTOS PERSONALIZADOS (filtrando estritamente fid e códigos) ---
+    if (activeDetailFeature?.properties) {
+      const alreadyHandled = new Set(items.map(i => i.key.toLowerCase()));
+      const standardExcluded = new Set([
+        'fid', 'ogc_fid', 'id', 'gid', 'geom', 'geometry',
+        'cd_mun', 'cd_bairro', 'cd_dist', 'cd_subdist', 'cd_setor', 'cd_fcu', 'cd_nu', 'cd_aglom', 'cd_rgint', 'cd_rgi', 'cd_concurb', 'cd_uf', 'cd_regiao',
+        'cod_risp', 'cod_aisp', 'cod_area de desenvolvimento', 'id_localidades',
+        'nm_mun', 'nm_bairro', 'nm_dist', 'nm_subdist', 'nm_fcu', 'nm_nu', 'nm_aglom', 'nm_rgint', 'nm_rgi', 'nm_uf',
+        'nome', 'municipio', 'bairro', 'subdistrito', 'distrito', 'zona', 'localidade',
+        'area_km2', 'area',
+        'situacao', 'cd_sit', 'cd_tipo', 'situação detalhada', 'tipo do setor', 'tipo', 'nm_sit', 'nm_tipo',
+        'risp', 'aisp', 'area de desenvolvimento', 'área de desenvolvimento',
+        'v0001', 'v0002', 'v0003', 'v0004', 'v0005', 'v0006', 'v0007',
+        'total de pessoas', 'total de domicílios', 'total de domicílios particulares', 'total de domicílios coletivos', 'total de domicílios particulares ocupados'
+      ]);
+
+      Object.entries(activeDetailFeature.properties).forEach(([k, val]) => {
+        const lowK = k.toLowerCase().trim();
+        if (alreadyHandled.has(lowK) || standardExcluded.has(lowK) || isCodeOrSystemProperty(k)) return;
+        if (val == null || String(val).trim() === '') return;
+        if (!isAllowed(k)) return;
+
+        let displayVal = getTranslatedValue(k, val);
+        if (typeof val === 'string') {
+          displayVal = toTitleCase(displayVal);
+        }
+        const label = propertyNames[k] || k;
+        items.push({
+          key: k,
+          label,
+          value: String(displayVal)
+        });
       });
-    });
+    }
 
     return items;
-  }, [activeDetailFeature, allowedProperties]);
+  }, [structuredDetails, activeDetailFeature, allowedProperties, isAdmin]);
 
   // Se uma feição foi selecionada e o usuário ainda não está na aba de detalhes, permitir alternar suavemente
   const hasFeature = !!activeDetailFeature;
@@ -565,10 +758,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <span>&larr; Voltar para busca</span>
                 </button>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white truncate tracking-tight">
-                  {activeDetailFeature.name || 'Local Selecionado'}
+                  {structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado'}
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                  {activeDetailFeature.sourceName} • Teresina, PI
+                  {activeDetailFeature.sourceName} • {structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : 'Piauí'}
                 </p>
               </div>
 
@@ -638,16 +831,34 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
                   <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">População</span>
                   <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {Number(activeDetailFeature.properties?.['V0001'] || activeDetailFeature.properties?.['Total de pessoas'] || 0).toLocaleString('pt-BR')} hab
+                    {structuredDetails?.popTotal ? `${structuredDetails.popTotal.toLocaleString('pt-BR')} hab` : '—'}
                   </span>
                 </div>
 
                 <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
                   <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Domicílios</span>
                   <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {Number(activeDetailFeature.properties?.['V0002'] || activeDetailFeature.properties?.['Total de Domicílios'] || 0).toLocaleString('pt-BR')}
+                    {structuredDetails?.domTotal ? structuredDetails.domTotal.toLocaleString('pt-BR') : '—'}
                   </span>
                 </div>
+
+                {structuredDetails?.mediaMoradores && (
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Média de Moradores</span>
+                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      {structuredDetails.mediaMoradores} /dom.
+                    </span>
+                  </div>
+                )}
+
+                {structuredDetails?.areaKm2 && (
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Área Territorial</span>
+                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      {structuredDetails.areaKm2}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

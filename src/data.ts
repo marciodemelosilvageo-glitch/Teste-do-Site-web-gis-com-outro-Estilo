@@ -83,7 +83,23 @@ export const propertyNames: Record<string, string> = {
   'Endereco': 'Endereço',
   'Endereço': 'Endereço',
   'Complemento': 'Complemento',
-  'Identificação do estabelecimento': 'Identificação do Estabelecimento'
+  'Identificação do estabelecimento': 'Identificação do Estabelecimento',
+  'Situação detalhada': 'Situação Detalhada',
+  'Tipo do Setor': 'Tipo do Setor',
+  'Municipio': 'Nome do Município',
+  'MUNICIPIO': 'Nome do Município',
+  'tipo': 'Tipo',
+  'Zona': 'Zona / Subdistrito',
+  'Bairro': 'Nome do Bairro',
+  'BAIRRO': 'Nome do Bairro',
+  'Subdistrito': 'Nome do Subdistrito',
+  'Distrito': 'Nome do Distrito',
+  'UF': 'Nome da UF',
+  'Área de desenvolvimento': 'Área de Desenvolvimento',
+  'Total de Domicílios': 'Total de Domicílios',
+  'Total de Domicílios Particulares': 'Domicílios Particulares',
+  'Total de Domicílios Coletivos': 'Domicílios Coletivos',
+  'Total de Domicílios Particulares Ocupados': 'Domicílios Ocupados'
 };
 
 // ---------- Estilos e Legendas Temáticas (Paleta Apple Maps / iOS HIG) ----------

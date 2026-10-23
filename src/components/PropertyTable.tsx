@@ -102,6 +102,8 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
         let translatedVal = getTranslatedValue(key, val);
         if (typeof val === 'string' && (key.startsWith('NM_') || key.toLowerCase().includes('nome') || key.toLowerCase().includes('localida') || key.toLowerCase().includes('bairro') || key.toLowerCase().includes('municip') || key.toLowerCase().includes('endereco') || key.toLowerCase().includes('logradouro'))) {
           translatedVal = toTitleCase(translatedVal);
+        } else if (key === 'AREA_KM2' && typeof val === 'number') {
+          translatedVal = `${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} km²`;
         }
         const disp = propertyNames[key] || key;
         const isHighlighted = key === 'NM_MUN' || key === 'NM_BAIRRO' || key === 'Nome' || key === 'Município' || key === 'Bairros' || key === 'Municipios';
@@ -112,6 +114,33 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
           value: translatedVal,
           isHighlighted
         });
+      });
+
+      // Ordenar priorizando nomes oficiais, área territorial e informações descritivas no topo
+      filteredProps.sort((a, b) => {
+        const priorityOrder = [
+          'nm_mun', 'municipio', 'nome do município',
+          'nm_bairro', 'bairro', 'nome do bairro',
+          'nome', 'localidade', 'nm_fcu', 'nm_nu', 'nm_aglom',
+          'nm_dist', 'distrito', 'nm_subdist', 'subdistrito', 'zona',
+          'nm_rgint', 'nm_rgi', 'nm_uf',
+          'area_km2',
+          'situacao', 'cd_sit', 'situação detalhada',
+          'tipo do setor', 'cd_tipo', 'tipo',
+          'area de desenvolvimento', 'risp', 'aisp',
+          'total de pessoas', 'v0001',
+          'total de domicílios', 'v0002',
+          'total de domicílios particulares', 'v0003',
+          'total de domicílios particulares ocupados', 'v0007',
+          'total de domicílios coletivos', 'v0004',
+          'v0005'
+        ];
+        const idxA = priorityOrder.indexOf(a.key.toLowerCase());
+        const idxB = priorityOrder.indexOf(b.key.toLowerCase());
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
       });
 
       return {
