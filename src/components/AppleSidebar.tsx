@@ -394,34 +394,21 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       aria-label="Painel Principal Apple Maps"
       className="relative z-30 h-full w-[380px] sm:w-[420px] flex flex-col select-none shrink-0 transition-all duration-300 bg-white/85 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden font-sans"
     >
-      {/* 1. TOPO DA BARRA LATERAL (Logo Oficial + Marca + Botão de Colapsar) */}
-      <div className="p-3.5 pb-2.5 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
+      {/* 1. TOPO DA BARRA LATERAL (Apenas a Logo Oficial + Botão de Colapsar) */}
+      <div className="p-3 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
         <div 
-          className="flex items-center gap-2.5 cursor-pointer select-none group"
+          className="flex items-center cursor-pointer select-none group"
           onDoubleClick={onOpenAdminPanel}
-          title="WebGis - Clique duplo para login de Administrador"
+          title="Clique duplo para login de Administrador"
         >
           <img 
             src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
-            alt="Logo WebGis"
-            className="h-10 w-auto object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
+            alt="Logo"
+            className="h-11 sm:h-12 w-auto max-w-[200px] object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
             }}
           />
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
-                WebGis
-              </span>
-              <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-blue-500/10 text-[#007AFF] dark:text-[#0a84ff] border border-blue-500/20">
-                PRO
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium leading-tight">
-              Geocodificando
-            </span>
-          </div>
         </div>
 
         <button
