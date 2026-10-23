@@ -51,7 +51,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
 import { dataSources, propertyNames } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { Dashboard } from './Dashboard';
 import { PropertyTable } from './PropertyTable';
@@ -210,6 +210,41 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     if (selectedFeatures.length === 0) return null;
     return selectedFeatures[selectedFeatures.length - 1];
   }, [selectedFeatures]);
+
+  // Propriedades filtradas para exibição no Place Card (ocultando fid, códigos numéricos e campos técnicos)
+  const detailProperties = useMemo(() => {
+    if (!activeDetailFeature || !activeDetailFeature.properties) return [];
+    const props = activeDetailFeature.properties;
+    const items: Array<{ key: string; label: string; value: string }> = [];
+
+    Object.entries(props).forEach(([key, val]) => {
+      // 1. Filtrar códigos técnicos, fid, ids e geometrias
+      if (isCodeOrSystemProperty(key)) return;
+
+      // 2. Verificar permissão administrativa para a propriedade
+      if (allowedProperties && allowedProperties[key] === false) return;
+
+      // 3. Filtrar valores nulos ou vazios
+      if (val == null || String(val).trim() === '') return;
+
+      // 4. Formatação de valores
+      let displayVal = getTranslatedValue(key, val);
+      if (typeof val === 'string' && (key.startsWith('NM_') || key.toLowerCase().includes('nome') || key.toLowerCase().includes('localida') || key.toLowerCase().includes('bairro') || key.toLowerCase().includes('municip') || key.toLowerCase().includes('endereco') || key.toLowerCase().includes('logradouro'))) {
+        displayVal = toTitleCase(displayVal);
+      } else if (key === 'AREA_KM2' && typeof val === 'number') {
+        displayVal = `${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} km²`;
+      }
+
+      const label = propertyNames[key] || key;
+      items.push({
+        key,
+        label,
+        value: String(displayVal)
+      });
+    });
+
+    return items;
+  }, [activeDetailFeature, allowedProperties]);
 
   // Se uma feição foi selecionada e o usuário ainda não está na aba de detalhes, permitir alternar suavemente
   const hasFeature = !!activeDetailFeature;
@@ -622,20 +657,19 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 Detalhes & Propriedades
               </h3>
 
-              <div className="divide-y divide-black/5 dark:divide-white/10 text-xs">
-                {Object.entries(activeDetailFeature.properties || {})
-                  .slice(0, 15)
-                  .map(([key, val]) => (
-                    <div key={key} className="py-2 flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
-                        {propertyNames[key] || key}
+              {detailProperties.length > 0 ? (
+                <div className="divide-y divide-black/5 dark:divide-white/10 text-xs">
+                  {detailProperties.map((prop) => (
+                    <div key={prop.key} className="py-2 flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 truncate max-w-[140px]" title={prop.label}>
+                        {prop.label}
                       </span>
                       <div className="flex items-center gap-1.5 shrink-0 font-bold text-slate-800 dark:text-slate-200">
-                        <span className="truncate max-w-[170px]">{String(val)}</span>
+                        <span className="truncate max-w-[170px]" title={prop.value}>{prop.value}</span>
                         <button
                           type="button"
-                          onClick={() => handleCopy(String(val), key)}
-                          className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700"
+                          onClick={() => handleCopy(prop.value, prop.label)}
+                          className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                           title="Copiar valor"
                         >
                           <Copy className="w-3 h-3" />
@@ -643,7 +677,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                       </div>
                     </div>
                   ))}
-              </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 dark:text-slate-500 py-2 text-center">
+                  Nenhum atributo adicional a exibir.
+                </p>
+              )}
             </div>
           </div>
         )}

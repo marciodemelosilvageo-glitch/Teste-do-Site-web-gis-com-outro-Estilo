@@ -129,6 +129,69 @@ export const getTranslatedValue = (key: string, value: any): string => {
   return valStr;
 };
 
+// Identifica se uma chave de propriedade é um código técnico, ID ou campo interno que não deve ser exibido
+export const isCodeOrSystemProperty = (key: string): boolean => {
+  if (!key) return true;
+  const rawKey = key.trim();
+  const lowKey = rawKey.toLowerCase();
+  
+  // 1. Chaves de sistema e identificadores técnicos exatos
+  const systemExact = [
+    'fid', 'ogc_fid', 'id', 'gid', 'objectid', 'cartodb_id', 'geom', 'geometry', '_details',
+    'id localidades', 'id_localidades', 'id localidade', 'cod_aisp', 'cod_risp',
+    'código único do endereço', 'codigo unico do endereco'
+  ];
+  if (systemExact.includes(lowKey)) return true;
+
+  // 2. Prefixos de códigos técnicos (CD_*, COD_*, CODIGO_*, CÓDIGO_*)
+  const upperKey = rawKey.toUpperCase();
+  if (
+    upperKey.startsWith('CD_') || 
+    upperKey.startsWith('COD_') || 
+    upperKey.startsWith('CODIGO_') || 
+    upperKey.startsWith('CÓDIGO_')
+  ) {
+    // CD_SIT e CD_TIPO têm valor descritivo traduzido ("Situação Detalhada", "Tipo do Setor"), mantemos
+    if (upperKey === 'CD_SIT' || upperKey === 'CD_TIPO') {
+      return false;
+    }
+    return true;
+  }
+
+  // 3. Qualquer chave cujo nome contenha código/geocódigo
+  if (
+    lowKey.includes('codigo') || 
+    lowKey.includes('código') || 
+    lowKey.includes('geocodigo') || 
+    lowKey.includes('geocódigo')
+  ) {
+    return true;
+  }
+
+  // 4. Se houver um nome amigável registrado em propertyNames
+  const label = propertyNames[rawKey];
+  if (label) {
+    const lowLabel = label.toLowerCase();
+    if (
+      lowLabel.startsWith('código') || 
+      lowLabel.startsWith('codigo') || 
+      lowLabel.startsWith('geocódigo') || 
+      lowLabel.startsWith('geocodigo') ||
+      lowLabel.startsWith('id ') ||
+      lowLabel.includes('código do') ||
+      lowLabel.includes('codigo do') ||
+      lowLabel.includes('código da') ||
+      lowLabel.includes('codigo da') ||
+      lowLabel.includes('código de') ||
+      lowLabel.includes('codigo de')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Formatar textos de MAIÚSCULO para Title Case (Ex: "CACIMBA DE CIMA" -> "Cacimba de Cima")
 export const toTitleCase = (str: string | null | undefined): string => {
   if (!str) return '';

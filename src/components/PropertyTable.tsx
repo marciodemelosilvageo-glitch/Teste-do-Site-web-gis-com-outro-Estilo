@@ -5,7 +5,8 @@ import { propertyNames } from '../data';
 import { 
   getTranslatedValue, 
   getFeatureCenter, 
-  toTitleCase
+  toTitleCase,
+  isCodeOrSystemProperty
 } from '../utils';
 
 interface PropertyTableProps {
@@ -71,12 +72,13 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
       const filteredProps: Array<{ key: string; label: string; value: string; isHighlighted: boolean }> = [];
 
       Object.keys(props).forEach(key => {
-        const low = key.toLowerCase();
-        if (low === 'fid' || low === 'id' || low === 'geom' || low === '_details') return;
+        // Ocultar fid, códigos técnicos e campos de sistema
+        if (isCodeOrSystemProperty(key)) return;
 
         // Verificar permissão administrativa para a propriedade
         if (allowedProperties && allowedProperties[key] === false) return;
 
+        const low = key.toLowerCase();
         const featNameUpper = String(feat.name || '').toUpperCase().trim();
         if (feat.sourceName === "Municipios" && (featNameUpper === "TERESINA" || featNameUpper === "PARNAÍBA" || featNameUpper === "PARNAIBA")) {
           if (low === 'aisp' || low === 'cod_aisp') return;
@@ -93,10 +95,6 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
         if (feat.sourceName === "Coordenadas" || feat.sourceName === "Coordenada" || feat.sourceName === "Coordenadas IBGE") {
           if (['latitude', 'longitude', 'lat', 'lng', 'lon', 'nome', 'tipo'].includes(low)) return;
         }
-
-        const isCode = key.toUpperCase().startsWith('CD_') || key.toUpperCase().startsWith('COD_');
-        const isTranslated = (key === 'CD_SIT' || key === 'CD_TIPO');
-        if (isCode && !isTranslated) return;
 
         const val = props[key];
         if (val == null || String(val).trim() === '') return;
