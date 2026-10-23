@@ -58,7 +58,15 @@ BEGIN
   END IF;
 END $$;
 
--- 5. Inicializar linha padrão para 'global' caso não exista
+-- 5. Conceder permissões para a anon key (acesso da API REST)
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.webgis_settings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.webgis_user_sessions TO anon, authenticated, service_role;
+
+-- 6. Inicializar linha padrão para 'global' caso não exista
 INSERT INTO public.webgis_settings (id, updated_at)
 VALUES ('global', NOW())
 ON CONFLICT (id) DO NOTHING;
+
+-- 7. Forçar a API do Supabase (PostgREST) a recarregar o cache de tabelas imediatamente
+NOTIFY pgrst, 'reload schema';
