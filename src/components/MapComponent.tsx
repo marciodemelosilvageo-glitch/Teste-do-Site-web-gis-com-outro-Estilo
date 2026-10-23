@@ -1272,17 +1272,18 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     });
     resizeObserver.observe(mapContainerRef.current);
 
-    // Configurar as opções de Basemaps
+    // Configurar as opções de Basemaps com a API Key CARTO fornecida pelo usuário
+    const CARTO_API_KEY = 'cb1_26l5_1_d7bcaa768a4e7a1dfcb1948d';
     tileLayersRef.current = {
-      apple: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
+      apple: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, { 
         maxZoom: 20,
         subdomains: ['a', 'b', 'c', 'd'],
-        attribution: '&copy; Apple Maps Style' 
+        attribution: '&copy; Apple Maps Style (CARTO Voyager)' 
       }),
-      appleDark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { 
+      appleDark: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, { 
         maxZoom: 20,
         subdomains: ['a', 'b', 'c', 'd'],
-        attribution: '&copy; Apple Maps Escuro Style' 
+        attribution: '&copy; Apple Maps Escuro Style (CARTO Dark)' 
       }),
       googleHybrid: L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { 
         maxZoom: 20, 
@@ -1300,7 +1301,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
         attribution: 'Tiles &copy; Esri' 
       }),
-      carto: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { 
+      carto: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, { 
         attribution: '&copy; Carto Light' 
       })
     };
@@ -2545,52 +2546,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   return (
-    <div className={`space-y-3 ${isPrintMode ? 'h-full flex flex-col' : ''}`}>
-      {/* Botões de Ações Rápidas de Camada (Estilo Apple) */}
-      {!isPrintMode && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-xl p-2.5 sm:p-3 rounded-2xl border border-black/5 dark:border-white/10 shadow-xs">
-          <div id="active-layer-display" className="w-full sm:w-auto text-center sm:text-left text-black dark:text-slate-100 text-xs sm:text-sm font-semibold" aria-live="polite">
-            {activeLayers.length > 0 
-              ? `Camadas ativas: ${activeLayers.join(', ')}` 
-              : 'Camadas ativas: nenhuma'}
-          </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-center sm:justify-end">
-            <button 
-              id="btn-multi-select" 
-              onClick={onToggleMultiSelect}
-              className={`px-3 py-1.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                isMultiSelectMode 
-                  ? 'bg-[#007AFF] border-[#0066d6] text-white shadow-blue-500/25' 
-                  : 'bg-black/5 dark:bg-white/10 border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/15'
-              }`}
-              title="Permite selecionar várias áreas tocando nelas sem precisar do teclado"
-            >
-              <MousePointerClick className="h-4 w-4" />
-              Multiseleção: {isMultiSelectMode ? 'ON' : 'OFF'}
-            </button>
-            {!isAllLayersOn && (
-              <button 
-                onClick={handleTurnAllOn}
-                className="px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold border border-black/5 dark:border-white/10 transition-all cursor-pointer" 
-                title="Ligar todas as camadas"
-              >
-                Ligar tudo
-              </button>
-            )}
-            <button 
-              onClick={handleTurnAllOff}
-              className="px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold border border-black/5 dark:border-white/10 transition-all cursor-pointer" 
-              title="Desligar todas as camadas"
-            >
-              Desligar tudo
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Caixa do Mapa com Controles Absolutos */}
-      <div className={`relative w-full ${isPrintMode ? 'flex-1 min-h-[500px]' : 'h-[82vh] min-h-[550px] sm:min-h-[650px] lg:min-h-[720px]'}`}>
-        <div className={`absolute inset-0 w-full h-full overflow-hidden z-10 ${isPrintMode ? '' : 'rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm'}`}>
+    <div className={`w-full h-full relative select-none ${isPrintMode ? 'flex flex-col' : ''}`}>
+      {/* Caixa do Mapa com Controles Absolutos (100% Fullscreen Estilo Apple Maps) */}
+      <div className={`relative w-full h-full ${isPrintMode ? 'flex-1 min-h-[500px]' : ''}`}>
+        <div className="absolute inset-0 w-full h-full overflow-hidden z-0">
           <div 
             ref={mapContainerRef} 
             id="map" 
@@ -2887,6 +2846,17 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           </div>
         )}
 
+        {/* Apple Maps Legal Bar no Canto Inferior Direito */}
+        {!isPrintMode && (
+          <div className="absolute bottom-2 right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10">
+            <span>Termos</span>
+            <span>•</span>
+            <span>Legal</span>
+            <span>•</span>
+            <span>Dados IBGE / SSP-PI</span>
+          </div>
+        )}
+
         {/* Loading Overlay */}
         {isLoading && (
           <div id="loading-overlay" className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center z-[1000] rounded-2xl">
@@ -3064,7 +3034,23 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   )}
                 </div>
 
-                {/* 2. Botão de Camadas Estilo Apple (Floating Pill) */}
+                {/* 2. Botão Multiseleção Estilo Apple */}
+                <button 
+                  type="button"
+                  id="btn-multi-select" 
+                  onClick={onToggleMultiSelect}
+                  className={`h-10 px-3.5 rounded-2xl flex items-center gap-1.5 border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer ${
+                    isMultiSelectMode 
+                      ? 'bg-[#007AFF] text-white border-[#0066d6] shadow-blue-500/25' 
+                      : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10'
+                  }`}
+                  title="Permite selecionar várias áreas tocando nelas sem precisar do teclado"
+                >
+                  <MousePointerClick className="w-4 h-4" />
+                  <span className="hidden sm:inline">Multiseleção: {isMultiSelectMode ? 'ON' : 'OFF'}</span>
+                </button>
+
+                {/* 3. Botão de Camadas Estilo Apple (Floating Pill) */}
                 {allowLayerPanel && (
                   <button 
                     onClick={() => {

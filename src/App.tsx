@@ -13,7 +13,8 @@ import {
   Check, Sun, Moon, Printer,
   Star, History,
   ShieldCheck, KeyRound, Lock, LogOut, User, Eye, EyeOff, SlidersHorizontal, ShieldAlert,
-  UserCheck, UserPlus, Crown, Briefcase, AlertTriangle, Loader2
+  UserCheck, UserPlus, Crown, Briefcase, AlertTriangle, Loader2,
+  Download, Table2, ExternalLink, PanelLeft, PanelLeftClose
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import L from 'leaflet';
@@ -21,6 +22,7 @@ import L from 'leaflet';
 import { MapComponent } from './components/MapComponent';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './components/IbgeSearchPanel';
 import { PropertyTable } from './components/PropertyTable';
+import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters } from './utils';
@@ -350,6 +352,20 @@ export default function App() {
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
   const [printFontFamily, setPrintFontFamily] = useState<string>('font-sans');
   const [printFontSize, setPrintFontSize] = useState<number>(36);
+
+  // Estados de layout estilo Apple Maps (maps.apple.com)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('search');
+  const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+
+  // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa
+  useEffect(() => {
+    if (selectedFeatures.length > 0) {
+      setSidebarTab('details');
+      setIsSidebarCollapsed(false);
+    }
+  }, [selectedFeatures]);
 
   const [measureHistory, setMeasureHistory] = useState<L.LatLng[] | null>(null);
 
@@ -2146,7 +2162,7 @@ export default function App() {
   }
 
   return (
-    <div className={`relative min-h-screen w-full flex flex-col items-center p-1 sm:p-2.5 md:p-3.5 space-y-3 font-sans select-none overflow-x-hidden ${isPrintMode ? 'bg-white' : ''}`}>
+    <div className={`relative w-screen h-screen overflow-hidden font-sans select-none bg-slate-100 dark:bg-slate-950 ${isPrintMode ? 'bg-white' : ''}`}>
       <style>
         {`
           @media print {
@@ -2158,35 +2174,21 @@ export default function App() {
           }
         `}
       </style>
-      {/* Papel de parede de fundo desfocado (borrado) - Corrigido para não bugar no fundo */}
-      <div className="fixed inset-0 z-[-2] pointer-events-none overflow-hidden bg-white dark:bg-slate-900">
-        <div 
-          className="absolute inset-[-10%] w-[120%] h-[120%] filter blur-[15px] scale-105"
-          style={{
-            backgroundImage: "url('https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/banner-mock.webp')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'fixed',
-          }}
-        />
-      </div>
-      {/* Camada de Desfoque de Fundo para Efeito Vidro */}
-      <div className="fixed inset-0 bg-white/40 dark:bg-slate-900/80 backdrop-blur-md z-[-1]" />
 
       {/* BANNER FLUTUANTE DE SIMULAÇÃO (EXCLUSIVO DO MASTER) */}
       {isRealMaster && isSimulatingUser && (
-        <div className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white font-bold px-4 py-3 rounded-2xl shadow-xl border border-amber-300/40 flex flex-col sm:flex-row items-center justify-between gap-3 z-[2500] animate-fadeIn select-none">
-          <div className="flex items-center gap-3 text-xs sm:text-sm">
-            <div className="w-8 h-8 rounded-xl bg-black/20 flex items-center justify-center shrink-0 border border-white/20">
-              <Eye className="w-4 h-4 text-white" />
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-11/12 max-w-4xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white font-bold px-4 py-2 rounded-2xl shadow-xl border border-amber-300/40 flex flex-col sm:flex-row items-center justify-between gap-2 z-[2500] animate-fadeIn select-none">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm">
+            <div className="w-7 h-7 rounded-lg bg-black/20 flex items-center justify-center shrink-0 border border-white/20">
+              <Eye className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-100 block">
+              <span className="text-[9px] font-black uppercase tracking-wider text-amber-100 block">
                 Modo de Simulação Ativo (Master)
               </span>
-              <span className="font-extrabold text-white flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-white flex items-center gap-1.5 flex-wrap text-xs">
                 Vendo o WebGIS como:{' '}
-                <span className="bg-slate-950/80 text-amber-300 px-2.5 py-0.5 rounded-lg border border-amber-400/40 font-mono text-xs">
+                <span className="bg-slate-950/80 text-amber-300 px-2 py-0.5 rounded-md border border-amber-400/40 font-mono text-[11px]">
                   {simulatedRole === 'manager' 
                     ? '👔 GERENTE' 
                     : (simulatedTargetUser ? `👤 @${simulatedTargetUser.username} (${simulatedTargetUser.name})` : '👤 VISITANTE COMUM')}
@@ -2199,551 +2201,170 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsSimulationChoiceModalOpen(true)}
-              className="px-3 py-1.5 bg-slate-950/70 hover:bg-slate-950 text-amber-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-amber-400/30 flex items-center gap-1.5 shadow-sm"
+              className="px-2.5 py-1 bg-slate-950/70 hover:bg-slate-950 text-amber-200 rounded-lg text-xs font-bold transition-all cursor-pointer border border-amber-400/30 flex items-center gap-1 shadow-sm"
               title="Trocar para visão de Gerente ou outro usuário"
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3 h-3" />
               <span>Trocar Visão</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsAdminModalOpen(true)}
-              className="px-3 py-1.5 bg-black/30 hover:bg-black/50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-white/20 flex items-center gap-1.5 shadow-sm"
+              className="px-2.5 py-1 bg-black/30 hover:bg-black/50 text-white rounded-lg text-xs font-bold transition-all cursor-pointer border border-white/20 flex items-center gap-1 shadow-sm"
               title="Abrir Painel Master para ajustar permissões"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <SlidersHorizontal className="w-3 h-3" />
               <span>Painel Master</span>
             </button>
 
             <button
               type="button"
               onClick={handleExitSimulation}
-              className="px-3.5 py-1.5 bg-white hover:bg-amber-50 text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer shadow-md flex items-center gap-1.5 hover:scale-105 active:scale-95"
+              className="px-3 py-1 bg-white hover:bg-amber-50 text-slate-950 rounded-lg text-xs font-black transition-all cursor-pointer shadow-md flex items-center gap-1 hover:scale-105 active:scale-95"
               title="Encerrar simulação e voltar para visão total de Master"
             >
-              <Crown className="w-4 h-4 text-amber-600 fill-amber-500" />
-              <span>Voltar para Visão Master</span>
+              <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+              <span>Voltar</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* QUADRO PRINCIPAL */}
-      <main className={`w-full bg-white dark:bg-slate-900 z-10 ${isPrintMode ? 'fixed inset-0 m-0 p-0 rounded-none flex flex-col md:flex-row z-[9999] bg-slate-200 dark:bg-slate-800 print:bg-white print:block' : 'rounded-2xl shadow-2xl p-2.5 sm:p-4 space-y-3 border border-slate-200/60 dark:border-slate-800/60'}`}>
+      {/* BARRA SUPERIOR DE IMPRESSÃO (QUANDO MODO IMPRESSÃO ATIVO) */}
+      {isPrintMode && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[2600] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-3 flex items-center gap-3">
+          <input
+            type="text"
+            value={printTitle}
+            onChange={(e) => setPrintTitle(e.target.value)}
+            placeholder="Título do Mapa..."
+            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 w-48"
+          />
+          <button
+            type="button"
+            onClick={() => setPrintOrientation(prev => prev === 'portrait' ? 'landscape' : 'portrait')}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all"
+          >
+            {printOrientation === 'portrait' ? 'Retrato' : 'Paisagem'}
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Imprimir</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsPrintMode(false)}
+            className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* TELA INTEGRADA ESTILO APPLE MAPS (MAPS.APPLE.COM) */}
+      <div className="relative w-full h-full flex overflow-hidden">
+        {/* BARRA LATERAL TRANSLÚCIDA APPLE */}
+        {!isPrintMode && (
+          <AppleSidebar
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+            activeTab={sidebarTab}
+            onTabChange={setSidebarTab}
+            selectedFeatures={selectedFeatures}
+            onClearSelection={() => setSelectedFeatures([])}
+            onZoomToSelected={() => {
+              if (selectedFeatures.length > 0 && selectedFeatures[0].layer && mapActionsRef.current) {
+                mapActionsRef.current.zoomToFeature(selectedFeatures[0].layer);
+              }
+            }}
+            onOpenRaioX={() => setSidebarTab('raiox')}
+            onOpenCnefeForSelected={() => {
+              if (selectedFeatures.length > 0) {
+                const feat = selectedFeatures[0];
+                handleSearchPolygonAddresses({
+                  feature: { type: 'Feature', geometry: (feat.layer as any)?.feature?.geometry, properties: feat.properties },
+                  title: feat.name,
+                  sourceName: feat.sourceName,
+                  layer: feat.layer
+                });
+                setSidebarTab('cnefe');
+              }
+            }}
+            onOpenExportForSelected={() => setIsExportModalOpen(true)}
+            onOpenFullTable={() => setIsFullTableModalOpen(true)}
+            allowedProperties={isAdmin ? undefined : effectiveSession.featurePropertiesPermissions}
+            searchQuery={searchQuery}
+            onSearchQueryChange={(q) => {
+              setSearchQuery(q);
+              handleSearch(q);
+            }}
+            isSearchLoading={isSearchLoading}
+            selectedSearchLayer={selectedSearchLayer}
+            onSelectSearchLayer={setSelectedSearchLayer}
+            allowedLayerNames={allowedLayerNames}
+            searchHistory={searchHistory}
+            onSelectSearchHistory={(item) => {
+              setSearchQuery(item);
+              handleSearch(item);
+            }}
+            groupedResults={groupedResults}
+            onResultClick={handleResultItemClick}
+            onClearSearch={() => {
+              setSearchQuery('');
+              setGroupedResults({});
+            }}
+            activeLayers={activeLayers}
+            onToggleLayer={(name) => {
+              setActiveLayers(prev => prev.includes(name) ? prev.filter(l => l !== name) : [...prev, name]);
+            }}
+            onToggleAllLayers={(enable) => {
+              if (enable) {
+                const all = (allowedLayerNames || dataSources.map(s => s.name));
+                setActiveLayers(all);
+              } else {
+                setActiveLayers([]);
+              }
+            }}
+            isMultiSelectMode={isMultiSelectMode}
+            onToggleMultiSelect={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada!');
+            }}
+            onSaveFavorites={handleSaveFavoriteLayers}
+            onLoadFavorites={handleLoadFavoriteLayers}
+            currentActiveUser={currentActiveUser}
+            isAdmin={isAdmin}
+            userRole={userRole}
+            isSimulatingUser={isSimulatingUser}
+            onOpenAdmin={() => {
+              if (isAdmin) setIsAdminModalOpen(true);
+              else handleOpenAdminLogin();
+            }}
+            onOpenUserModal={() => {
+              if (currentActiveUser) setIsProfileModalOpen(true);
+              else setIsUserLoginModalOpen(true);
+            }}
+            onOpenHelp={() => setIsHelpOpen(true)}
+            isDarkMode={isDarkMode}
+            onToggleTheme={() => setIsDarkMode(prev => !prev)}
+            onTogglePrint={() => setIsPrintMode(prev => !prev)}
+            onPlotAddress={handlePlotAddress}
+            onPlotAllAddresses={handlePlotAllAddresses}
+            onClearPlot={handleClearPlot}
+            cnefeExternalResult={cnefeExternalResult}
+            allowedAddressColumns={isAdmin ? undefined : effectiveSession.addressColumnsPermissions}
+            showToast={showToast}
+          />
+        )}
         
-        {/* CABEÇALHO E BUSCA */}
-        {!isPrintMode && (
-          <header className="flex flex-col lg:flex-row items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 relative z-40">
-            {/* Logo e Branding - Clique duplo secreto para login ADM */}
-            <div className="flex items-center gap-3">
-              <div 
-                className="bg-white rounded-xl p-1 shadow-sm border border-slate-200 cursor-pointer select-none"
-                onDoubleClick={handleOpenAdminLogin}
-                title="WebGis"
-              >
-                <img 
-                  src={CURRENT_APP_LOGO} 
-                  alt="Logo WebGis" 
-                  className="h-14 sm:h-16 hover:scale-105 transition-transform select-none pointer-events-none" 
-                />
-              </div>
-            </div>
-
-
-            {/* Controles de Administrador / Gerente / Usuário e Toggle Tema Escuro */}
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {/* Badge e Controles do Master */}
-              {isMaster && (
-                <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white px-2.5 sm:px-3 py-1.5 rounded-2xl shadow-xs border border-red-500/30 text-xs font-bold animate-fadeIn">
-                  <button
-                    type="button"
-                    onClick={() => setIsProfileModalOpen(true)}
-                    className="flex items-center gap-1.5 hover:bg-white/20 px-2 py-1 rounded-xl transition-colors cursor-pointer"
-                    title="Clique para abrir Sua Conta (Editar nome, usuário ou senha)"
-                  >
-                    <Crown className="w-4 h-4 text-amber-300 shrink-0" />
-                    <span>MASTER</span>
-                    {currentActiveUser && (
-                      <span className="hidden xl:inline text-red-100 font-normal">
-                        ({currentActiveUser.name})
-                      </span>
-                    )}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminModalOpen(true)}
-                    className="px-2 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
-                    title="Abrir Painel do Administrador Master"
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                    <span>Painel Master</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsSimulationChoiceModalOpen(true)}
-                    className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors cursor-pointer text-[11px] flex items-center gap-1.5"
-                    title="Simular a visão de Visitante ou Gerente"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Testar Visão</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="p-1 bg-black/20 hover:bg-black/40 text-white rounded-lg transition-colors cursor-pointer"
-                    title="Sair do Modo Master e voltar para a tela inicial"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Badge e Controles do Gerente */}
-              {isManager && (
-                <div className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 text-white px-2.5 sm:px-3 py-1.5 rounded-2xl shadow-xs border border-indigo-500/30 text-xs font-bold animate-fadeIn">
-                  <button
-                    type="button"
-                    onClick={() => setIsProfileModalOpen(true)}
-                    className="flex items-center gap-1.5 hover:bg-white/20 px-2 py-1 rounded-xl transition-colors cursor-pointer"
-                    title="Clique para abrir Sua Conta (Editar nome, usuário ou senha)"
-                  >
-                    <Briefcase className="w-4 h-4 text-white shrink-0" />
-                    <span>GERENTE</span>
-                    {currentActiveUser && (
-                      <span className="hidden xl:inline text-indigo-100 font-normal">
-                        ({currentActiveUser.name})
-                      </span>
-                    )}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminModalOpen(true)}
-                    className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
-                    title="Abrir Painel de Gestão do Gerente"
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                    <span>Painel de Gestão</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="p-1 bg-black/20 hover:bg-black/40 text-white rounded-lg transition-colors cursor-pointer"
-                    title="Sair da sessão e voltar para a tela inicial"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Badge do Usuário Comum / Visitante (Clicável para abrir Sua Conta) */}
-              {!isMaster && !isManager && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsProfileModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-xs transition-all cursor-pointer group"
-                    title={currentActiveUser ? "Clique para gerenciar sua conta e trocar senha" : "Clique aqui para criar sua conta oficial no WebGIS"}
-                  >
-                    <div className="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <User className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors font-bold">
-                      {currentActiveUser
-                        ? `${currentActiveUser.name} (@${currentActiveUser.username})`
-                        : 'Clique aqui para fazer sua conta'}
-                    </span>
-                    {currentActiveUser?.department && (
-                      <span className="hidden sm:inline-block text-[10px] text-slate-400 font-normal">
-                        • {currentActiveUser.department}
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-red-50 dark:hover:bg-red-950/50 text-slate-700 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 border border-slate-200 dark:border-slate-700 transition-all text-xs font-bold shadow-xs cursor-pointer"
-                    title="Sair ou trocar de usuário"
-                  >
-                    <LogOut className="w-3.5 h-3.5 text-red-500" />
-                    <span className="hidden sm:inline">Sair</span>
-                  </button>
-                </div>
-              )}
-
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors shadow-sm cursor-pointer"
-                title={isDarkMode ? "Ativar Modo Claro" : "Ativar Modo Escuro"}
-              >
-                {isDarkMode ? <Sun className="w-5 h-5 sm:w-6 sm:h-6" /> : <Moon className="w-5 h-5 sm:w-6 sm:h-6" />}
-              </button>
-            </div>
-
-            <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
-
-            {/* Campo de Busca Avançada */}
-            <div className="w-full lg:w-full flex flex-col gap-2 max-w-3xl flex-grow z-50">
-              {/* Opção de busca restrita */}
-              {(isAdmin || featurePermissions.allowSearchActiveLayersOnly !== false) && (
-                <div className="flex items-center self-end" title="Busca somente nas camadas ligadas">
-                  <input 
-                    id="search-active-layers-toggle" 
-                    type="checkbox" 
-                    checked={searchActiveLayersOnly}
-                    onChange={(e) => setSearchActiveLayersOnly(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-red-600 focus:ring-red-500 cursor-pointer" 
-                  />
-                  <label htmlFor="search-active-layers-toggle" className="ml-2 text-xs text-slate-600 dark:text-slate-400 font-semibold cursor-pointer select-none">
-                    Pesquisar apenas nas camadas ativas
-                  </label>
-                </div>
-              )}
-
-              {/* Barra de Input */}
-              <div className="w-full flex items-center gap-2">
-                <div className="relative flex-grow">
-                  <div className="flex rounded-xl shadow-sm border border-slate-300 dark:border-slate-600 focus-within:ring-2 focus-within:ring-red-500 focus-within:border-red-500 overflow-hidden bg-slate-50 dark:bg-slate-800 transition-all">
-                    <input 
-                      ref={searchInputRef}
-                      type="text" 
-                      id="search-input" 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Pesquisar (ex: Centro, Teresina) — [Ctrl + F]" 
-                      autoComplete="off"
-                      className="w-full px-4 py-2.5 text-slate-800 dark:text-slate-200 bg-transparent focus:outline-none text-sm placeholder-slate-400 font-semibold"
-                    />
-                    {searchQuery.trim() !== '' && (
-                      <button
-                        type="button"
-                        onClick={() => toggleSaveSearch(searchQuery)}
-                        className={`px-2.5 flex items-center justify-center transition-colors cursor-pointer border-l border-slate-200 dark:border-slate-700 ${
-                          savedSearches.some(s => s.toLowerCase() === searchQuery.trim().toLowerCase())
-                            ? 'text-amber-500 hover:text-amber-600'
-                            : 'text-slate-400 hover:text-amber-500'
-                        }`}
-                        title={
-                          savedSearches.some(s => s.toLowerCase() === searchQuery.trim().toLowerCase())
-                            ? "Remover das pesquisas salvas"
-                            : "Salvar esta pesquisa nos favoritos"
-                        }
-                      >
-                        <Star className={`w-4 h-4 ${savedSearches.some(s => s.toLowerCase() === searchQuery.trim().toLowerCase()) ? 'fill-amber-500' : ''}`} />
-                      </button>
-                    )}
-                    {searchQuery && (
-                      <button 
-                        onClick={handleAbandonSearch}
-                        className="px-2 text-slate-400 hover:text-red-500 cursor-pointer"
-                        title="Limpar busca"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button 
-                      onClick={() => handleSearch()}
-                      disabled={isSearchLoading}
-                      className="px-4 bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center cursor-pointer border-l border-red-700" 
-                      title="Pesquisar"
-                    >
-                      {isSearchLoading ? (
-                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      ) : (
-                        <Search className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção de Pesquisas Recentes (3 últimas) e Pesquisas Salvas */}
-              {(recentSearches.length > 0 || savedSearches.length > 0) && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 px-1 text-xs">
-                  {/* 3 Pesquisas Recentes */}
-                  {recentSearches.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="flex items-center gap-1 font-bold text-slate-500 dark:text-slate-400 select-none">
-                        <History className="w-3.5 h-3.5 text-red-500" />
-                        Recentes:
-                      </span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {recentSearches.map((term, idx) => (
-                          <button
-                            key={`recent-${idx}`}
-                            onClick={() => {
-                              setSearchQuery(term);
-                              handleSearch(term);
-                            }}
-                            className="bg-slate-200/80 dark:bg-slate-700/80 hover:bg-red-100 dark:hover:bg-red-900/40 text-slate-700 dark:text-slate-200 hover:text-red-700 dark:hover:text-red-300 font-semibold px-2.5 py-0.5 rounded-full transition-all cursor-pointer border border-slate-300/50 dark:border-slate-600/50 flex items-center gap-1"
-                            title={`Refazer busca: ${term}`}
-                          >
-                            <span className="truncate max-w-[140px]">{term}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Pesquisas Salvas */}
-                  {savedSearches.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap border-l border-slate-200 dark:border-slate-700 pl-3">
-                      <span className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 select-none">
-                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                        Salvas:
-                      </span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {savedSearches.map((term, idx) => (
-                          <div
-                            key={`saved-${idx}`}
-                            className="group bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 font-semibold px-2.5 py-0.5 rounded-full transition-all flex items-center gap-1.5 shadow-xs"
-                          >
-                            <button
-                              onClick={() => {
-                                setSearchQuery(term);
-                                handleSearch(term);
-                              }}
-                              className="cursor-pointer hover:underline flex items-center gap-1"
-                              title={`Buscar salva: ${term}`}
-                            >
-                              <span className="truncate max-w-[150px]">{term}</span>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeSavedSearch(term);
-                              }}
-                              className="text-amber-600/70 dark:text-amber-400/70 hover:text-red-600 dark:hover:text-red-400 cursor-pointer p-0.5 rounded-full"
-                              title="Remover das pesquisas salvas"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 ml-1 font-medium select-none">
-                💡 Dica: Use <strong>vírgula</strong> para filtrar por município (ex: <em>Cacimba, Teresina</em>).
-              </p>
-
-              
-            </div>
-          </header>
-        )}
-
-        {/* PRINT SIDEBAR */}
-        {isPrintMode && (
-          <div className="w-full md:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 p-6 flex flex-col gap-6 shadow-2xl z-20 print:hidden overflow-y-auto shrink-0">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <Printer className="w-5 h-5 text-red-600" /> Configuração
-              </h2>
-              <button
-                onClick={() => setIsPrintMode(false)}
-                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
-                title="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label htmlFor="printTitle" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Título do Mapa</label>
-              <input
-                id="printTitle"
-                type="text"
-                value={printTitle}
-                onChange={(e) => setPrintTitle(e.target.value)}
-                className="w-full font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all text-slate-800 dark:text-slate-100"
-                placeholder="Insira um título..."
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Orientação da Página</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setPrintOrientation('portrait')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${printOrientation === 'portrait' ? 'border-red-600 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}
-                >
-                  <div className="w-4 h-6 border-2 border-current rounded-sm mb-2" />
-                  <span className="text-xs font-bold">Retrato</span>
-                </button>
-                <button
-                  onClick={() => setPrintOrientation('landscape')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${printOrientation === 'landscape' ? 'border-red-600 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}
-                >
-                  <div className="w-6 h-4 border-2 border-current rounded-sm mb-2" />
-                  <span className="text-xs font-bold">Paisagem</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label htmlFor="printFontFamily" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fonte do Título</label>
-              <select
-                id="printFontFamily"
-                value={printFontFamily}
-                onChange={(e) => setPrintFontFamily(e.target.value)}
-                className="w-full font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all text-slate-800 dark:text-slate-100"
-              >
-                <option value="font-sans">Sans Serif</option>
-                <option value="font-serif">Serif</option>
-                <option value="font-mono">Monospace</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label htmlFor="printFontSize" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tamanho do Título ({printFontSize}px)</label>
-              <input
-                id="printFontSize"
-                type="range"
-                min="16"
-                max="72"
-                value={printFontSize}
-                onChange={(e) => setPrintFontSize(parseInt(e.target.value))}
-                className="w-full accent-red-600"
-              />
-            </div>
-
-            {/* Portal target for map controls (active layers, etc) */}
-            <div id="print-map-controls-portal" className="flex flex-col gap-4 mt-2"></div>
-
-            <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800">
-              <button
-                onClick={() => window.print()}
-                className="w-full p-3 rounded-xl bg-red-600 hover:bg-red-700 text-white transition-colors shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 font-bold"
-              >
-                <Printer className="w-5 h-5" />
-                Imprimir / PDF
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* PAINEL DE RESULTADOS DA BUSCA */}
-        {!isPrintMode && (
-              <AnimatePresence>
-                {isSearchResultsVisible && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    id="search-results-container" 
-                    className="w-full bg-white dark:bg-slate-900 rounded-3xl border border-red-100 dark:border-red-900/40 shadow-xl p-4 space-y-3 z-30 relative flex flex-col max-h-[280px]"
-                  >
-                    <div className="flex justify-between items-center border-b border-red-50 pb-2">
-                      <small id="search-results-title" className="text-red-900 dark:text-red-200 font-bold text-sm">
-                        {isSearchLoading ? 'Buscando...' : `${totalResultsCount} resultado(s) encontrado(s)`}
-                      </small>
-                      <button 
-                        onClick={handleAbandonSearch}
-                        className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors cursor-pointer" 
-                        title="Fechar resultados"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    <div id="search-results-list" className="overflow-y-auto custom-scrollbar space-y-2 pr-1 flex-1">
-                      {Object.keys(searchResults).length > 0 ? (
-                        Object.entries(searchResults)
-                          .sort((a, b) => {
-                            return a[0].localeCompare(b[0]);
-                          })
-                          .map(([groupName, items]) => {
-                          const isCollapsed = !!collapsedGroups[groupName];
-                          const typedItems = items as SearchResultItem[];
-                          
-                          return (
-                            <div key={groupName} className={`border rounded-xl overflow-hidden shadow-sm border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900`}>
-                              <button 
-                                onClick={() => setCollapsedGroups({ ...collapsedGroups, [groupName]: !isCollapsed })}
-                                className={`w-full p-3 flex justify-between items-center transition-colors font-bold text-sm border-b cursor-pointer bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 hover:bg-slate-50 border-slate-100 dark:border-slate-800`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-red-800 dark:text-red-300">
-                                    {groupName}
-                                  </span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700`}>{typedItems.length}</span>
-                                </div>
-                                {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                              </button>
-
-                              {!isCollapsed && (
-                                <div className={`divide-y divide-slate-50 dark:divide-slate-800`}>
-                                  {typedItems.map((item, idx) => {
-                                    const featureProps = item.polygonLayer.feature.properties;
-                                    const identifier = getIdentifier(featureProps, groupName);
-                                    const muniContext = featureProps['Nome do município'] || featureProps['NM_MUN'];
-
-                                    return (
-                                      <div 
-                                        key={idx}
-                                        onClick={() => handleResultItemClick(groupName, item)}
-                                        className={`p-3 cursor-pointer transition-colors text-sm pl-6 flex items-start gap-2 group hover:bg-red-50 dark:hover:bg-red-900/40`}
-                                      >
-                                        <MapPin className="w-4 h-4 text-slate-400 group-hover:text-red-600 mt-0.5 shrink-0" />
-                                        <div className="flex-grow">
-                                          <p className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-red-900 dark:group-hover:text-red-300 transition-colors">{identifier}</p>
-                                          {muniContext && String(muniContext).toLowerCase() !== String(identifier).toLowerCase() && (
-                                            <p className="text-[10px] text-red-600 dark:text-red-300 font-bold mt-1 bg-red-50 dark:bg-red-900/40 px-2 py-0.5 rounded-full inline-block">
-                                              Município: {muniContext}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        !isSearchLoading && (
-                          <p className="p-4 text-center text-slate-500 dark:text-slate-400 text-sm font-semibold bg-slate-50 dark:bg-slate-800 rounded-xl">
-                            Nenhum local correspondente encontrado. Verifique a grafia ou experimente outra camada.
-                          </p>
-                        )
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-        )}
-
-        {/* A4 WRAPPERS */}
-        <div className={isPrintMode ? 'flex-1 overflow-auto flex justify-center items-start sm:items-center p-4 sm:p-8 custom-scrollbar print:p-0 print:overflow-visible print:block' : 'w-full'}>
-          <div className={isPrintMode ? `bg-white shadow-2xl relative flex flex-col print:shadow-none print:w-full print:h-full print:m-0 print:border-none shrink-0 ${printOrientation === 'portrait' ? 'aspect-[1/1.414] h-[calc(100vh-4rem)] max-h-[1123px]' : 'aspect-[1.414/1] w-full max-w-[calc(100vw-22rem)] lg:max-w-[1123px]'} print:!aspect-auto` : 'w-full'}>
-             
-            {isPrintMode && (
-              <div className="text-center pt-8 pb-4 bg-white z-50 print:block shrink-0">
-                <h1 
-                  className={`font-bold text-black uppercase tracking-wider border-b-4 border-black inline-block pb-2 px-8 ${printFontFamily}`}
-                  style={{ fontSize: `${printFontSize}px`, lineHeight: 1.2 }}
-                >
-                  {printTitle || 'Mapa Temático'}
-                </h1>
-              </div>
-            )}
-             
-            <div className={isPrintMode ? 'flex-1 w-full h-full p-4 print:p-0 relative flex flex-col map-print-container' : 'w-full'}>
-              {/* MAPA INTERATIVO PRINCIPAL */}
-              <MapComponent 
+        {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT) */}
+        <div className="flex-1 w-full h-full relative overflow-hidden">
+          <MapComponent 
             isPrintMode={isPrintMode}
             isMultiSelectMode={isMultiSelectMode}
             onToggleMultiSelect={() => {
@@ -2805,156 +2426,69 @@ export default function App() {
             onSaveFavoriteLayers={handleSaveFavoriteLayers}
             onLoadFavoriteLayers={handleLoadFavoriteLayers}
           />
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* BUSCA DE ENDEREÇOS DO IBGE (DUCKDB) - Condicional por Permissão */}
-        {!isPrintMode && (isAdmin || featurePermissions.allowCnefeSearch !== false) && (
-          <IbgeSearchPanel 
-            onPlotAddress={handlePlotAddress} 
-            onPlotAllAddresses={handlePlotAllAddresses} 
-            onClearPlot={handleClearPlot}
-            externalPolygonResult={cnefeExternalResult}
-            allowedColumns={isAdmin ? undefined : effectiveSession.addressColumnsPermissions}
-          />
-        )}
-
-        {/* PAINEL DASHBOARD (RAIO-X POPULACIONAL) */}
-        {!isPrintMode && selectedFeatures.length > 0 && (isAdmin || featurePermissions.allowDashboardRaioX !== false) && (!selectedFeatures.every(f => f.sourceName === "Coordenadas" || f.sourceName === "Coordenadas IBGE" || f.sourceName === "Localidades (Piauí)" || f.sourceName === "Comunidades Rurais de Teresina")) && (
-          <Suspense fallback={null}>
-            <Dashboard selectedFeatures={selectedFeatures} />
-          </Suspense>
-        )}
-
-        {/* FEIÇÕES SELECIONADAS */}
-        {!isPrintMode && (isAdmin || featurePermissions.allowSelectedFeaturesPanel !== false) && (
-          <AnimatePresence>
-            {selectedFeatures.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                id="selected-features-container" 
-                className="w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xl p-4 overflow-hidden"
-              >
-                <h3 className="text-base sm:text-lg font-bold text-red-900 dark:text-red-200 border-l-4 border-red-600 pl-2.5 mb-3">
-                  Feições Selecionadas ({selectedFeatures.length})
+      {/* MODAL EXPANDIDO DE TABELA DE ATRIBUTOS */}
+      {isFullTableModalOpen && (
+        <div className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2.5">
+                <Table2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                  Tabela Completa de Atributos ({selectedFeatures.length} selecionadas)
                 </h3>
-                <div id="selected-features-list" className="max-h-[180px] overflow-y-auto custom-scrollbar space-y-2 pr-1">
-                  {selectedFeatures.map(feat => (
-                    <div 
-                      key={feat.id} 
-                      className="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-red-50 dark:bg-red-900/10 border border-slate-100 dark:border-slate-800 rounded-xl transition-all"
-                    >
-                      <div>
-                        <p className="font-bold text-sm text-slate-900 dark:text-slate-100 leading-snug">{feat.name}</p>
-                        <p className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full inline-block mt-1">
-                          {feat.sourceName}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button 
-                          onClick={() => handleZoomToFeature(feat)}
-                          className="p-1.5 text-red-700 hover:bg-red-100/50 rounded-lg transition-colors cursor-pointer" 
-                          title="Zoom na feição"
-                        >
-                          <ZoomIn className="w-5 h-5" />
-                        </button>
-                        <button 
-                          onClick={() => handleRemoveFromSelection(feat.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" 
-                          title="Remover da seleção"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-
-        {/* CENTRAL DEDICADA DE EXPORTAÇÃO DE DADOS (CSV, KML, GeoJSON) */}
-        {!isPrintMode && selectedFeatures.length > 0 && (isAdmin || featurePermissions.allowExportData !== false) && (
-          <Suspense fallback={null}>
-            <ExportDashboard 
-              selectedFeatures={selectedFeatures} 
-              showToast={showToast} 
-            />
-          </Suspense>
-        )}
-
-        {/* TABELA DE ESPECIFICAÇÕES DAS FEIÇÕES (ATRIBUTOS) */}
-        {!isPrintMode && (isAdmin || featurePermissions.allowFeatureSpecs !== false) && (
-          <PropertyTable 
-            selectedFeatures={selectedFeatures} 
-            showToast={showToast} 
-            allowedProperties={isAdmin ? undefined : effectiveSession.featurePropertiesPermissions}
-            onSearchPolygonAddresses={handleSearchPolygonAddresses}
-          />
-        )}
-
-      </main>
-
-      {/* RODAPÉ E PARCEIROS */}
-      {!isPrintMode && (isAdmin || featurePermissions.allowSourcesFooter !== false) && (
-      <footer className="w-full mt-2 text-center pb-4 select-none z-10 print:hidden">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-6">
-          <div className="w-full flex flex-col items-center gap-3">
-            <h4 className="text-[11px] font-bold text-black uppercase tracking-widest">Fontes</h4>
-            <div className="flex flex-col md:flex-row justify-center items-center gap-6 md:gap-10">
-              <img 
-                src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/IBGE.png" 
-                alt="Logo IBGE" 
-                className="h-5 sm:h-7 object-contain hover:scale-105 transition-transform"
-              />
-              <img 
-                src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/web/main/geojsom/SSP.png" 
-                alt="Logo SSP" 
-                className="h-8 sm:h-10 object-contain hover:scale-105 transition-transform"
-                onError={(e) => {
-                  // Fallback caso a URL SSP original mude
-                  (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
-                }}
-              />
-              <img 
-                src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
-                alt="Logo Gerência de Dados" 
-                className="h-8 sm:h-10 object-contain hover:scale-105 transition-transform cursor-pointer select-none"
-                onDoubleClick={handleOpenAdminLogin}
-                title="Gerência de Dados"
-              />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFullTableModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          </div>
-          
-          <div className="border-t border-slate-100 dark:border-slate-800 w-full pt-4 mt-2 flex flex-col items-center gap-1.5">
-            <p className="text-sm font-extrabold text-black dark:text-slate-300">WebGis</p>
-            <p className="text-xs text-black dark:text-black max-w-lg text-center leading-relaxed">
-              Encontrou algum bug, tem sugestões de melhorias ou algo deu errado? Entre em contato:
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-1 text-[13px] text-slate-600 dark:text-slate-400">
-              <a 
-                href="https://wa.me/5586981689456" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="hover:text-emerald-600 font-bold transition-colors underline decoration-emerald-300 underline-offset-2"
-              >
-                (86) 98168-9456
-              </a>
-              <span className="text-slate-300">•</span>
-              <a 
-                href="mailto:marciodemelosilva.geo@gmail.com" 
-                className="hover:text-red-600 font-bold transition-colors underline decoration-red-300 underline-offset-2"
-              >
-                marciodemelosilva.geo@gmail.com
-              </a>
+            <div className="flex-1 overflow-auto p-4">
+              <PropertyTable
+                selectedFeatures={selectedFeatures}
+                showToast={showToast}
+                allowedProperties={isAdmin ? undefined : effectiveSession.featurePropertiesPermissions}
+                onSearchPolygonAddresses={handleSearchPolygonAddresses}
+              />
             </div>
           </div>
         </div>
-      </footer>
+      )}
+
+      {/* MODAL DE EXPORTAÇÃO */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2.5">
+                <Download className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                  Exportar Feições ({selectedFeatures.length} itens)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <Suspense fallback={<div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-500" /></div>}>
+                <ExportDashboard
+                  selectedFeatures={selectedFeatures}
+                  showToast={showToast}
+                />
+              </Suspense>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL DO PAINEL DO ADMINISTRADOR / GERENTE (Carregado apenas quando acionado) */}
