@@ -232,12 +232,29 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         aria-label="Barra Lateral Compacta Apple Maps"
         className="relative z-30 h-full w-[68px] flex flex-col items-center py-4 px-2 select-none shrink-0 transition-all duration-300 bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl"
       >
+        {/* Logo oficial no modo recolhido */}
+        <div 
+          className="w-11 h-11 mb-2 rounded-2xl flex items-center justify-center cursor-pointer transition-transform hover:scale-105 select-none"
+          onClick={onToggleCollapse}
+          onDoubleClick={onOpenAdminPanel}
+          title="WebGis - Clique para expandir"
+        >
+          <img 
+            src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
+            alt="Logo WebGis"
+            className="h-8 w-auto object-contain drop-shadow-xs pointer-events-none"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
+            }}
+          />
+        </div>
+
         {/* Botão de Expandir a Barra (Apple Sidebar Toggle) */}
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer mb-4"
-          title="Expandir barra lateral (Apple Maps)"
+          className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer mb-3"
+          title="Expandir barra lateral"
         >
           <PanelLeft className="w-5 h-5 text-[#007AFF]" />
         </button>
@@ -377,16 +394,34 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       aria-label="Painel Principal Apple Maps"
       className="relative z-30 h-full w-[380px] sm:w-[420px] flex flex-col select-none shrink-0 transition-all duration-300 bg-white/85 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden font-sans"
     >
-      {/* 1. TOPO DA BARRA LATERAL (Brand  Mapas + Botão de Colapsar) */}
-      <div className="p-4 pb-2 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-            <span className="text-2xl leading-none"></span>
-            <span>Mapas</span>
-          </span>
-          <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-500 dark:text-slate-400">
-            BETA
-          </span>
+      {/* 1. TOPO DA BARRA LATERAL (Logo Oficial + Marca + Botão de Colapsar) */}
+      <div className="p-3.5 pb-2.5 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
+        <div 
+          className="flex items-center gap-2.5 cursor-pointer select-none group"
+          onDoubleClick={onOpenAdminPanel}
+          title="WebGis - Clique duplo para login de Administrador"
+        >
+          <img 
+            src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
+            alt="Logo WebGis"
+            className="h-10 w-auto object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
+            }}
+          />
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
+                WebGis
+              </span>
+              <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-blue-500/10 text-[#007AFF] dark:text-[#0a84ff] border border-blue-500/20">
+                PRO
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium leading-tight">
+              Geocodificando
+            </span>
+          </div>
         </div>
 
         <button
