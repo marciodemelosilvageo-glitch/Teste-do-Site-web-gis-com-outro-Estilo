@@ -1598,10 +1598,10 @@ export default function App() {
   if (!hasEntered) {
     return (
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 font-sans select-none overflow-hidden animate-fade-in">
-        {/* Papel de parede de fundo desfocado (borrado) */}
-        <div className="fixed inset-0 z-[-2] pointer-events-none overflow-hidden bg-white dark:bg-slate-900">
+        {/* Fundo imersivo com efeito Apple Glass */}
+        <div className="fixed inset-0 z-[-2] pointer-events-none overflow-hidden bg-[#f2f2f7] dark:bg-[#000000]">
           <div 
-            className="absolute inset-[-10%] w-[120%] h-[120%] filter blur-[15px] scale-105"
+            className="absolute inset-[-10%] w-[120%] h-[120%] filter blur-[32px] opacity-65 dark:opacity-35 scale-105"
             style={{
               backgroundImage: "url('https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/banner-mock.webp')",
               backgroundSize: 'cover',
@@ -1610,69 +1610,60 @@ export default function App() {
             }}
           />
         </div>
-        {/* Camada de Desfoque de Fundo para Efeito Vidro */}
-        <div className="fixed inset-0 bg-white/40 dark:bg-slate-900/80 backdrop-blur-md z-[-1]" />
+        {/* Camada de desfoque e iluminação suave */}
+        <div className="fixed inset-0 bg-white/40 dark:bg-black/60 backdrop-blur-2xl z-[-1]" />
 
-        {/* Card de Entrada */}
+        {/* Card de Entrada Apple Style */}
         <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="w-full max-w-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-3xl p-8 sm:p-11 shadow-2xl border border-white/70 dark:border-slate-800/80 flex flex-col items-center text-center space-y-7"
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-[430px] bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl rounded-[32px] p-7 sm:p-8 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_50px_-12px_rgba(0,0,0,0.7)] border border-black/[0.06] dark:border-white/[0.12] ring-1 ring-white/60 dark:ring-white/[0.05] flex flex-col items-center text-center space-y-6"
         >
-          {/* Logo Principal */}
+          {/* Logo Principal (Sem texto duplicado "WebGis", apenas a logo oficial com proporção elegante) */}
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
+            transition={{ delay: 0.15, duration: 0.5 }}
+            className="flex flex-col items-center"
           >
             <img 
               src={CURRENT_APP_LOGO} 
-              alt="Logo WebGis" 
-              className="h-28 sm:h-32 drop-shadow-2xl hover:scale-105 transition-transform duration-300" 
+              alt="Logo" 
+              className="h-16 sm:h-20 w-auto max-w-[270px] object-contain drop-shadow-md hover:scale-[1.02] transition-transform duration-300" 
             />
-          </motion.div>
-
-          {/* Título e Texto com Tipografia Premium */}
-          <div className="space-y-3">
-            <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
-              WebGis
-            </h1>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20 text-xs sm:text-sm font-bold tracking-widest uppercase font-grotesk shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-              Inteligência Geográfica
+            <div className="mt-3.5 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.06] text-xs font-medium tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF] animate-pulse" />
+              <span>Sistema de Informações Geográficas</span>
             </div>
-            <p className="font-sans text-slate-700 dark:text-slate-300 text-sm sm:text-base leading-relaxed font-normal pt-1">
-              Explore camadas de dados geoespaciais, faça consultas avançadas e analise informações municipais em uma interface interativa de alto desempenho.
-            </p>
-          </div>
+          </motion.div>
 
           {/* Opções de Acesso: Lembrete de Conta Anterior & Visitante */}
           <div className="w-full space-y-3.5 pt-1">
-            {/* 0. Card de Memória / Lembrete de Conta Anterior */}
+            {/* Card de Memória / Lembrete de Conta Anterior */}
             {lastPreviousUser && (
-              <div className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 text-left space-y-2.5 shadow-sm animate-fadeIn">
+              <div className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-3.5 text-left space-y-2.5 shadow-sm animate-fadeIn">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 flex items-center justify-center font-bold text-xs">
-                      {lastPreviousUser.role === 'master' ? <Crown className="w-4 h-4 text-amber-500" /> : (lastPreviousUser.role === 'manager' ? <Briefcase className="w-4 h-4 text-indigo-500" /> : <User className="w-4 h-4" />)}
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] flex items-center justify-center font-bold text-xs">
+                      {lastPreviousUser.role === 'master' ? <Crown className="w-4 h-4 text-amber-500" /> : (lastPreviousUser.role === 'manager' ? <Briefcase className="w-4 h-4 text-[#007AFF]" /> : <User className="w-4 h-4" />)}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                      <p className="text-xs font-bold text-slate-800 dark:text-white">
                         {lastPreviousUser.name}
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono">
                         @{lastPreviousUser.username}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-medium bg-black/[0.04] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300 px-2 py-0.5 rounded-full">
                     Último Acesso
                   </span>
                 </div>
 
-                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
-                  Na última vez você logou nesta conta. Deseja continuar nela?
+                <p className="text-[11px] text-slate-600 dark:text-zinc-300 leading-snug">
+                  Deseja continuar conectado nesta conta?
                 </p>
 
                 {promptPasswordForPreviousUser ? (
@@ -1690,19 +1681,19 @@ export default function App() {
                         }}
                         placeholder="Digite a senha da conta..."
                         autoFocus
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl pl-3 pr-9 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-xl pl-3.5 pr-9 py-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#007AFF]"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPreviousUserPassword(!showPreviousUserPassword)}
-                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
                       >
                         {showPreviousUserPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
 
                     {previousUserError && (
-                      <p className="text-[11px] text-red-600 dark:text-red-400 font-bold">{previousUserError}</p>
+                      <p className="text-[11px] text-red-500 font-bold">{previousUserError}</p>
                     )}
 
                     <div className="flex items-center gap-2">
@@ -1713,7 +1704,7 @@ export default function App() {
                           setPreviousUserPasswordInput('');
                           setPreviousUserError(null);
                         }}
-                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        className="px-3 py-1.5 bg-black/[0.04] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                       >
                         Cancelar
                       </button>
@@ -1721,7 +1712,7 @@ export default function App() {
                         type="button"
                         onClick={handleContinueWithPreviousUser}
                         disabled={isPreviousUserSubmitting}
-                        className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        className="flex-1 py-1.5 bg-[#007AFF] hover:bg-[#0071eb] text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
                       >
                         {isPreviousUserSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                         <span>Confirmar e Entrar</span>
@@ -1733,7 +1724,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => handleEnterPureVisitor()}
-                      className="flex-1 py-1.5 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      className="flex-1 py-2 bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-zinc-300 rounded-xl text-xs font-medium transition-colors cursor-pointer"
                     >
                       Entrar como Visitante
                     </button>
@@ -1746,7 +1737,7 @@ export default function App() {
                           handleDirectLoginPreviousUser(lastPreviousUser);
                         }
                       }}
-                      className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                      className="flex-1 py-2 bg-[#007AFF] hover:bg-[#0071eb] text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>Continuar na Conta</span>
@@ -1758,7 +1749,7 @@ export default function App() {
 
             {/* Campo de Identificação / Nome */}
             <div className="space-y-1.5 text-left">
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-zinc-400 pl-1">
                 Seu Nome ou Identificação (opcional):
               </label>
               <div className="relative">
@@ -1773,19 +1764,19 @@ export default function App() {
                     if (e.key === 'Enter') handleEnterAsUser();
                   }}
                   placeholder="Ex: Carlos (Visitante), Fiscalização, Setor X..."
-                  className={`w-full bg-slate-50 dark:bg-slate-800/90 border rounded-2xl pl-9 pr-3.5 py-3 text-xs sm:text-sm font-medium transition-all ${
+                  className={`w-full bg-black/[0.03] dark:bg-white/[0.05] border rounded-2xl pl-10 pr-4 py-3 text-sm font-medium transition-all ${
                     detectedExistingUser
-                      ? 'border-amber-400 dark:border-amber-600 ring-2 ring-amber-400/25 text-slate-900 dark:text-slate-100'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500'
+                      ? 'border-amber-400 dark:border-amber-500/60 ring-2 ring-amber-400/20 text-slate-900 dark:text-white'
+                      : 'border-black/[0.08] dark:border-white/[0.1] text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15'
                   }`}
                 />
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                <User className="w-4 h-4 text-slate-400 dark:text-zinc-500 absolute left-3.5 top-3.5" />
               </div>
 
               {/* Status do Nome em Tempo Real */}
               {isCheckingWelcomeName && (
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 pl-1 pt-0.5 animate-fadeIn">
-                  <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-zinc-500 pl-1 pt-0.5 animate-fadeIn">
+                  <Loader2 className="w-3 h-3 animate-spin text-[#007AFF]" />
                   <span>Consultando usuário no banco de dados...</span>
                 </div>
               )}
@@ -1794,29 +1785,29 @@ export default function App() {
                 <motion.div
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="p-3 bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700/80 rounded-2xl text-left flex items-center gap-2.5 shadow-sm mt-1 animate-fadeIn"
+                  className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-left flex items-center gap-2.5 shadow-sm mt-1 animate-fadeIn"
                 >
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
                   <div className="text-xs">
-                    <p className="font-bold text-amber-950 dark:text-amber-100">
+                    <p className="font-bold text-amber-900 dark:text-amber-200">
                       O nome de usuário já existe.
                     </p>
                     <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
-                      Digite a senha para entrar no site.
+                      Digite a senha abaixo para entrar nesta conta.
                     </p>
                   </div>
                 </motion.div>
               )}
 
               {!isCheckingWelcomeName && !detectedExistingUser && visitorNameInput.trim().length >= 3 && (
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 pl-1 pt-0.5 animate-fadeIn">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 pl-1 pt-0.5 animate-fadeIn">
                   <Check className="w-3.5 h-3.5 text-emerald-500" />
                   <span>Nome disponível como Visitante ou Nova Conta</span>
                 </div>
               )}
             </div>
 
-            {/* Campo Dinâmico de Senha (Aparece quando o usuário digita algum nome) */}
+            {/* Campo Dinâmico de Senha */}
             <AnimatePresence>
               {visitorNameInput.trim().length > 0 && (
                 <motion.div
@@ -1826,7 +1817,7 @@ export default function App() {
                   transition={{ duration: 0.25, ease: "easeOut" }}
                   className="space-y-1.5 text-left overflow-hidden"
                 >
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-zinc-400 pl-1 flex items-center justify-between">
                     {detectedExistingUser ? (
                       <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-bold">
                         <KeyRound className="w-3.5 h-3.5" />
@@ -1835,7 +1826,7 @@ export default function App() {
                     ) : (
                       <span>Senha de Acesso (para criar ou proteger sua conta):</span>
                     )}
-                    <span className="text-[10px] text-slate-400 font-normal">
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">
                       {detectedExistingUser ? 'Obrigatória para esta conta' : 'Opcional para visitantes'}
                     </span>
                   </label>
@@ -1856,17 +1847,17 @@ export default function App() {
                           : "Digite uma senha para criar sua conta..."
                       }
                       autoFocus={!!detectedExistingUser}
-                      className={`w-full bg-slate-50 dark:bg-slate-800/90 border rounded-2xl pl-9 pr-10 py-3 text-xs sm:text-sm font-medium transition-all ${
+                      className={`w-full bg-black/[0.03] dark:bg-white/[0.05] border rounded-2xl pl-10 pr-10 py-3 text-sm font-medium transition-all ${
                         detectedExistingUser
-                          ? 'border-amber-400 dark:border-amber-600 ring-2 ring-amber-400/20 text-slate-900 dark:text-slate-100 focus:ring-amber-500'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500'
+                          ? 'border-amber-400 dark:border-amber-500/60 ring-2 ring-amber-400/20 text-slate-900 dark:text-white focus:ring-amber-500'
+                          : 'border-black/[0.08] dark:border-white/[0.1] text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15'
                       }`}
                     />
-                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                    <KeyRound className="w-4 h-4 text-slate-400 dark:text-zinc-500 absolute left-3.5 top-3.5" />
                     <button
                       type="button"
                       onClick={() => setShowVisitorPassword(!showVisitorPassword)}
-                      className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
                       tabIndex={-1}
                     >
                       {showVisitorPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1875,7 +1866,7 @@ export default function App() {
 
                   {detectedExistingUser && (
                     <div className="flex items-center justify-between text-[11px] pt-0.5 px-1">
-                      <span className="text-slate-500 dark:text-slate-400">Não é sua conta?</span>
+                      <span className="text-slate-500 dark:text-zinc-400">Não é sua conta?</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -1884,7 +1875,7 @@ export default function App() {
                           setDetectedExistingUser(null);
                           setWelcomeError(null);
                         }}
-                        className="text-red-600 hover:text-red-700 dark:text-red-400 font-bold cursor-pointer hover:underline"
+                        className="text-[#007AFF] hover:underline font-semibold cursor-pointer"
                       >
                         Limpar e usar outro nome
                       </button>
@@ -1901,16 +1892,16 @@ export default function App() {
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  className="p-3 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/70 rounded-2xl text-xs font-bold flex flex-col gap-2 text-left animate-shake"
+                  className="p-3 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 rounded-2xl text-xs font-semibold flex flex-col gap-2 text-left animate-shake"
                 >
                   <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
                     <span className="leading-snug">{welcomeError}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleEnterPureVisitor(visitorNameInput)}
-                    className="self-end px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                    className="self-end px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
                   >
                     Entrar como Visitante com este Nome
                   </button>
@@ -1918,15 +1909,14 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            {/* Botão de Acesso Principal */}
-            <div className="w-full">
-              {/* 1. Botão Principal: Acessar como Visitante / Entrar com Senha */}
+            {/* Botão de Acesso Principal (Apple Blue) */}
+            <div className="w-full pt-1">
               <motion.button
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleEnterAsUser}
                 disabled={isWelcomeSubmitting}
-                className="w-full py-3.5 bg-gradient-to-r from-red-600 via-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-display font-bold text-sm tracking-wide rounded-2xl shadow-xl shadow-red-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer group disabled:opacity-75 disabled:cursor-not-allowed"
+                className="w-full py-3.5 bg-[#007AFF] hover:bg-[#0071eb] active:bg-[#0062cc] text-white font-semibold text-sm rounded-2xl shadow-lg shadow-[#007AFF]/25 transition-all flex items-center justify-center gap-2 cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isWelcomeSubmitting ? (
                   <>
@@ -1940,7 +1930,7 @@ export default function App() {
                         ? `Entrar na Conta (@${detectedExistingUser.username})`
                         : (visitorPasswordInput.trim() 
                           ? 'Entrar no Sistema' 
-                          : (visitorNameInput.trim() ? 'Acessar com este Nome' : 'Acessar como Visitante'))}
+                          : (visitorNameInput.trim() ? `Acessar como ${visitorNameInput}` : 'Acessar como Visitante'))}
                     </span>
                     <svg 
                       className="w-4 h-4 group-hover:translate-x-1 transition-transform" 
@@ -1956,80 +1946,82 @@ export default function App() {
               </motion.button>
             </div>
             
-            {/* 2. Botão de Login Discreto */}
-            <div className="pt-2">
+            {/* Botão de Login Institucional Discreto */}
+            <div className="pt-1.5">
               <button
+                type="button"
                 onClick={handleOpenUserLogin}
-                className="text-xs font-bold text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 transition-colors cursor-pointer flex items-center justify-center gap-1.5 w-full mx-auto"
+                className="w-full py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-600 dark:text-zinc-300 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Login</span>
+                <KeyRound className="w-3.5 h-3.5 text-[#007AFF]" />
+                <span>Login com Usuário Cadastrado</span>
               </button>
             </div>
           </div>
 
           {/* Footer discreto */}
-          <p className="text-slate-400 text-xs font-mono pt-4">
-            &copy; {new Date().getFullYear()} WebGis. Todos os direitos reservados.
+          <p className="text-slate-400 dark:text-zinc-500 text-[11px] font-normal pt-1">
+            Plataforma Geoespacial &bull; {new Date().getFullYear()}
           </p>
         </motion.div>
 
-        {/* Modal de Login de Usuário Cadastrado (Usuário Ativo) */}
+        {/* Modal de Login de Usuário Cadastrado (Estilo Apple) */}
         {isUserLoginModalOpen && (
           <div 
-            className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+            className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-black/50 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
             onClick={() => setIsUserLoginModalOpen(false)}
           >
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-sm w-full p-6 text-left space-y-5"
+              className="bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.12] rounded-[28px] shadow-2xl max-w-sm w-full p-6 text-left space-y-5"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400">
-                    <UserCheck className="w-5 h-5" />
+                  <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] flex items-center justify-center font-bold">
+                    <UserCheck className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                       Login de Usuário
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Acesse com seu login institucional
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      Acesse com sua credencial cadastrada
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsUserLoginModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-black/[0.05] dark:bg-white/[0.1] hover:bg-black/[0.1] dark:hover:bg-white/[0.15] text-slate-500 dark:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               <form onSubmit={handleConfirmUserLogin} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5 pl-0.5">
                     Usuário / Login:
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 font-mono text-xs font-bold">@</span>
+                    <span className="absolute left-3.5 top-2.5 text-slate-400 dark:text-zinc-500 font-mono text-xs font-bold">@</span>
                     <input 
                       type="text"
                       value={userLoginInput}
                       onChange={(e) => setUserLoginInput(e.target.value)}
                       placeholder="seu.usuario"
                       autoFocus
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl pl-7 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500 font-mono font-bold"
+                      className="w-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15 font-mono font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5 pl-0.5">
                     Senha de Acesso:
                   </label>
                   <div className="relative">
@@ -2038,12 +2030,12 @@ export default function App() {
                       value={userPasswordInput}
                       onChange={(e) => setUserPasswordInput(e.target.value)}
                       placeholder="Digite sua senha..."
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500 font-semibold"
+                      className="w-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15 font-medium"
                     />
                     <button
                       type="button"
                       onClick={() => setShowUserPassword(!showUserPassword)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
                     >
                       {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -2051,8 +2043,8 @@ export default function App() {
                 </div>
 
                 {userLoginError && (
-                  <div className="p-3 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60 rounded-xl text-xs font-bold flex items-center gap-2 animate-shake">
-                    <X className="w-4 h-4 shrink-0 text-red-600" />
+                  <div className="p-3 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 rounded-xl text-xs font-semibold flex items-center gap-2 animate-shake">
+                    <X className="w-4 h-4 shrink-0 text-red-500" />
                     <span>{userLoginError}</span>
                   </div>
                 )}
@@ -2061,14 +2053,14 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setIsUserLoginModalOpen(false)}
-                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                    className="flex-1 py-2.5 bg-black/[0.04] hover:bg-black/[0.08] dark:bg-white/[0.08] dark:hover:bg-white/[0.12] text-slate-700 dark:text-zinc-200 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={isUserLoginSubmitting}
-                    className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-red-600/30 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    className="flex-1 py-2.5 bg-[#007AFF] hover:bg-[#0071eb] text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-[#007AFF]/25 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
                     {isUserLoginSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     <span>{isUserLoginSubmitting ? 'Entrando...' : 'Entrar'}</span>
@@ -2078,14 +2070,11 @@ export default function App() {
             </motion.div>
           </div>
         )}
-
-
       </div>
     );
   }
 
-  // Tela de Acesso Suspenso para Usuários Bloqueados Individualmente pelo Administrador
-  if (hasEntered && !isAdmin && effectiveSession.isBlocked) {
+    if (hasEntered && !isAdmin && effectiveSession.isBlocked) {
     return (
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 font-sans select-none overflow-hidden bg-slate-950 text-white animate-fadeIn">
         {/* Papel de parede de fundo desfocado */}
