@@ -1,0 +1,411 @@
+import * as duckdb from '@duckdb/duckdb-wasm';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+import { point } from '@turf/helpers';
+
+let dbInstance: duckdb.AsyncDuckDB | null = null;
+let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
+
+// Sanitização de valores para SQL seguro no DuckDB
+export const escapeSqlLiteral = (val: string): string => {
+  return String(val).replace(/'/g, "''");
+};
+
+export const escapeSqlLikePattern = (val: string): string => {
+  // Escapa aspas simples e caracteres de controle
+  return escapeSqlLiteral(val).replace(/[%_\\]/g, '\\$&');
+};
+
+export async function getDuckDB(): Promise<duckdb.AsyncDuckDB> {
+  if (dbInstance) return dbInstance;
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    try {
+      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+
+      const worker_url = URL.createObjectURL(
+        new Blob([`importScripts("${bundle.mainWorker!}");`], { type: 'text/javascript' })
+      );
+
+      const worker = new Worker(worker_url);
+      const logger = new duckdb.ConsoleLogger();
+      const db = new duckdb.AsyncDuckDB(logger, worker);
+
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      URL.revokeObjectURL(worker_url);
+
+      const conn = await db.connect();
+      
+      try {
+        await conn.query(`
+          CREATE VIEW IF NOT EXISTS enderecos AS 
+          SELECT 
+            "Código único do endereço" AS codigo_unico,
+            CASE "Nome do município" 
+              WHEN '2202703' THEN 'Cocal'
+              WHEN '2205953' THEN 'Marcolândia'
+              ELSE "Nome do município"
+            END AS municipio,
+            "Nome do subdistrito" AS subdistrito,
+            "Código do setor" AS codigo_setor,
+            "Endereco" AS endereco,
+            "Complemento" AS complemento,
+            "CEP" AS cep,
+            "Localidade" AS localidade,
+            "Número no logradouro" AS numero_logradouro,
+            "LATITUDE" AS latitude,
+            "LONGITUDE" AS longitude,
+            "Identificação do estabelecimento" AS estabelecimento,
+            
+            "Espécie de endereço" AS especie,
+            "Indicador de estabelecimento" AS ind_estabelecimento,
+            "Indicador de construção ou reforma" AS ind_construcao_reforma,
+            "Indicador de finalidade de construção" AS ind_finalidade_construcao,
+            "Tipo da edificação dos domicílios" AS tipo_edificacao,
+            "Bairro" AS bairro,
+            "Nucleo Urbano" AS nucleo_urbano,
+            "Favelas ou Comunidades Urbana" AS favela_comunidade,
+            "Agromerado" AS agromerado,
+            "Comunidades Rurais de Teresina" AS comunidade_rural
+          FROM 'https://pub-2bd417d213f04fae9ffd18d26ad95d5b.r2.dev/Coordenadas%20total.parquet'
+        `);
+      } catch (viewErr) {
+        console.error("Erro ao criar view enderecos:", viewErr);
+      } finally {
+        await conn.close();
+      }
+
+      dbInstance = db;
+      return db;
+    } catch (err) {
+      // Em caso de falha de conexão, reseta a promessa para permitir novas tentativas
+      initPromise = null;
+      dbInstance = null;
+      console.error("Erro crítico na inicialização do DuckDB-WASM:", err);
+      throw err;
+    }
+  })();
+
+  return initPromise;
+}
+
+export const COLUNAS_BUSCA_SIMPLES = [
+  'endereco', 'numero_logradouro', 'complemento', 'bairro', 'localidade', 'cep',
+  'estabelecimento', 'municipio', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural'
+];
+
+export const COLUNAS_BUSCA_AVANCADA = [
+  ...COLUNAS_BUSCA_SIMPLES,
+  'subdistrito', 'codigo_unico', 'codigo_setor', 'especie', 'ind_estabelecimento'
+];
+
+export async function listarMunicipios(): Promise<string[]> {
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+    const result = await conn.query(`
+      SELECT DISTINCT municipio 
+      FROM enderecos 
+      WHERE municipio IS NOT NULL AND trim(municipio) != ''
+      ORDER BY municipio ASC
+    `);
+    const rows = result.toArray();
+    return rows
+      .map(r => r.municipio)
+      .filter((m): m is string => typeof m === 'string' && m.trim().length > 0);
+  } catch (e) {
+    console.error("Erro ao listar municípios no DuckDB:", e);
+    return [];
+  } finally {
+    if (conn) await conn.close();
+  }
+}
+
+// Algoritmo de classificação por relevância e semelhança (Prioriza número e logradouro exatos no topo)
+function sortResultsByRelevance(results: any[], queryText: string, targetNumber?: string): any[] {
+  if (!results || results.length <= 1) return results;
+
+  const cleanQuery = queryText.toLowerCase().trim();
+  const cleanTargetNum = targetNumber ? targetNumber.toLowerCase().trim() : '';
+  const targetNumInt = cleanTargetNum && /^\d+$/.test(cleanTargetNum) ? parseInt(cleanTargetNum, 10) : null;
+
+  return [...results].sort((a, b) => {
+    const numA = String(a.numero_logradouro || '').trim().toLowerCase();
+    const numB = String(b.numero_logradouro || '').trim().toLowerCase();
+    const endA = String(a.endereco || '').trim().toLowerCase();
+    const endB = String(b.endereco || '').trim().toLowerCase();
+
+    // 1. Se foi pesquisado um número específico (ex: "3625")
+    if (cleanTargetNum) {
+      const isExactNumA = numA === cleanTargetNum || endA.endsWith(`- ${cleanTargetNum}`) || endA.endsWith(` ${cleanTargetNum}`);
+      const isExactNumB = numB === cleanTargetNum || endB.endsWith(`- ${cleanTargetNum}`) || endB.endsWith(` ${cleanTargetNum}`);
+
+      if (isExactNumA && !isExactNumB) return -1;
+      if (!isExactNumA && isExactNumB) return 1;
+
+      // Se ambos contêm o número parcialmente (ex: "3625A")
+      const containsNumA = numA.includes(cleanTargetNum) || endA.includes(cleanTargetNum);
+      const containsNumB = numB.includes(cleanTargetNum) || endB.includes(cleanTargetNum);
+      if (containsNumA && !containsNumB) return -1;
+      if (!containsNumA && containsNumB) return 1;
+
+      // Proximidade numérica (o número mais próximo de 3625 fica mais acima)
+      if (targetNumInt !== null) {
+        const valA = parseInt(numA.replace(/\D/g, ''), 10);
+        const valB = parseInt(numB.replace(/\D/g, ''), 10);
+        if (!isNaN(valA) && !isNaN(valB)) {
+          const diffA = Math.abs(valA - targetNumInt);
+          const diffB = Math.abs(valB - targetNumInt);
+          if (diffA !== diffB) return diffA - diffB;
+        }
+      }
+    }
+
+    // 2. Correspondência com início do logradouro
+    const startsA = endA.startsWith(cleanQuery);
+    const startsB = endB.startsWith(cleanQuery);
+    if (startsA && !startsB) return -1;
+    if (!startsA && startsB) return 1;
+
+    // 3. Ordem numérica crescente padrão
+    const valA = parseInt(numA.replace(/\D/g, ''), 10) || 0;
+    const valB = parseInt(numB.replace(/\D/g, ''), 10) || 0;
+    if (valA !== valB) return valA - valB;
+
+    return endA.localeCompare(endB);
+  });
+}
+
+export async function buscarEnderecos(
+  municipio: string,
+  textoBusca: string,
+  modoAvancado: boolean = false,
+  limit: number = 500
+): Promise<{ results: any[]; totalEncontrado: number }> {
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+    
+    const colunasBusca = modoAvancado ? COLUNAS_BUSCA_AVANCADA : COLUNAS_BUSCA_SIMPLES;
+    const whereClauses: string[] = [];
+    
+    if (municipio && municipio !== 'Todos') {
+      whereClauses.push(`municipio = '${escapeSqlLiteral(municipio)}'`);
+    }
+
+    const trimmedInput = (textoBusca || '').trim();
+    let detectedTargetNumber: string | undefined = undefined;
+
+    if (trimmedInput.length > 0) {
+      // Verifica se há vírgula separando endereço de bairro/número
+      const partes = trimmedInput.split(',').map(p => p.trim()).filter(p => p !== '');
+
+      if (partes.length > 1) {
+        const parteRua = partes[0].toLowerCase();
+
+        // Colunas de busca geral
+        const concatStrGeral = colunasBusca.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
+        const searchExprGeral = `strip_accents(lower(${concatStrGeral}))`;
+
+        // Parte 1 (Rua): busca geral
+        const termosRua = parteRua.split(/\s+/).filter(t => t.length > 0);
+        termosRua.forEach(termo => {
+          const t = escapeSqlLikePattern(termo);
+          whereClauses.push(`${searchExprGeral} LIKE '%${t}%'`);
+        });
+
+        // Processa as demais partes (separadas por vírgula)
+        for (let i = 1; i < partes.length; i++) {
+          const parte = partes[i].toLowerCase();
+          const termosSec = parte.split(/\s+/).filter(t => t.length > 0);
+          if (termosSec.length === 0) continue;
+
+          const primeiroTermo = termosSec[0];
+          const isNumero = /^\d+[a-zA-Z]*$/.test(primeiroTermo);
+
+          if (isNumero) {
+            detectedTargetNumber = primeiroTermo;
+            const colsNum = ['numero_logradouro', 'endereco', 'complemento'];
+            const concatStrNum = colsNum.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
+            const searchExprNum = `strip_accents(lower(${concatStrNum}))`;
+            
+            termosSec.forEach(termo => {
+              const t = escapeSqlLikePattern(termo);
+              whereClauses.push(`${searchExprNum} LIKE '%${t}%'`);
+            });
+          } else {
+            const colsLoc = ['bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural'];
+            const concatStrLoc = colsLoc.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
+            const searchExprLoc = `strip_accents(lower(${concatStrLoc}))`;
+            
+            termosSec.forEach(termo => {
+              const t = escapeSqlLikePattern(termo);
+              whereClauses.push(`${searchExprLoc} LIKE '%${t}%'`);
+            });
+          }
+        }
+      } else {
+        // Busca simples: verifica se o último termo é um número de porta (ex: "Rua Radialista Benedito de Assis 3625")
+        const termoNormalizado = trimmedInput.replace(/,/g, ' ').toLowerCase();
+        const termos = termoNormalizado.split(/\s+/).filter(t => t.length > 0);
+        
+        const ultimoTermo = termos[termos.length - 1];
+        if (termos.length > 1 && /^\d+[a-zA-Z]*$/.test(ultimoTermo)) {
+          detectedTargetNumber = ultimoTermo;
+        }
+
+        const concatStr = colunasBusca.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
+        const searchExpr = `strip_accents(lower(${concatStr}))`;
+
+        termos.forEach(termo => {
+          const t = escapeSqlLikePattern(termo);
+          whereClauses.push(`${searchExpr} LIKE '%${t}%'`);
+        });
+      }
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 500));
+
+    // Cláusula de ordenação por relevância no SQL do DuckDB
+    let orderBySql = 'ORDER BY TRY_CAST("numero_logradouro" AS BIGINT) ASC, "endereco" ASC';
+    if (detectedTargetNumber) {
+      const cleanNum = escapeSqlLiteral(detectedTargetNumber.toLowerCase());
+      orderBySql = `
+        ORDER BY 
+          CASE 
+            WHEN lower(trim(COALESCE(CAST("numero_logradouro" AS VARCHAR), ''))) = '${cleanNum}' THEN 1
+            WHEN strip_accents(lower(COALESCE(CAST("endereco" AS VARCHAR), ''))) LIKE '% - ${cleanNum}' OR strip_accents(lower(COALESCE(CAST("endereco" AS VARCHAR), ''))) LIKE '% ${cleanNum}' THEN 2
+            WHEN lower(trim(COALESCE(CAST("numero_logradouro" AS VARCHAR), ''))) LIKE '${cleanNum}%' THEN 3
+            WHEN strip_accents(lower(COALESCE(CAST("endereco" AS VARCHAR), ''))) LIKE '%${cleanNum}%' THEN 4
+            ELSE 10
+          END ASC,
+          TRY_CAST("numero_logradouro" AS BIGINT) ASC,
+          "endereco" ASC
+      `;
+    }
+
+    const sql = `
+      SELECT * FROM (
+        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
+        FROM enderecos
+        ${whereSql}
+      )
+      ${orderBySql}
+      LIMIT ${safeLimit};
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    const rawResults = rows.map(r => r.toJSON());
+    const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+
+    // Refina a ordenação de relevância no JavaScript para garantir 100% de precisão no primeiro resultado
+    const sortedResults = sortResultsByRelevance(rawResults, trimmedInput, detectedTargetNumber);
+
+    return { results: sortedResults, totalEncontrado };
+  } catch (e) {
+    console.error("Erro na busca de endereços no DuckDB:", e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
+
+export function getPolygonBoundingBox(geometry: any): [number, number, number, number] {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+
+  const traverse = (coords: any) => {
+    if (Array.isArray(coords) && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      const lng = coords[0];
+      const lat = coords[1];
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    } else if (Array.isArray(coords)) {
+      coords.forEach(traverse);
+    }
+  };
+
+  if (geometry && geometry.coordinates) {
+    traverse(geometry.coordinates);
+  }
+
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+export async function buscarEnderecosPorPoligono(
+  featureOrGeometry: any,
+  limit: number = 3000
+): Promise<{ results: any[]; totalEncontrado: number }> {
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const geometry = featureOrGeometry.geometry || featureOrGeometry;
+    const [minLng, minLat, maxLng, maxLat] = getPolygonBoundingBox(geometry);
+
+    if (!isFinite(minLng) || !isFinite(minLat) || !isFinite(maxLng) || !isFinite(maxLat)) {
+      return { results: [], totalEncontrado: 0 };
+    }
+
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    // Query do DuckDB usando a bounding box espacial com TRY_CAST seguro
+    const sql = `
+      SELECT *
+      FROM enderecos
+      WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        AND TRY_CAST(latitude AS DOUBLE) >= ${minLat - 0.0001}
+        AND TRY_CAST(latitude AS DOUBLE) <= ${maxLat + 0.0001}
+        AND TRY_CAST(longitude AS DOUBLE) >= ${minLng - 0.0001}
+        AND TRY_CAST(longitude AS DOUBLE) <= ${maxLng + 0.0001}
+      LIMIT 20000;
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    const rawResults = rows.map(r => r.toJSON());
+
+    // Filtragem precisa ponto a ponto dentro do polígono exato com Turf.js
+    const turfFeature = featureOrGeometry.type === 'Feature' ? featureOrGeometry : {
+      type: 'Feature',
+      geometry: geometry,
+      properties: {}
+    };
+
+    const insideResults = rawResults.filter(row => {
+      const lat = parseFloat(row.latitude);
+      const lng = parseFloat(row.longitude);
+      if (isNaN(lat) || isNaN(lng)) return false;
+      try {
+        const pt = point([lng, lat]);
+        return booleanPointInPolygon(pt, turfFeature as any);
+      } catch (err) {
+        return false;
+      }
+    });
+
+    const cappedResults = insideResults.slice(0, limit);
+    return {
+      results: cappedResults,
+      totalEncontrado: insideResults.length
+    };
+  } catch (e) {
+    console.error("Erro na busca de endereços por polígono no DuckDB:", e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}

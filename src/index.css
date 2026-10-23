@@ -1,0 +1,647 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-grotesk: 'Space Grotesk', sans-serif;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.font-display {
+  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+}
+
+.font-grotesk {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Ocultar o botão nativo de olho do Edge/Windows para não duplicar com o botão customizado */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Correção de autofill dos navegadores para campos de preenchimento (evita fundo amarelo/azul feio) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 40px #f8fafc inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover, 
+.dark input:-webkit-autofill:focus, 
+.dark input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 40px #1e293b inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 dark:bg-slate-700 rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-300 dark:bg-slate-600;
+  }
+}
+
+/* Otimização de aceleração de hardware para renderização ultra-fluida do Leaflet */
+.leaflet-tile {
+  will-change: transform, opacity;
+}
+
+/* Customização do ícone de régua na ferramenta de medição do Leaflet */
+.leaflet-control-measure-toggle,
+.leaflet-control-measure-toggle:hover {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0l12.6 12.6z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>') !important;
+  background-size: 18px 18px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
+  transition: all 0.2s ease !important;
+}
+
+.dark .leaflet-control-measure-toggle,
+.dark .leaflet-control-measure-toggle:hover {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0l12.6 12.6z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>') !important;
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+.leaflet-control-measure {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  overflow: hidden !important;
+}
+
+.dark .leaflet-control-measure {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Garante que o polígono medido seja clicável e reabra o balão de busca CNEFE / exclusão */
+.layer-measure-resultarea,
+.layer-measure-resultline,
+.layer-measure-resultpoint,
+path.layer-measure-resultarea,
+path.layer-measure-resultline,
+path.layer-measure-resultpoint {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  transition: stroke-width 0.15s ease, fill-opacity 0.15s ease;
+}
+
+path.layer-measure-resultarea:hover {
+  fill-opacity: 0.4 !important;
+  stroke-width: 3.5px !important;
+}
+
+.dark path.layer-measure-resultarea {
+  fill-opacity: 0.3 !important;
+  stroke: #38bdf8 !important;
+}
+
+.dark path.layer-measure-resultarea:hover {
+  fill-opacity: 0.5 !important;
+  stroke-width: 3.5px !important;
+}
+
+/* ============================================================
+   ANIMAÇÃO E ESTILIZAÇÃO PREMIUM DAS LOCALIDADES (PIAUÍ)
+   ============================================================ */
+
+.google-maps-localidade-label {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+  transition: z-index 0s !important;
+}
+
+.google-maps-localidade-label:hover {
+  z-index: 99999 !important;
+}
+
+.localidade-marker-container {
+  position: relative;
+  pointer-events: auto;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 500;
+  display: inline-flex;
+  align-items: center;
+  transform-origin: 0% 100%;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+  will-change: transform;
+}
+
+.localidade-pin-icon {
+  position: absolute;
+  left: -10px;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  filter: drop-shadow(0px 2px 3px rgba(0, 0, 0, 0.4));
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+}
+
+.localidade-marker-text {
+  position: absolute;
+  left: 12px;
+  bottom: 2px;
+  font-weight: 700;
+  color: #0f172a;
+  text-shadow: 
+    -1.5px -1.5px 0 #ffffff, 
+     1.5px -1.5px 0 #ffffff, 
+    -1.5px  1.5px 0 #ffffff, 
+     1.5px  1.5px 0 #ffffff, 
+     0 0 4px #ffffff, 
+     0 0 6px #ffffff;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.2px;
+  line-height: 1;
+  transition: color 0.2s ease, text-shadow 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* EFEITO AO PASSAR O MOUSE (HOVER): AMPLIAÇÃO SUAVE E ELEGANTE DO PINO E DO NOME */
+.google-maps-localidade-label:hover .localidade-marker-container {
+  transform: scale(1.35) translateY(-3px);
+  filter: drop-shadow(0px 6px 14px rgba(0, 0, 0, 0.25));
+}
+
+.google-maps-localidade-label:hover .localidade-pin-icon {
+  filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.55)) brightness(1.15);
+}
+
+.google-maps-localidade-label:hover .localidade-marker-text {
+  color: #b91c1c;
+  font-weight: 800;
+  text-shadow: 
+    -2px -2px 0 #ffffff, 
+     2px -2px 0 #ffffff, 
+    -2px  2px 0 #ffffff, 
+     2px  2px 0 #ffffff, 
+     0 0 6px #ffffff, 
+     0 0 10px #ffffff, 
+     0 0 12px rgba(220, 38, 38, 0.35);
+}
+
+/* Suporte para Modo Escuro (Dark Mode) */
+.dark .localidade-marker-text {
+  color: #f8fafc;
+  text-shadow: 
+    -1.5px -1.5px 0 #0f172a, 
+     1.5px -1.5px 0 #0f172a, 
+    -1.5px  1.5px 0 #0f172a, 
+     1.5px  1.5px 0 #0f172a, 
+     0 0 4px #0f172a, 
+     0 0 6px #0f172a;
+}
+
+.dark .google-maps-localidade-label:hover .localidade-marker-text {
+  color: #fca5a5;
+  text-shadow: 
+    -2px -2px 0 #0f172a, 
+     2px -2px 0 #0f172a, 
+    -2px  2px 0 #0f172a, 
+     2px  2px 0 #0f172a, 
+     0 0 6px #0f172a, 
+     0 0 10px #0f172a, 
+     0 0 14px rgba(239, 68, 68, 0.5);
+}
+
+/* ============================================================
+   ESTILO MODERNO E PREMIUM PARA OS POP-UPS DO MAPA
+   ============================================================ */
+
+/* Popup Base / Balloon Wrapper */
+.polygon-callout-balloon .leaflet-popup-content-wrapper,
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  padding: 0 !important;
+  width: 252px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+
+.dark .polygon-callout-balloon .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.94) !important;
+  border-color: rgba(51, 65, 85, 0.7) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+
+.polygon-callout-balloon .leaflet-popup-content,
+.leaflet-popup-content {
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  line-height: 1.4 !important;
+}
+
+.polygon-callout-balloon .leaflet-popup-tip-container {
+  display: none !important;
+}
+
+.leaflet-popup-close-button {
+  top: 10px !important;
+  right: 10px !important;
+  width: 22px !important;
+  height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9999px !important;
+  color: #94a3b8 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  background: rgba(241, 245, 249, 0.8) !important;
+  transition: all 0.15s ease !important;
+  text-decoration: none !important;
+}
+
+.dark .leaflet-popup-close-button {
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #64748b !important;
+}
+
+.leaflet-popup-close-button:hover {
+  background: rgba(225, 29, 72, 0.15) !important;
+  color: #e11d48 !important;
+  transform: scale(1.08) !important;
+}
+
+/* Card Interno do Popup */
+.webgis-popup-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.webgis-popup-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.webgis-popup-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #475569;
+}
+
+.dark .webgis-popup-badge {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(51, 65, 85, 0.8);
+  color: #94a3b8;
+}
+
+.webgis-popup-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.webgis-popup-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.webgis-popup-field-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #94a3b8;
+}
+
+.dark .webgis-popup-field-label {
+  color: #64748b;
+}
+
+.webgis-popup-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.webgis-popup-title-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
+
+.dark .webgis-popup-title-val {
+  color: #f8fafc;
+}
+
+/* Tabela/Grade de Atributos */
+.webgis-popup-attributes-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 10px;
+  padding: 7px 9px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dark .webgis-popup-attributes-grid {
+  background: rgba(30, 41, 59, 0.55);
+  border-color: rgba(51, 65, 85, 0.65);
+}
+
+.webgis-popup-attribute-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.webgis-popup-attribute-item:not(:last-child) {
+  border-bottom: 1px dashed rgba(226, 232, 240, 0.7);
+  padding-bottom: 4px;
+}
+
+.dark .webgis-popup-attribute-item:not(:last-child) {
+  border-bottom-color: rgba(51, 65, 85, 0.6);
+}
+
+.webgis-popup-attr-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.dark .webgis-popup-attr-label {
+  color: #94a3b8;
+}
+
+.webgis-popup-attr-val-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  text-align: right;
+  flex: 1;
+}
+
+.webgis-popup-attr-val {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1e293b;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+.dark .webgis-popup-attr-val {
+  color: #e2e8f0;
+}
+
+/* Botão de Copiar */
+.webgis-popup-copy-btn {
+  background: transparent;
+  border: none;
+  padding: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  border-radius: 5px;
+  transition: all 0.15s ease;
+}
+
+.webgis-popup-copy-btn:hover {
+  color: #0f172a;
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.dark .webgis-popup-copy-btn:hover {
+  color: #f8fafc;
+  background: rgba(51, 65, 85, 0.8);
+}
+
+/* Botão de Ação Espacial CNEFE */
+.webgis-popup-cnefe-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  color: #ffffff !important;
+  border: none;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 3px 10px rgba(225, 29, 72, 0.25);
+  margin-top: 2px;
+}
+
+.webgis-popup-cnefe-btn:hover {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  box-shadow: 0 5px 15px rgba(225, 29, 72, 0.35);
+  transform: translateY(-1px);
+}
+
+.webgis-popup-cnefe-btn:active {
+  transform: translateY(0);
+}
+
+/* Botões de Coordenadas em Grid */
+.webgis-coord-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.webgis-coord-btn {
+  background: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.dark .webgis-coord-btn {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(51, 65, 85, 0.9);
+}
+
+.webgis-coord-btn:hover {
+  border-color: #e11d48;
+  background: rgba(254, 242, 242, 0.8);
+}
+
+.dark .webgis-coord-btn:hover {
+  border-color: #f43f5e;
+  background: rgba(225, 29, 72, 0.15);
+}
+
+.webgis-coord-btn-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dark .webgis-coord-btn-label {
+  color: #94a3b8;
+}
+
+.webgis-coord-btn-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e11d48;
+  transition: color 0.15s;
+}
+
+.dark .webgis-coord-btn-val {
+  color: #fb7185;
+}
+
+.webgis-streetview-btn {
+  width: 100%;
+  text-align: left;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 9px;
+  padding: 7px 10px;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none !important;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.dark .webgis-streetview-btn {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.webgis-streetview-btn:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.polygon-callout-connector {
+  stroke-dasharray: 5, 5;
+  animation: connector-dash 25s linear infinite;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes connector-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.polygon-callout-anchor {
+  animation: anchor-pulse 2s infinite ease-in-out;
+}
+
+@keyframes anchor-pulse {
+  0%, 100% {
+    r: 4.5;
+    stroke-width: 2;
+  }
+  50% {
+    r: 6;
+    stroke-width: 2.5;
+  }
+}
+
+/* Linha tracejada animada (andando) na borda da feição selecionada */
+.selected-feature-animated-dash {
+  stroke-dasharray: 6, 6 !important;
+  animation: feature-border-dash 20s linear infinite !important;
+  filter: drop-shadow(0 2px 5px rgba(225, 29, 72, 0.45));
+}
+
+@keyframes feature-border-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+

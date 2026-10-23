@@ -1,0 +1,6 @@
+{
+  "name": "GeoCode - Inteligência Territorial",
+  "description": "Plataforma de inteligência territorial com mapas interativos, painéis populacionais e domiciliares e exportação de dados.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
