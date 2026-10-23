@@ -4,21 +4,23 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
-  --font-grotesk: 'Space Grotesk', sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Outfit", "Plus Jakarta Sans", sans-serif;
+  --font-grotesk: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Space Grotesk", sans-serif;
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Plus Jakarta Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display {
-  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Outfit", "Plus Jakarta Sans", sans-serif;
 }
 
 .font-grotesk {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Space Grotesk", sans-serif;
 }
 
 /* Ocultar o botão nativo de olho do Edge/Windows para não duplicar com o botão customizado */
@@ -241,38 +243,38 @@ path.layer-measure-resultarea:hover {
 }
 
 /* ============================================================
-   ESTILO MODERNO E PREMIUM PARA OS POP-UPS DO MAPA
+   ESTILO APPLE MAPS WEB (MAPS.APPLE.COM) PARA POP-UPS E BALÕES
    ============================================================ */
 
 /* Popup Base / Balloon Wrapper */
 .polygon-callout-balloon .leaflet-popup-content-wrapper,
 .leaflet-popup-content-wrapper {
-  background: rgba(255, 255, 255, 0.96) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
-  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 0.5px rgba(0, 0, 0, 0.08) !important;
+  border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
   padding: 0 !important;
-  width: 252px !important;
+  width: 256px !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Plus Jakarta Sans", system-ui, sans-serif !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .dark .polygon-callout-balloon .leaflet-popup-content-wrapper,
 .dark .leaflet-popup-content-wrapper {
-  background: rgba(15, 23, 42, 0.94) !important;
-  border-color: rgba(51, 65, 85, 0.7) !important;
-  color: #f8fafc !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+  background: rgba(28, 28, 30, 0.86) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: #f5f5f7 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.12) !important;
 }
 
 .polygon-callout-balloon .leaflet-popup-content,
 .leaflet-popup-content {
   margin: 0 !important;
-  padding: 12px 14px !important;
+  padding: 13px 15px !important;
   line-height: 1.4 !important;
 }
 
@@ -283,29 +285,34 @@ path.layer-measure-resultarea:hover {
 .leaflet-popup-close-button {
   top: 10px !important;
   right: 10px !important;
-  width: 22px !important;
-  height: 22px !important;
+  width: 24px !important;
+  height: 24px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   border-radius: 9999px !important;
-  color: #94a3b8 !important;
-  font-size: 15px !important;
-  font-weight: 700 !important;
-  background: rgba(241, 245, 249, 0.8) !important;
-  transition: all 0.15s ease !important;
+  color: #8e8e93 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
   text-decoration: none !important;
 }
 
 .dark .leaflet-popup-close-button {
-  background: rgba(30, 41, 59, 0.8) !important;
-  color: #64748b !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #a1a1a6 !important;
 }
 
 .leaflet-popup-close-button:hover {
-  background: rgba(225, 29, 72, 0.15) !important;
-  color: #e11d48 !important;
+  background: rgba(0, 0, 0, 0.12) !important;
+  color: #1c1c1e !important;
   transform: scale(1.08) !important;
+}
+
+.dark .leaflet-popup-close-button:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
 }
 
 /* Card Interno do Popup */
@@ -325,26 +332,26 @@ path.layer-measure-resultarea:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(241, 245, 249, 0.9);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(0, 0, 0, 0.04);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
   padding: 3px 8px;
   border-radius: 9999px;
   font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #475569;
+  color: #48484a;
 }
 
 .dark .webgis-popup-badge {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(51, 65, 85, 0.8);
-  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d1d1d6;
 }
 
 .webgis-popup-dot {
-  width: 6px;
-  height: 6px;
+  width: 6.5px;
+  height: 6.5px;
   border-radius: 9999px;
   flex-shrink: 0;
 }
@@ -360,11 +367,11 @@ path.layer-measure-resultarea:hover {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #94a3b8;
+  color: #8e8e93;
 }
 
 .dark .webgis-popup-field-label {
-  color: #64748b;
+  color: #98989d;
 }
 
 .webgis-popup-title-row {
@@ -375,16 +382,16 @@ path.layer-measure-resultarea:hover {
 }
 
 .webgis-popup-title-val {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1c1c1e;
   line-height: 1.25;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   word-break: break-word;
 }
 
 .dark .webgis-popup-title-val {
-  color: #f8fafc;
+  color: #ffffff;
 }
 
 /* Tabela/Grade de Atributos */
@@ -392,17 +399,17 @@ path.layer-measure-resultarea:hover {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  background: rgba(248, 250, 252, 0.9);
-  border: 1px solid rgba(226, 232, 240, 0.85);
-  border-radius: 10px;
-  padding: 7px 9px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 8px 10px;
   max-height: 240px;
   overflow-y: auto;
 }
 
 .dark .webgis-popup-attributes-grid {
-  background: rgba(30, 41, 59, 0.55);
-  border-color: rgba(51, 65, 85, 0.65);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .webgis-popup-attribute-item {
@@ -414,26 +421,26 @@ path.layer-measure-resultarea:hover {
 }
 
 .webgis-popup-attribute-item:not(:last-child) {
-  border-bottom: 1px dashed rgba(226, 232, 240, 0.7);
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
   padding-bottom: 4px;
 }
 
 .dark .webgis-popup-attribute-item:not(:last-child) {
-  border-bottom-color: rgba(51, 65, 85, 0.6);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .webgis-popup-attr-label {
   font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #64748b;
+  color: #8e8e93;
   letter-spacing: 0.4px;
   flex-shrink: 0;
   padding-top: 1px;
 }
 
 .dark .webgis-popup-attr-label {
-  color: #94a3b8;
+  color: #aeaeb2;
 }
 
 .webgis-popup-attr-val-box {
@@ -448,71 +455,71 @@ path.layer-measure-resultarea:hover {
 .webgis-popup-attr-val {
   font-size: 11.5px;
   font-weight: 600;
-  color: #1e293b;
+  color: #1c1c1e;
   word-break: break-word;
   line-height: 1.25;
 }
 
 .dark .webgis-popup-attr-val {
-  color: #e2e8f0;
+  color: #f2f2f7;
 }
 
 /* Botão de Copiar */
 .webgis-popup-copy-btn {
   background: transparent;
   border: none;
-  padding: 3px;
+  padding: 4px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
-  border-radius: 5px;
+  color: #8e8e93;
+  border-radius: 6px;
   transition: all 0.15s ease;
 }
 
 .webgis-popup-copy-btn:hover {
-  color: #0f172a;
-  background: rgba(226, 232, 240, 0.8);
+  color: #007AFF;
+  background: rgba(0, 122, 255, 0.1);
 }
 
 .dark .webgis-popup-copy-btn:hover {
-  color: #f8fafc;
-  background: rgba(51, 65, 85, 0.8);
+  color: #0a84ff;
+  background: rgba(10, 132, 255, 0.18);
 }
 
-/* Botão de Ação Espacial CNEFE */
+/* Botão de Ação Espacial CNEFE (Estilo Apple Filled Button) */
 .webgis-popup-cnefe-btn {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  padding: 9px 12px;
+  background: linear-gradient(180deg, #007AFF 0%, #0066d6 100%);
   color: #ffffff !important;
   border: none;
-  border-radius: 10px;
-  font-size: 11px;
+  border-radius: 13px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.2px;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 3px 10px rgba(225, 29, 72, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
   margin-top: 2px;
 }
 
 .webgis-popup-cnefe-btn:hover {
-  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
-  box-shadow: 0 5px 15px rgba(225, 29, 72, 0.35);
+  background: linear-gradient(180deg, #1a87ff 0%, #007AFF 100%);
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.45);
   transform: translateY(-1px);
 }
 
 .webgis-popup-cnefe-btn:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
-/* Botões de Coordenadas em Grid */
+/* Botões de Coordenadas em Grid (Estilo Apple Capsule) */
 .webgis-coord-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -521,13 +528,13 @@ path.layer-measure-resultarea:hover {
 }
 
 .webgis-coord-btn {
-  background: #ffffff;
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  border-radius: 8px;
+  background: rgba(0, 122, 255, 0.06);
+  border: 0.5px solid rgba(0, 122, 255, 0.2);
+  border-radius: 10px;
   padding: 6px 4px;
   cursor: pointer;
   text-align: center;
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -536,52 +543,52 @@ path.layer-measure-resultarea:hover {
 }
 
 .dark .webgis-coord-btn {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(51, 65, 85, 0.9);
+  background: rgba(10, 132, 255, 0.12);
+  border-color: rgba(10, 132, 255, 0.25);
 }
 
 .webgis-coord-btn:hover {
-  border-color: #e11d48;
-  background: rgba(254, 242, 242, 0.8);
+  border-color: #007AFF;
+  background: rgba(0, 122, 255, 0.14);
 }
 
 .dark .webgis-coord-btn:hover {
-  border-color: #f43f5e;
-  background: rgba(225, 29, 72, 0.15);
+  border-color: #0a84ff;
+  background: rgba(10, 132, 255, 0.24);
 }
 
 .webgis-coord-btn-label {
   font-size: 8.5px;
   font-weight: 800;
-  color: #64748b;
+  color: #007AFF;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .dark .webgis-coord-btn-label {
-  color: #94a3b8;
+  color: #0a84ff;
 }
 
 .webgis-coord-btn-val {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: -apple-system-monospaced, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   font-weight: 700;
-  color: #e11d48;
+  color: #1c1c1e;
   transition: color 0.15s;
 }
 
 .dark .webgis-coord-btn-val {
-  color: #fb7185;
+  color: #f5f5f7;
 }
 
 .webgis-streetview-btn {
   width: 100%;
   text-align: left;
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  border-radius: 9px;
-  padding: 7px 10px;
-  color: #059669;
+  background: rgba(52, 199, 89, 0.1);
+  border: 0.5px solid rgba(52, 199, 89, 0.3);
+  border-radius: 12px;
+  padding: 8px 11px;
+  color: #34C759;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
@@ -594,21 +601,21 @@ path.layer-measure-resultarea:hover {
 }
 
 .dark .webgis-streetview-btn {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #34d399;
+  background: rgba(50, 215, 75, 0.14);
+  border-color: rgba(50, 215, 75, 0.35);
+  color: #30d158;
 }
 
 .webgis-streetview-btn:hover {
-  background: rgba(16, 185, 129, 0.18);
-  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(52, 199, 89, 0.2);
+  border-color: rgba(52, 199, 89, 0.5);
   transform: translateY(-1px);
 }
 
 .polygon-callout-connector {
   stroke-dasharray: 5, 5;
   animation: connector-dash 25s linear infinite;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 1px 3px rgba(0, 122, 255, 0.35));
 }
 
 @keyframes connector-dash {
@@ -632,11 +639,11 @@ path.layer-measure-resultarea:hover {
   }
 }
 
-/* Linha tracejada animada (andando) na borda da feição selecionada */
+/* Linha tracejada animada (andando) na borda da feição selecionada - Padrão Apple Blue */
 .selected-feature-animated-dash {
   stroke-dasharray: 6, 6 !important;
   animation: feature-border-dash 20s linear infinite !important;
-  filter: drop-shadow(0 2px 5px rgba(225, 29, 72, 0.45));
+  filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.65));
 }
 
 @keyframes feature-border-dash {
@@ -644,4 +651,35 @@ path.layer-measure-resultarea:hover {
     stroke-dashoffset: -1000;
   }
 }
+
+/* ============================================================
+   CLASSES DE VIDRO E CONTROLES FLUTUANTES APPLE MAPS
+   ============================================================ */
+
+.apple-floating-panel {
+  background: rgba(255, 255, 255, 0.85);
+  -webkit-backdrop-filter: blur(25px) saturate(190%);
+  backdrop-filter: blur(25px) saturate(190%);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.dark .apple-floating-panel {
+  background: rgba(28, 28, 30, 0.85);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.apple-segmented-button-active {
+  background: #ffffff;
+  color: #007AFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+}
+
+.dark .apple-segmented-button-active {
+  background: #3a3a3c;
+  color: #0a84ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+}
+
 

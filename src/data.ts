@@ -86,41 +86,41 @@ export const propertyNames: Record<string, string> = {
   'Identificação do estabelecimento': 'Identificação do Estabelecimento'
 };
 
-// ---------- Estilos e Legendas Temáticas ----------
+// ---------- Estilos e Legendas Temáticas (Paleta Apple Maps / iOS HIG) ----------
 export const layerColors: Record<string, string> = {
-  "Municipios": "#ef4444",                     // Vermelha
-  "Bairros": "#2563eb",                        // Azul
-  "AISP": "#8b5cf6",                           // Violeta/Roxa
-  "Aglomerados Rurais": "#f97316",             // Laranja
-  "Áreas de Desenvolvimento": "#eab308",       // Amarela
-  "Comunidades Rurais de Teresina": "#10b981",  // Verde
-  "Favelas e Comunidades": "#ec4899",          // Rosa/Pink
-  "Localidades (Piauí)": "#dc2626",            // Vermelha
-  "Núcleos Urbanos": "#f43f5e",                // Vermelho Rose
-  "RISP": "#06b6d4"                            // Ciano/Teal
+  "Municipios": "#007AFF",                     // Apple Blue
+  "Bairros": "#5856D6",                        // Apple Indigo
+  "AISP": "#AF52DE",                           // Apple Purple
+  "Aglomerados Rurais": "#FF9500",             // Apple Orange
+  "Áreas de Desenvolvimento": "#FFCC00",       // Apple Yellow
+  "Comunidades Rurais de Teresina": "#34C759",  // Apple Green
+  "Favelas e Comunidades": "#FF2D55",          // Apple Pink / Rose
+  "Localidades (Piauí)": "#FF3B30",            // Apple Red
+  "Núcleos Urbanos": "#30B0C7",                // Apple Teal
+  "RISP": "#00C7BE"                            // Apple Mint
 };
 
 export const getLayerColor = (layerName: string): string => {
-  return layerColors[layerName] || "#64748b"; // Cinza ardósia padrão
+  return layerColors[layerName] || "#8E8E93"; // Apple System Gray padrão
 };
 
-// Cria estilo uniforme com opacidade padrão (0% para Municípios / apenas linhas, 10% para demais polígonos) e alta opacidade (90%) na borda
+// Cria estilo uniforme estilo Apple Maps: tons pastéis translúcidos elegantes com borda nítida
 export const createUniformStyle = (layerName: string) => (_f: any): L.PathOptions => ({
   fillColor: getLayerColor(layerName),
-  weight: 1.5,
-  opacity: 0.9, // Alta opacidade para a borda
+  weight: layerName === "Municipios" ? 2 : 1.5,
+  opacity: 0.88, // Borda limpa e nítida
   color: getLayerColor(layerName), // Cor padrão da borda igual à cor da camada
-  fillOpacity: layerName === "Municipios" ? 0 : 0.1,  // Municípios inicia sem preenchimento (apenas limites/linhas)
+  fillOpacity: layerName === "Municipios" ? 0 : 0.14,  // Preenchimento sutil translúcido Apple
   dashArray: ''
 });
 
 export const thematicStylePoints = (_f: any): L.CircleMarkerOptions => ({
-  radius: 4,
+  radius: 5,
   fillColor: getLayerColor("Localidades (Piauí)"),
-  color: "#000000",
-  weight: 1,
-  opacity: 0.5,
-  fillOpacity: 0.5
+  color: "#ffffff",
+  weight: 1.5,
+  opacity: 0.95,
+  fillOpacity: 0.88
 });
 
 export const layerStyles: Record<string, (f: any) => L.PathOptions> = {

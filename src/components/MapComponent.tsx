@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import L from 'leaflet';
 import 'leaflet-measure/dist/leaflet-measure.css';
-import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star } from 'lucide-react';
+import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon } from 'lucide-react';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, toTitleCase } from '../utils';
@@ -332,9 +332,31 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   // Cache de camadas carregadas para evitar novos fetches
   const loadedLayersRef = useRef<Record<string, L.GeoJSON>>({});
   
-  // Estados para UI do Mapa
-  const [basemap, setBasemap] = useState<string>('osm');
+  // Estados para UI do Mapa (Padrão Apple Maps / maps.apple.com)
+  const [basemap, setBasemap] = useState<string>(() => {
+    if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+      return 'appleDark';
+    }
+    return 'apple';
+  });
+  const [basemapModalOpen, setBasemapModalOpen] = useState<boolean>(false);
   const [layersPanelOpen, setLayersPanelOpen] = useState<boolean>(false);
+
+  // Sincronização inteligente entre Apple Maps Claro e Escuro ao alternar tema do site
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined') return;
+    const checkTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setBasemap(prev => {
+        if (isDark && prev === 'apple') return 'appleDark';
+        if (!isDark && prev === 'appleDark') return 'apple';
+        return prev;
+      });
+    };
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Fechar o painel de camadas automaticamente se a permissão for desativada
   useEffect(() => {
@@ -559,9 +581,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         }
       }
 
-      // 3. Linha conectora elegante e tracejada (da BORDA da feição até o CANTO INFERIOR DIREITO do balão)
+      // 3. Linha conectora elegante e tracejada (da BORDA da feição até o CANTO INFERIOR do balão estilo Apple)
       const connectorLine = L.polyline([anchorLatLng, exactCornerLatLng], {
-        color: '#e11d48',
+        color: '#007AFF',
         weight: 2.5,
         dashArray: '5, 5',
         opacity: 0.95,
@@ -569,10 +591,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }).addTo(map);
       polygonCalloutLineRef.current = connectorLine;
 
-      // 4. Marcador âncora exatamente NA BORDA da feição
+      // 4. Marcador âncora exatamente NA BORDA da feição (Apple Blue)
       const anchorMarker = L.circleMarker(anchorLatLng, {
         radius: 4.5,
-        fillColor: '#e11d48',
+        fillColor: '#007AFF',
         color: '#ffffff',
         weight: 2,
         fillOpacity: 1,
@@ -934,12 +956,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const tileLayersRef = useRef<Record<string, L.TileLayer>>({});
   const searchMarkersRef = useRef<L.Marker[]>([]);
 
-  // Estilo de seleção destacado com contorno tracejado elegante ao redor da feição
+  // Estilo de seleção destacado estilo Apple Maps (Apple Blue brilhante com contorno animado)
   const selectedStyle: L.PathOptions = { 
     weight: 3.5, 
-    color: '#e11d48', 
+    color: '#007AFF', 
     dashArray: '6, 6', 
-    fillOpacity: 0.25,
+    fillOpacity: 0.22,
     opacity: 1,
     className: 'selected-feature-animated-dash'
   };
@@ -1020,9 +1042,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Inicializa o Leaflet Map com suporte a SVG e animações de contorno tracejado
+    // Inicializa o Leaflet Map estilo Apple Maps (sem zoom nativo quadrado)
     const map = L.map(mapContainerRef.current, { 
-      zoomControl: true,
+      zoomControl: false,
       preferCanvas: false,
       wheelDebounceTime: 40,
       wheelPxPerZoomLevel: 60
@@ -1048,8 +1070,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             secondaryLengthUnit: 'kilometers',
             primaryAreaUnit: 'sqmeters',
             secondaryAreaUnit: 'hectares',
-            activeColor: '#3b82f6',
-            completedColor: '#2563eb',
+            activeColor: '#007AFF',
+            completedColor: '#005bb5',
             popupOptions: { autoPan: false, className: 'leaflet-measure-resultpopup' }
           });
           measureControl.addTo(map);
@@ -1283,8 +1305,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       })
     };
 
-    // Adiciona o basemap padrão
-    tileLayersRef.current.osm.addTo(map);
+    // Adiciona o basemap padrão (Apple Maps)
+    const initialTile = tileLayersRef.current[basemap] || tileLayersRef.current.apple;
+    initialTile.addTo(map);
 
     map.on('click', (e: any) => {
       // Ignore click if the measuring tool is active
@@ -2286,14 +2309,15 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       defaultExpanded[name] = true;
     });
     setExpandedDetails(defaultExpanded);
-    setBasemap('googleHybrid');
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    setBasemap(isDark ? 'appleDark' : 'apple');
     if (onSelectionChange) {
       onSelectionChange([]);
     }
 
     const initialOpacities: Record<string, number> = {};
     dataSources.forEach(s => { 
-      initialOpacities[s.name] = s.name === "Localidades (Piauí)" ? 0.5 : (s.name === "Municipios" ? 0 : 0.1); 
+      initialOpacities[s.name] = s.name === "Localidades (Piauí)" ? 0.88 : (s.name === "Municipios" ? 0 : 0.14); 
     });
     setLayerOpacities(initialOpacities);
     setLayerColorsState({});
@@ -2522,10 +2546,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
   return (
     <div className={`space-y-3 ${isPrintMode ? 'h-full flex flex-col' : ''}`}>
-      {/* Botões de Ações Rápidas de Camada */}
+      {/* Botões de Ações Rápidas de Camada (Estilo Apple) */}
       {!isPrintMode && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/80 p-2.5 sm:p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
-          <div id="active-layer-display" className="w-full sm:w-auto text-center sm:text-left text-black dark:text-slate-100 text-sm font-semibold" aria-live="polite">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-xl p-2.5 sm:p-3 rounded-2xl border border-black/5 dark:border-white/10 shadow-xs">
+          <div id="active-layer-display" className="w-full sm:w-auto text-center sm:text-left text-black dark:text-slate-100 text-xs sm:text-sm font-semibold" aria-live="polite">
             {activeLayers.length > 0 
               ? `Camadas ativas: ${activeLayers.join(', ')}` 
               : 'Camadas ativas: nenhuma'}
@@ -2534,10 +2558,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             <button 
               id="btn-multi-select" 
               onClick={onToggleMultiSelect}
-              className={`px-3 py-1.5 rounded-lg border text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 isMultiSelectMode 
-                  ? 'bg-red-600 border-red-700 text-white hover:bg-red-700' 
-                  : 'bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-[#007AFF] border-[#0066d6] text-white shadow-blue-500/25' 
+                  : 'bg-black/5 dark:bg-white/10 border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/15'
               }`}
               title="Permite selecionar várias áreas tocando nelas sem precisar do teclado"
             >
@@ -2547,7 +2571,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             {!isAllLayersOn && (
               <button 
                 onClick={handleTurnAllOn}
-                className="px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 text-xs sm:text-sm font-bold border border-red-200 dark:border-red-800 transition-colors cursor-pointer" 
+                className="px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold border border-black/5 dark:border-white/10 transition-all cursor-pointer" 
                 title="Ligar todas as camadas"
               >
                 Ligar tudo
@@ -2555,7 +2579,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             )}
             <button 
               onClick={handleTurnAllOff}
-              className="px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 text-xs sm:text-sm font-bold border border-red-200 dark:border-red-800 transition-colors cursor-pointer" 
+              className="px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold border border-black/5 dark:border-white/10 transition-all cursor-pointer" 
               title="Desligar todas as camadas"
             >
               Desligar tudo
@@ -2675,24 +2699,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           </div>
         )}
 
-        {/* Botão Único de Geolocalização no Canto Inferior Direito do Mapa */}
-        {!isPrintMode && (
-          <button
-            type="button"
-            onClick={toggleUserLocation}
-            className={`absolute bottom-6 right-3 z-[999] p-3 rounded-2xl shadow-2xl border backdrop-blur-md transition-all cursor-pointer flex items-center justify-center ${
-              showUserLocation
-                ? 'bg-blue-600 border-blue-700 text-white hover:bg-blue-700 shadow-blue-500/40 ring-2 ring-blue-400'
-                : 'bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-            title={showUserLocation ? "Desativar minha localização no mapa" : "Mostrar minha localização no mapa"}
-            aria-label="Minha Localização GPS"
-          >
-            <LocateFixed className={`w-5 h-5 ${showUserLocation ? 'text-white animate-pulse' : 'text-blue-600'}`} />
-          </button>
-        )}
-
-        {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO QGIS / MAPA PROFISSIONAL) */}
+        {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
         {!isPrintMode ? (
           <div 
             className="absolute bottom-6 left-3 z-[990] flex flex-col items-start print:hidden select-none"
@@ -2709,12 +2716,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   e.stopPropagation();
                   setIsLegendOpen(true);
                 }}
-                className="bg-white/95 dark:bg-slate-900/95 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/90 backdrop-blur-md transition-all flex items-center gap-2 cursor-pointer group hover:scale-105"
+                className="bg-white/85 dark:bg-[#1c1c1e]/85 hover:bg-white dark:hover:bg-[#2c2c2e] text-slate-800 dark:text-slate-100 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all flex items-center gap-2 cursor-pointer group active:scale-95"
                 title="Expandir Legenda Temática do Mapa"
               >
-                <div className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></div>
+                <div className="w-2 h-2 rounded-full bg-[#007AFF] animate-pulse"></div>
                 <span className="tracking-tight">Legenda</span>
-                <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                <span className="bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
                   {activeVisibleLayers.length}
                 </span>
                 <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-transform" />
@@ -2725,16 +2732,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.94, y: 8 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/90 w-[230px] sm:w-[260px] overflow-hidden flex flex-col transition-all"
+                className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 w-[240px] sm:w-[270px] overflow-hidden flex flex-col transition-all"
               >
                 {/* Cabeçalho da Legenda */}
-                <div className="px-3 py-2 bg-slate-50/90 dark:bg-slate-800/90 border-b border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
+                <div className="px-3.5 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/5 dark:border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                    <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
                     <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
                       Legenda
                     </span>
-                    <span className="text-[9px] bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 font-extrabold px-1.5 py-0.2 rounded-full">
+                    <span className="text-[9px] bg-blue-100 dark:bg-blue-950/80 text-[#007AFF] dark:text-[#0a84ff] font-extrabold px-1.5 py-0.2 rounded-full">
                       {activeVisibleLayers.length} {activeVisibleLayers.length === 1 ? 'ativa' : 'ativas'}
                     </span>
                   </div>
@@ -2939,85 +2946,239 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           measureContainerEl
         )}
 
-        {/* CONTROLES DE CAMADA SOBREPOSTOS NO MAPA */}
+        {/* CONTROLES FLUTUANTES ESTILO APPLE MAPS (MAPS.APPLE.COM) SOBREPOSTOS NO MAPA */}
         {(() => {
           const controlsContent = (
-            <div id="custom-map-controls" className={isPrintMode ? "flex flex-col gap-4 w-full" : "absolute top-3 right-3 z-[999] flex flex-col items-end gap-2 max-w-[280px] sm:max-w-[320px] print:hidden"}>
+            <div id="custom-map-controls" className={isPrintMode ? "flex flex-col gap-4 w-full" : "absolute top-3 right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden"}>
               
-              {/* 1. Seletor de Mapa de Fundo */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700/80 p-2.5 flex gap-2.5 items-center backdrop-blur-md">
-                <label htmlFor="basemap-select" className="text-xs text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider">Fundo</label>
-                <select 
-                  id="basemap-select" 
-                  value={basemap}
-                  onChange={(e) => setBasemap(e.target.value)}
-                  className="text-xs border border-slate-300 dark:border-slate-600 rounded-md px-2 py-1 bg-slate-50 dark:bg-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-red-500 flex-1"
-                >
-                  <option value="apple"> Apple Maps (Claro)</option>
-                  <option value="appleDark"> Apple Maps (Escuro)</option>
-                  <option value="googleHybrid">Google Híbrido</option>
-                  <option value="googleSat">Google Satélite</option>
-                  <option value="osm">OSM Padrão</option>
-                  <option value="esri">Esri Satélite</option>
-                  <option value="carto">Carto Light</option>
-                </select>
-              </div>
-              
-              {/* 2. Painel de Camadas Vetoriais */}
-              {allowLayerPanel && (
-                <div id="custom-layers-control" className={`flex flex-col w-full ${isPrintMode ? '' : 'items-end'}`}>
-                {!isPrintMode && (
+              {/* Barra Superior de Botões Flutuantes (Apple Squircle Pills) */}
+              <div className="flex items-center gap-2">
+                {/* 1. Seletor de Mapa Estilo Apple (Segmented Sheet Trigger) */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBasemapModalOpen(!basemapModalOpen);
+                      setLayersPanelOpen(false);
+                    }}
+                    className={`h-10 px-3.5 rounded-2xl flex items-center gap-2 border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer ${
+                      basemapModalOpen 
+                        ? 'bg-[#007AFF] text-white border-[#0066d6] shadow-blue-500/25' 
+                        : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10'
+                    }`}
+                    title="Alternar estilo do mapa (Apple Maps)"
+                  >
+                    <MapIcon className="w-4 h-4 text-[#007AFF] dark:text-[#0a84ff]" />
+                    <span className="hidden sm:inline">
+                      {basemap === 'apple' ? ' Explorar' : basemap === 'appleDark' ? ' Escuro' : basemap === 'googleSat' ? 'Satélite' : basemap === 'googleHybrid' ? 'Híbrido' : 'Mapa'}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${basemapModalOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Popover Apple com Segmented Controls para Basemaps */}
+                  {basemapModalOpen && (
+                    <div 
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      className="absolute right-0 top-12 w-[270px] p-2.5 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 z-[1001] animate-fadeIn space-y-2 text-left"
+                    >
+                      <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
+                        Estilo do Mapa (Apple Maps)
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-1.5 p-1 bg-black/5 dark:bg-white/5 rounded-2xl">
+                        <button
+                          type="button"
+                          onClick={() => { setBasemap('apple'); setBasemapModalOpen(false); }}
+                          className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                            basemap === 'apple'
+                              ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-black dark:hover:text-white'
+                          }`}
+                        >
+                          <span className="text-sm"></span>
+                          <span>Explorar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => { setBasemap('appleDark'); setBasemapModalOpen(false); }}
+                          className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                            basemap === 'appleDark'
+                              ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-black dark:hover:text-white'
+                          }`}
+                        >
+                          <span className="text-sm">🌙</span>
+                          <span>Escuro</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => { setBasemap('googleSat'); setBasemapModalOpen(false); }}
+                          className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                            basemap === 'googleSat'
+                              ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-black dark:hover:text-white'
+                          }`}
+                        >
+                          <span className="text-sm">🛰️</span>
+                          <span>Satélite</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => { setBasemap('googleHybrid'); setBasemapModalOpen(false); }}
+                          className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                            basemap === 'googleHybrid'
+                              ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-black dark:hover:text-white'
+                          }`}
+                        >
+                          <span className="text-sm">🗺️</span>
+                          <span>Híbrido</span>
+                        </button>
+                      </div>
+
+                      <div className="pt-1.5 border-t border-black/5 dark:border-white/10 flex justify-between items-center text-[11px] text-slate-500 px-1">
+                        <span>Outros Provedores:</span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => { setBasemap('osm'); setBasemapModalOpen(false); }}
+                            className={`font-bold hover:underline cursor-pointer ${basemap === 'osm' ? 'text-[#007AFF]' : ''}`}
+                          >
+                            OSM
+                          </button>
+                          <span>•</span>
+                          <button
+                            type="button"
+                            onClick={() => { setBasemap('esri'); setBasemapModalOpen(false); }}
+                            className={`font-bold hover:underline cursor-pointer ${basemap === 'esri' ? 'text-[#007AFF]' : ''}`}
+                          >
+                            Esri
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Botão de Camadas Estilo Apple (Floating Pill) */}
+                {allowLayerPanel && (
                   <button 
-                    onClick={() => setLayersPanelOpen(!layersPanelOpen)}
-                    className={`p-3 rounded-xl shadow-lg border transition-all flex items-center justify-center cursor-pointer ${
+                    onClick={() => {
+                      setLayersPanelOpen(!layersPanelOpen);
+                      setBasemapModalOpen(false);
+                    }}
+                    className={`h-10 px-3.5 rounded-2xl flex items-center gap-2 border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer ${
                       layersPanelOpen 
-                        ? 'bg-red-600 text-white border-red-700 hover:bg-red-700' 
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80 hover:bg-slate-50'
+                        ? 'bg-[#007AFF] text-white border-[#0066d6] shadow-blue-500/25' 
+                        : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10'
                     }`}
                     title="Alternar painel de camadas"
                     aria-expanded={layersPanelOpen}
                   >
-                    <Layers className="w-5 h-5" />
+                    <Layers className="w-4 h-4" />
+                    <span className="hidden sm:inline">Camadas</span>
                   </button>
                 )}
+              </div>
 
-                {(layersPanelOpen || isPrintMode) && (
-                  <div 
-                    id="layers-panel" 
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className={`bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col ${isPrintMode ? 'w-full max-h-none shadow-none border-none bg-transparent' : 'mt-2 w-[260px] sm:w-[300px] max-h-[380px]'}`}
+              {/* 3. Coluna de Controles Flutuantes à Direita (Pills de Ação Rápida Apple) */}
+              <div className="flex flex-col items-center gap-2 mt-1">
+                {/* Zoom Pill Vertical Estilo Apple */}
+                <div className="flex flex-col rounded-2xl overflow-hidden shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl bg-white/85 dark:bg-[#1c1c1e]/85">
+                  <button 
+                    type="button"
+                    onClick={() => mapRef.current?.zoomIn()} 
+                    className="w-10 h-10 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                    title="Aproximar Zoom (Apple Maps)"
+                    aria-label="Aproximar Zoom"
                   >
-                    {/* Cabeçalho do Painel com Salvar Estilo, Carregar e Ações */}
-                    <div className="p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 flex flex-col gap-1.5 shrink-0">
-                      <div className="flex gap-1">
-                        <button 
-                          onClick={openSaveStyleModal}
-                          type="button"
-                          className="flex-grow px-2 py-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded text-[11px] font-bold cursor-pointer transition-colors flex items-center justify-center gap-1 shadow-xs"
-                          title="Salvar configurações atuais em um estilo personalizado (até 4)"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          Salvar Estilo
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setShowLoadDropdown(!showLoadDropdown);
-                            setShowSaveModal(false);
-                          }}
-                          type="button"
-                          className={`px-2 py-1 border rounded text-[11px] font-bold cursor-pointer transition-colors flex items-center justify-center gap-1 ${
-                            showLoadDropdown 
-                              ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700' 
-                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                          title="Lista de estilos salvos"
-                        >
-                          <BookmarkCheck className="w-3.5 h-3.5 text-red-600" />
-                          Carregar
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <div className="h-[0.5px] w-6 mx-auto bg-black/10 dark:bg-white/15" />
+                  <button 
+                    type="button"
+                    onClick={() => mapRef.current?.zoomOut()} 
+                    className="w-10 h-10 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                    title="Afastar Zoom (Apple Maps)"
+                    aria-label="Afastar Zoom"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Bússola / Resetar Visão Geral */}
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (mapRef.current) {
+                      mapRef.current.setView([-5.09, -42.8], 7, { animate: true });
+                    }
+                  }}
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                  title="Restaurar Visão Geral / Norte (Apple Maps)"
+                  aria-label="Bússola / Resetar Visão"
+                >
+                  <Compass className="w-4 h-4 text-[#FF3B30]" />
+                </button>
+
+                {/* Minha Localização GPS */}
+                <button 
+                  type="button"
+                  onClick={toggleUserLocation} 
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer ${
+                    showUserLocation 
+                      ? 'bg-[#007AFF] text-white shadow-blue-500/30' 
+                      : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                  } active:scale-90`}
+                  title={showUserLocation ? "Desativar Localização GPS" : "Minha Localização GPS (Apple Maps)"}
+                  aria-label="Minha Localização GPS"
+                >
+                  <Navigation className={`w-4 h-4 ${showUserLocation ? 'text-white animate-pulse' : 'text-[#007AFF]'}`} />
+                </button>
+              </div>
+
+              {/* 4. Painel de Camadas Vetoriais (Apple Glass Sheet) */}
+              {allowLayerPanel && (layersPanelOpen || isPrintMode) && (
+                <div 
+                  id="layers-panel" 
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className={`bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden flex flex-col ${isPrintMode ? 'w-full max-h-none shadow-none border-none bg-transparent' : 'mt-1 w-[270px] sm:w-[310px] max-h-[420px]'}`}
+                >
+                  {/* Cabeçalho do Painel com Salvar Estilo, Carregar e Ações */}
+                  <div className="p-3 border-b border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04] flex flex-col gap-2 shrink-0">
+                    <div className="flex gap-1.5">
+                      <button 
+                        onClick={openSaveStyleModal}
+                        type="button"
+                        className="flex-grow px-2.5 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-xl text-[11px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                        title="Salvar configurações atuais em um estilo personalizado (até 4)"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        Salvar Estilo
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setShowLoadDropdown(!showLoadDropdown);
+                          setShowSaveModal(false);
+                        }}
+                        type="button"
+                        className={`px-2.5 py-1.5 border rounded-xl text-[11px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                          showLoadDropdown 
+                            ? 'bg-blue-50 dark:bg-blue-950/40 text-[#007AFF] dark:text-[#0a84ff] border-blue-200 dark:border-blue-800' 
+                            : 'bg-white dark:bg-[#2c2c2e] border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                        title="Lista de estilos salvos"
+                      >
+                        <BookmarkCheck className="w-3.5 h-3.5 text-[#007AFF]" />
+                        Carregar
                           {savedStyles.length > 0 && (
-                            <span className="ml-0.5 bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200 text-[9px] px-1.5 py-0.2 rounded-full font-extrabold">
+                            <span className="ml-0.5 bg-blue-100 dark:bg-blue-900/60 text-[#007AFF] dark:text-[#0a84ff] text-[9px] px-1.5 py-0.2 rounded-full font-extrabold">
                               {savedStyles.length}/4
                             </span>
                           )}
@@ -3029,7 +3190,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                         <div className="p-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg space-y-1.5 my-0.5 animate-fadeIn">
                           <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
                             <span className="flex items-center gap-1">
-                              <BookmarkCheck className="w-3.5 h-3.5 text-red-600" />
+                              <BookmarkCheck className="w-3.5 h-3.5 text-[#007AFF]" />
                               Estilos Salvos ({savedStyles.length}/4)
                             </span>
                             <button 
@@ -3050,7 +3211,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                               {savedStyles.map((preset, idx) => (
                                 <div 
                                   key={preset.id}
-                                  className="flex items-center justify-between p-1.5 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-red-300 dark:hover:border-red-800 transition-all gap-1 text-left"
+                                  className="flex items-center justify-between p-1.5 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-800 transition-all gap-1 text-left"
                                 >
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1">
@@ -3070,7 +3231,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => applySavedStyle(preset)}
-                                      className="px-1.5 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                      className="px-2 py-0.5 bg-[#007AFF] hover:bg-[#0066d6] text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors shadow-xs"
                                       title={`Aplicar ${preset.name}`}
                                     >
                                       Aplicar
@@ -3455,9 +3616,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-          </div>
+            </div>
           );
           
           if (isPrintMode && portalTarget) {

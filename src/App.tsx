@@ -3242,7 +3242,7 @@ export default function App() {
                   </p>
                   <ul className="list-disc list-inside space-y-1 text-red-950/90 dark:text-red-200/90 text-xs sm:text-sm">
                     <li><strong>Painel de Camadas:</strong> Clique no botão de camadas (canto superior direito do mapa) para Ligar/Desligar mapas e ajustar a <strong>opacidade</strong>, <strong>cor de preenchimento</strong> e <strong>cor da borda</strong> de cada camada.</li>
-                    <li><strong>Mapa de Fundo (Basemap):</strong> Alterne entre <em>OSM Padrão</em>, <em>Google Satélite</em>, <em>Google Híbrido</em>, <em>Esri Satélite</em> e <em>Carto Light</em>.</li>
+                    <li><strong>Mapa de Fundo (Basemap):</strong> Alterne entre <em> Apple Maps (Claro)</em>, <em> Apple Maps (Escuro)</em>, <em>Google Satélite</em>, <em>Google Híbrido</em>, <em>OSM</em> e <em>Esri</em>.</li>
                     <li><strong>Ações Rápidas:</strong> Use os botões <strong>"Ligar Tudo"</strong> ou <strong>"Desligar Tudo"</strong> no topo do mapa para controlar todas as camadas rapidamente.</li>
                   </ul>
                 </div>
