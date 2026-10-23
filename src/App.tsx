@@ -2274,91 +2274,68 @@ export default function App() {
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
             activeTab={sidebarTab}
-            onTabChange={setSidebarTab}
-            selectedFeatures={selectedFeatures}
-            onClearSelection={() => setSelectedFeatures([])}
-            onZoomToSelected={() => {
-              if (selectedFeatures.length > 0 && selectedFeatures[0].layer && mapActionsRef.current) {
-                mapActionsRef.current.zoomToFeature(selectedFeatures[0].layer);
-              }
-            }}
-            onOpenRaioX={() => setSidebarTab('raiox')}
-            onOpenCnefeForSelected={() => {
-              if (selectedFeatures.length > 0) {
-                const feat = selectedFeatures[0];
-                handleSearchPolygonAddresses({
-                  feature: { type: 'Feature', geometry: (feat.layer as any)?.feature?.geometry, properties: feat.properties },
-                  title: feat.name,
-                  sourceName: feat.sourceName,
-                  layer: feat.layer
-                });
-                setSidebarTab('cnefe');
-              }
-            }}
-            onOpenExportForSelected={() => setIsExportModalOpen(true)}
-            onOpenFullTable={() => setIsFullTableModalOpen(true)}
-            allowedProperties={isAdmin ? undefined : effectiveSession.featurePropertiesPermissions}
+            setActiveTab={setSidebarTab}
             searchQuery={searchQuery}
-            onSearchQueryChange={(q) => {
-              setSearchQuery(q);
-              handleSearch(q);
-            }}
+            setSearchQuery={setSearchQuery}
+            onSearch={handleSearch}
+            onAbandonSearch={handleAbandonSearch}
             isSearchLoading={isSearchLoading}
-            selectedSearchLayer={selectedSearchLayer}
-            onSelectSearchLayer={setSelectedSearchLayer}
-            allowedLayerNames={allowedLayerNames}
-            searchHistory={searchHistory}
-            onSelectSearchHistory={(item) => {
-              setSearchQuery(item);
-              handleSearch(item);
-            }}
-            groupedResults={groupedResults}
-            onResultClick={handleResultItemClick}
-            onClearSearch={() => {
-              setSearchQuery('');
-              setGroupedResults({});
-            }}
-            activeLayers={activeLayers}
-            onToggleLayer={(name) => {
-              setActiveLayers(prev => prev.includes(name) ? prev.filter(l => l !== name) : [...prev, name]);
-            }}
-            onToggleAllLayers={(enable) => {
-              if (enable) {
-                const all = (allowedLayerNames || dataSources.map(s => s.name));
-                setActiveLayers(all);
-              } else {
-                setActiveLayers([]);
-              }
-            }}
+            searchActiveLayersOnly={searchActiveLayersOnly}
+            setSearchActiveLayersOnly={setSearchActiveLayersOnly}
+            recentSearches={recentSearches}
+            savedSearches={savedSearches}
+            onToggleSaveSearch={toggleSaveSearch}
+            searchResults={searchResults}
+            totalResultsCount={totalResultsCount}
+            isSearchResultsVisible={isSearchResultsVisible}
+            collapsedGroups={collapsedGroups}
+            setCollapsedGroups={setCollapsedGroups}
+            onResultItemClick={handleResultItemClick}
+            selectedFeatures={selectedFeatures}
+            onZoomToFeature={handleZoomToFeature}
+            onRemoveFromSelection={handleRemoveFromSelection}
+            onClearSelection={() => setSelectedFeatures([])}
             isMultiSelectMode={isMultiSelectMode}
             onToggleMultiSelect={() => {
               setIsMultiSelectMode(!isMultiSelectMode);
-              showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada!');
+              showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
             }}
-            onSaveFavorites={handleSaveFavoriteLayers}
-            onLoadFavorites={handleLoadFavoriteLayers}
+            onSearchPolygonAddresses={handleSearchPolygonAddresses}
+            activeLayers={activeLayers}
+            setActiveLayers={setActiveLayers}
+            allowedLayerNames={allowedLayerNames || []}
             currentActiveUser={currentActiveUser}
-            isAdmin={isAdmin}
             userRole={userRole}
-            isSimulatingUser={isSimulatingUser}
-            onOpenAdmin={() => {
+            isMaster={isMaster}
+            isManager={isManager}
+            isAdmin={isAdmin}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode(prev => !prev)}
+            onOpenAdminPanel={() => {
               if (isAdmin) setIsAdminModalOpen(true);
               else handleOpenAdminLogin();
             }}
-            onOpenUserModal={() => {
+            onOpenProfileModal={() => {
               if (currentActiveUser) setIsProfileModalOpen(true);
               else setIsUserLoginModalOpen(true);
             }}
+            onLogout={handleLogout}
             onOpenHelp={() => setIsHelpOpen(true)}
-            isDarkMode={isDarkMode}
-            onToggleTheme={() => setIsDarkMode(prev => !prev)}
-            onTogglePrint={() => setIsPrintMode(prev => !prev)}
+            showToast={showToast}
             onPlotAddress={handlePlotAddress}
             onPlotAllAddresses={handlePlotAllAddresses}
             onClearPlot={handleClearPlot}
             cnefeExternalResult={cnefeExternalResult}
-            allowedAddressColumns={isAdmin ? undefined : effectiveSession.addressColumnsPermissions}
-            showToast={showToast}
+            allowedColumns={effectiveSession?.addressColumnsPermissions}
+            allowedProperties={effectiveSession?.featurePropertiesPermissions}
+            featurePermissions={featurePermissions}
+            effectiveSession={effectiveSession}
+            isSimulatingUser={isSimulatingUser}
+            simulatedRole={simulatedRole}
+            onExitSimulation={handleExitSimulation}
+            onOpenSimulationChoice={() => setIsSimulationChoiceModalOpen(true)}
+            onOpenFullTableModal={() => setIsFullTableModalOpen(true)}
+            onOpenExportModal={() => setIsExportModalOpen(true)}
           />
         )}
         
