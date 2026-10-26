@@ -642,6 +642,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   // Estado da Legenda Cartográfica Interativa do Mapa (Estilo QGIS)
   const [isLegendOpen, setIsLegendOpen] = useState<boolean>(true);
 
+  // Minimizar legenda automaticamente quando a Busca de Endereços Avançado for aberta/expandida,
+  // e voltar ao normal (expandida) automaticamente quando a ferramenta de busca for recolhida
+  useEffect(() => {
+    if (isBottomBarOpen && isBottomBarExpanded) {
+      setIsLegendOpen(false);
+    } else {
+      setIsLegendOpen(true);
+    }
+  }, [isBottomBarOpen, isBottomBarExpanded]);
+
   // Mapeamento de contagem de feições visíveis na extensão (viewport) atual do mapa
   const [visibleLayersInViewport, setVisibleLayersInViewport] = useState<Record<string, number>>({});
 
