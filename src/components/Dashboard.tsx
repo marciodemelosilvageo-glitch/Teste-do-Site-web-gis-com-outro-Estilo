@@ -192,7 +192,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
             Raio-X Territorial e Domiciliar
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
-            Selecione qualquer bairro, município ou setor censitário no mapa para carregar a análise demográfica oficial do IBGE.
+            Selecione qualquer bairro, município ou setor censitário no mapa para carregar a análise demográfica e habitacional.
           </p>
         </div>
 
@@ -227,11 +227,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
             </div>
           </div>
         </div>
-
-        <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#007AFF]">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Base de Dados: Censo IBGE 2022</span>
-        </div>
       </div>
     );
   }
@@ -245,7 +240,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
   • Particulares Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${taxaOcupacao}%)
   • Vagos / Uso Ocasional: ${sumVagos.toLocaleString('pt-BR')} (Vacância: ${taxaVac}%)
   • Coletivos (Instituições): ${sumDomCol.toLocaleString('pt-BR')}
-${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: Censo Demográfico IBGE 2022 | WebGIS Geocodificando`;
+${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebGIS Geocodificando`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -261,9 +256,8 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: Cens
       {/* 1. CARD PRINCIPAL DA LOCALIDADE COM BADGES */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-[#007AFF] dark:text-blue-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF] animate-pulse" />
-            Censo IBGE 2022
+          <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Localidade Selecionada
           </span>
 
           <button

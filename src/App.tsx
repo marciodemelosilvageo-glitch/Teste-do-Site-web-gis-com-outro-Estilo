@@ -362,10 +362,11 @@ export default function App() {
   const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
   const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
 
-  // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa
+  // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa,
+  // mas se o usuário já estiver na ferramenta Raio-X (dashboard), permanece nela!
   useEffect(() => {
     if (selectedFeatures.length > 0) {
-      setSidebarTab('details');
+      setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
     }
   }, [selectedFeatures]);
 
