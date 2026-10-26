@@ -78,9 +78,6 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
             <span className="font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight">
               Busca de Endereços CNEFE
             </span>
-            <span className="hidden sm:inline-flex text-[10px] font-extrabold uppercase bg-blue-50 dark:bg-blue-950/80 text-[#007AFF] dark:text-[#0a84ff] px-2 py-0.5 rounded-full border border-blue-200/80 dark:border-blue-800/60">
-              IBGE DuckDB
-            </span>
 
             {/* Indicação de Polígono Ativo */}
             {externalPolygonResult && (

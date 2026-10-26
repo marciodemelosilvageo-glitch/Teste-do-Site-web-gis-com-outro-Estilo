@@ -556,7 +556,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     {isLoadingMunicipios ? (
                       <div className="px-3 py-4 text-xs text-center text-slate-400 flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin text-red-500" />
-                        <span>Carregando lista do DuckDB...</span>
+                        <span>Carregando municípios...</span>
                       </div>
                     ) : (
                       <>
