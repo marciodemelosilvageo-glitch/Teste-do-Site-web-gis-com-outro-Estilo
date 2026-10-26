@@ -54,7 +54,7 @@ import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
 
-export type SidebarTab = 'search' | 'details' | 'dashboard';
+export type SidebarTab = 'search' | 'details' | 'dashboard' | null;
 
 interface AppleSidebarProps {
   isCollapsed: boolean;
@@ -453,202 +453,313 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     }
   };
 
-  // Se a barra estiver colapsada (Narrow Rail - Screenshot 2 de maps.apple.com)
-  if (isCollapsed) {
-    return (
-      <aside 
-        aria-label="Barra Lateral Compacta Apple Maps"
-        className="relative z-30 h-full w-[68px] flex flex-col items-center py-4 px-2 select-none shrink-0 transition-all duration-300 bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl"
-      >
-        {/* Logo oficial no modo recolhido */}
-        <div 
-          className="w-11 h-11 mb-2 rounded-2xl flex items-center justify-center cursor-pointer transition-transform hover:scale-105 select-none"
-          onClick={onToggleCollapse}
-          onDoubleClick={onOpenAdminPanel}
-          title="WebGis - Clique para expandir"
-        >
-          <img 
-            src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
-            alt="Logo WebGis"
-            className="h-8 w-auto object-contain drop-shadow-xs pointer-events-none"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
-            }}
-          />
-        </div>
-
-        {/* Botão de Expandir a Barra (Apple Sidebar Toggle) */}
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer mb-3"
-          title="Expandir barra lateral"
-        >
-          <PanelLeft className="w-5 h-5 text-[#007AFF]" />
-        </button>
-
-        {/* Ícones de Navegação Rápida */}
-        <div className="flex flex-col items-center gap-2.5 w-full flex-1">
-          <button
-            type="button"
-            onClick={() => {
-              onToggleCollapse();
-              setActiveTab('search');
-            }}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-              activeTab === 'search'
-                ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
-            title="Buscar"
-          >
-            <Search className="w-5 h-5" />
-          </button>
-
-          {hasFeature && (
-            <button
-              type="button"
-              onClick={() => {
-                onToggleCollapse();
-                setActiveTab('details');
-              }}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
-                activeTab === 'details'
-                  ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10'
-              }`}
-              title="Detalhes da Feição Selecionada"
-            >
-              <MapPin className="w-5 h-5 text-[#FF9500]" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF9500] animate-ping" />
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              onToggleCollapse();
-              setActiveTab('dashboard');
-            }}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-              activeTab === 'dashboard'
-                ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
-            title="Raio-X Demográfico"
-          >
-            <Users className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Rodapé compacto */}
-        <div className="flex flex-col items-center gap-2 mt-auto pt-3 border-t border-black/10 dark:border-white/10 w-full">
-          <button
-            type="button"
-            onClick={onToggleDarkMode}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
-            title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
-          >
-            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenProfileModal}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-            title="Perfil de Usuário"
-          >
-            {isMaster ? <Crown className="w-4 h-4 text-amber-400" /> : <User className="w-4 h-4" />}
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
-  // Barra Lateral Expandida (Apple Maps Web / macOS Maps)
   return (
     <aside 
-      aria-label="Painel Principal Apple Maps"
-      className="relative z-30 h-full w-[380px] sm:w-[420px] flex flex-col select-none shrink-0 transition-all duration-300 bg-white/85 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden font-sans"
+      aria-label="Barra de Ferramentas Estilo Apple Maps"
+      className="relative z-30 h-full flex shrink-0 select-none font-sans"
     >
-      {/* 1. TOPO DA BARRA LATERAL (Apenas a Logo Oficial + Botão de Colapsar) */}
-      <div className="p-3 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
-        <div 
-          className="flex items-center cursor-pointer select-none group"
-          onDoubleClick={onOpenAdminPanel}
-          title="Clique duplo para login de Administrador"
-        >
-          <img 
-            src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
-            alt="Logo"
-            className="h-11 sm:h-12 w-auto max-w-[200px] object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
-            }}
-          />
-        </div>
+      {/* ============================================================== */}
+      {/* ESTÁGIO 1: BARRA / RAIL DE NAVEGAÇÃO LATERAL (APPLE SIDEBAR)   */}
+      {/* ============================================================== */}
+      <nav
+        className={`h-full flex flex-col transition-all duration-300 ease-out bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-xl overflow-hidden shrink-0 ${
+          isCollapsed ? 'w-[68px] items-center py-3.5 px-2' : 'w-[205px] sm:w-[215px] p-3'
+        }`}
+      >
+        {/* Topo / Header da Barra de Navegação */}
+        {!isCollapsed ? (
+          <div className="flex items-center justify-between pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
+            <div 
+              className="flex items-center cursor-pointer select-none group"
+              onDoubleClick={onOpenAdminPanel}
+              title="WebGis SSP-PI • Clique duplo para login de Administrador"
+            >
+              <img 
+                src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
+                alt="Logo"
+                className="h-9 sm:h-10 w-auto max-w-[135px] object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
+                }}
+              />
+            </div>
 
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-          title="Recolher barra lateral"
-        >
-          <PanelLeftClose className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* 2. BARRA DE NAVEGAÇÃO SEGMENTADA (Apple Segmented Navigation) */}
-      <div className="px-3 pt-3 pb-2 border-b border-black/5 dark:border-white/10 shrink-0">
-        <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-2xl">
-          <button
-            type="button"
-            onClick={() => setActiveTab('search')}
-            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'search'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span>Buscar</span>
-          </button>
-
-          {hasFeature && (
+            {/* Botão de Minimizar para ícones (como na Imagem 1 -> Imagem 3) */}
             <button
               type="button"
-              onClick={() => setActiveTab('details')}
-              className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'details'
-                  ? 'bg-white dark:bg-[#2c2c2e] text-[#FF9500] shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
-              }`}
+              onClick={onToggleCollapse}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+              title="Minimizar barra lateral para ícones"
+              aria-label="Minimizar barra lateral"
             >
-              <MapPin className="w-3.5 h-3.5 text-[#FF9500]" />
-              <span>Detalhes</span>
+              <PanelLeft className="w-5 h-5 text-[#007AFF]" />
             </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
+            {/* Botão de Expandir para texto (como na Imagem 3 -> Imagem 1) */}
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+              title="Expandir barra lateral"
+              aria-label="Expandir barra lateral"
+            >
+              <PanelLeft className="w-5 h-5 text-[#007AFF]" />
+            </button>
+          </div>
+        )}
+
+        {/* Lista de Ferramentas (Estágio 1 - Imagem 1 e Imagem 3) */}
+        <div className="flex flex-col gap-2 w-full flex-1 overflow-y-auto custom-scrollbar">
+          {/* 1. Buscar */}
+          <div className="relative group w-full flex items-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab(activeTab === 'search' ? null : 'search')}
+              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                isCollapsed 
+                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                  : 'px-3 py-2.5 text-sm'
+              } ${
+                activeTab === 'search'
+                  ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+              }`}
+              title={isCollapsed ? "Buscar" : undefined}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'search' 
+                  ? (isCollapsed ? '' : 'bg-white/20 text-white') 
+                  : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 group-hover:text-[#007AFF]'
+              }`}>
+                <Search className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+              </div>
+              {!isCollapsed && <span className="truncate">Buscar</span>}
+            </button>
+
+            {/* Tooltip Apple Maps estilo balão flutuante (Imagem 3) */}
+            {isCollapsed && (
+              <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
+                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
+                <span>Buscar</span>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Raio-X */}
+          <div className="relative group w-full flex items-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab(activeTab === 'dashboard' ? null : 'dashboard')}
+              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                isCollapsed 
+                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                  : 'px-3 py-2.5 text-sm'
+              } ${
+                activeTab === 'dashboard'
+                  ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+              }`}
+              title={isCollapsed ? "Raio-X Territorial" : undefined}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'dashboard' 
+                  ? (isCollapsed ? '' : 'bg-white/20 text-white') 
+                  : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 group-hover:text-[#34C759]'
+              }`}>
+                <Users className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+              </div>
+              {!isCollapsed && <span className="truncate">Raio-X</span>}
+            </button>
+
+            {/* Tooltip */}
+            {isCollapsed && (
+              <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
+                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
+                <span>Raio-X</span>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Detalhes (Apenas quando feição selecionada) */}
+          {hasFeature && (
+            <div className="relative group w-full flex items-center">
+              <button
+                type="button"
+                onClick={() => setActiveTab(activeTab === 'details' ? null : 'details')}
+                className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                  isCollapsed 
+                    ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                    : 'px-3 py-2.5 text-sm'
+                } ${
+                  activeTab === 'details'
+                    ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                }`}
+                title={isCollapsed ? "Detalhes da Feição" : undefined}
+              >
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                  activeTab === 'details' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-amber-500/10 text-[#FF9500]'
+                }`}>
+                  <MapPin className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+                </div>
+                {!isCollapsed && (
+                  <>
+                    <span className="truncate">Detalhes</span>
+                    <span className="ml-auto w-2 h-2 rounded-full bg-[#FF9500] animate-ping" />
+                  </>
+                )}
+              </button>
+
+              {/* Tooltip */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
+                  <span>Detalhes</span>
+                </div>
+              )}
+            </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'dashboard'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Raio-X</span>
-          </button>
-        </div>
-      </div>
+          {/* 4. Endereços CNEFE */}
+          <div className="relative group w-full flex items-center">
+            <button
+              type="button"
+              onClick={onOpenCnefeBottomBar}
+              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 ${
+                isCollapsed 
+                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                  : 'px-3 py-2.5 text-sm'
+              }`}
+              title={isCollapsed ? "Busca de Endereços" : "Abrir busca de endereços na barra inferior"}
+            >
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#007AFF]/20 to-[#5856D6]/20 text-[#007AFF] dark:text-[#0a84ff] flex items-center justify-center shrink-0">
+                <Home className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+              </div>
+              {!isCollapsed && <span className="truncate">Endereços</span>}
+            </button>
 
-      {/* 3. CONTEÚDO PRINCIPAL ROLÁVEL (Apple Scroll View) */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-4">
-        
-        {/* ============================================================== */}
-        {/* ABA: DETALHES DA FEIÇÃO / PLACE CARD (Screenshot 3 do Apple Maps) */}
+            {/* Tooltip */}
+            {isCollapsed && (
+              <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
+                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
+                <span>Endereços</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Rodapé do Estágio 1 */}
+        {!isCollapsed ? (
+          <div className="pt-3 border-t border-black/5 dark:border-white/10 shrink-0 space-y-2 w-full">
+            <div className="flex items-center justify-between gap-2 p-2 rounded-2xl bg-black/5 dark:bg-white/5">
+              <button
+                type="button"
+                onClick={onOpenProfileModal}
+                className="flex items-center gap-2 min-w-0 text-left cursor-pointer group flex-1"
+              >
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  isMaster ? 'bg-amber-500 text-white' : isManager ? 'bg-indigo-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+                }`}>
+                  {isMaster ? <Crown className="w-4 h-4" /> : isManager ? <Briefcase className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate block group-hover:text-[#007AFF] transition-colors">
+                    {currentActiveUser ? currentActiveUser.name : 'Visitante'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium truncate block">
+                    {isMaster ? 'Master' : isManager ? 'Gerente' : 'Conta Padrão'}
+                  </span>
+                </div>
+              </button>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={onToggleDarkMode}
+                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-700 dark:text-slate-300 cursor-pointer"
+                  title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                >
+                  {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+                </button>
+
+                {currentActiveUser && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 text-slate-400 cursor-pointer transition-colors"
+                    title="Sair"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+              <span className="truncate">WebGIS</span>
+              <button 
+                type="button"
+                onClick={onOpenHelp}
+                className="text-[#007AFF] hover:underline font-bold cursor-pointer"
+              >
+                Ajuda ↗
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 pt-3 border-t border-black/10 dark:border-white/10 w-full shrink-0">
+            <button
+              type="button"
+              onClick={onToggleDarkMode}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+            >
+              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenProfileModal}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+              title="Perfil de Usuário"
+            >
+              {isMaster ? <Crown className="w-4 h-4 text-amber-400" /> : <User className="w-4 h-4" />}
+            </button>
+          </div>
+        )}
+      </nav>
+
+      {/* ============================================================== */}
+      {/* ESTÁGIO 2: PAINEL DA FERRAMENTA SELECIONADA (SEGUNDO ESTÁGIO)  */}
+      {/* ============================================================== */}
+      {activeTab && (
+        <div
+          className="h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden shrink-0 animate-fadeIn"
+        >
+          {/* Cabeçalho do Segundo Estágio (Título + Botão X redondo de fechar) */}
+          <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+              {activeTab === 'search' && 'Buscar'}
+              {activeTab === 'dashboard' && 'Raio-X Territorial'}
+              {activeTab === 'details' && 'Detalhes da Feição'}
+            </h2>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab(null)}
+              className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer active:scale-90"
+              title="Fechar painel"
+              aria-label="Fechar painel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Conteúdo rolável do painel */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-4">
+            {/* ABA: DETALHES DA FEIÇÃO / PLACE CARD (Screenshot 3 do Apple Maps) */}
         {/* ============================================================== */}
         {activeTab === 'details' && activeDetailFeature && (
           <div className="space-y-4 animate-fadeIn">
@@ -1007,77 +1118,9 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             )}
           </div>
         )}
-
-      </div>
-
-      {/* 4. RODAPÉ DA BARRA LATERAL (Card Apple: Usuário + Info) */}
-      <div className="p-3 border-t border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shrink-0 space-y-2">
-        {/* Card do Usuário */}
-        <div className="flex items-center justify-between gap-2 p-2 rounded-2xl bg-black/5 dark:bg-white/5">
-          <button
-            type="button"
-            onClick={onOpenProfileModal}
-            className="flex items-center gap-2 min-w-0 text-left cursor-pointer group"
-          >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-              isMaster ? 'bg-amber-500 text-white' : isManager ? 'bg-indigo-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
-            }`}>
-              {isMaster ? <Crown className="w-4 h-4" /> : isManager ? <Briefcase className="w-4 h-4" /> : <User className="w-4 h-4" />}
-            </div>
-            <div className="min-w-0">
-              <span className="text-xs font-bold text-slate-900 dark:text-white truncate block group-hover:text-[#007AFF] transition-colors">
-                {currentActiveUser ? currentActiveUser.name : 'Visitante'}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium truncate block">
-                {isMaster ? 'Master • Gestor Supremo' : isManager ? 'Gerente' : 'Conta Padrão'}
-              </span>
-            </div>
-          </button>
-
-          <div className="flex items-center gap-1">
-            {isMaster && (
-              <button
-                type="button"
-                onClick={onOpenAdminPanel}
-                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Painel Master"
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={onToggleDarkMode}
-              className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-700 dark:text-slate-300 cursor-pointer"
-              title={isDarkMode ? "Ativar Modo Claro" : "Ativar Modo Escuro"}
-            >
-              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 text-slate-400 cursor-pointer transition-colors"
-              title="Sair do sistema"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
-
-        {/* Sub-rodapé estilo Apple (Gerencie sua empresa / Geocodificando) */}
-        <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
-          <span className="truncate">WebGIS Geocodificando</span>
-          <button 
-            type="button"
-            onClick={onOpenHelp}
-            className="text-[#007AFF] hover:underline font-bold cursor-pointer"
-          >
-            Ajuda ↗
-          </button>
-        </div>
-      </div>
+      )}
     </aside>
   );
 };

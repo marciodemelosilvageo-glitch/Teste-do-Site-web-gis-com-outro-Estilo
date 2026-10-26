@@ -356,7 +356,7 @@ export default function App() {
 
   // Estados de layout estilo Apple Maps (maps.apple.com)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('search');
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
