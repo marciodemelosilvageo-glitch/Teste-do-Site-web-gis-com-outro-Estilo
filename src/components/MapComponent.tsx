@@ -1054,7 +1054,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       preferCanvas: false,
       wheelDebounceTime: 40,
       wheelPxPerZoomLevel: 60
-    }).setView([-5.09, -42.8], 7);
+    }).setView([-7.0, -42.8], 7);
 
     mapRef.current = map;
     setMapInstance(map);
@@ -3123,7 +3123,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   type="button"
                   onClick={() => {
                     if (mapRef.current) {
-                      mapRef.current.setView([-5.09, -42.8], 7, { animate: true });
+                      mapRef.current.setView([-7.0, -42.8], 7, { animate: true });
                     }
                   }}
                   className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
