@@ -2204,7 +2204,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                       : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
                                     }`}
                                 >
-                                  <span>Busca de Endereços CNEFE</span>
+                                  <span>Busca de Endereços Avançado</span>
                                   <input type="checkbox" checked={userCustomFeatures.allowCnefeSearch !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
                                 </div>
 
@@ -2454,7 +2454,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <div className="pr-3">
                     <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                       <Search className="w-4 h-4 text-red-600" />
-                      Busca de Endereços CNEFE (IBGE)
+                      Busca de Endereços Avançado
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       Permite consultar a base de milhões de endereços do Piauí via DuckDB.

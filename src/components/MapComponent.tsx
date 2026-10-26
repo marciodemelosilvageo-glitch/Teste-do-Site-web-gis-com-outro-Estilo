@@ -2621,10 +2621,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   }
                 }}
                 className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all"
-                title="Buscar Endereços CNEFE neste polígono medido"
+                title="Buscar Endereços neste polígono medido"
               >
                 <Search className="w-3.5 h-3.5" />
-                <span>Buscar CNEFE</span>
+                <span>Buscar Endereços</span>
               </button>
 
               <button

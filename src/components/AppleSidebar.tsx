@@ -713,7 +713,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   onOpenCnefeBottomBar?.();
                 }}
                 className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-                title="Abrir busca de endereços CNEFE desta área na barra inferior"
+                title="Abrir Busca de Endereços Avançado desta área na barra inferior"
               >
                 <Home className="w-5 h-5 text-[#FF9500]" />
                 <span>CNEFE</span>

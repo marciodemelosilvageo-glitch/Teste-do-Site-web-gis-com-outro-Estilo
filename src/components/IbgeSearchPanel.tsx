@@ -469,7 +469,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   return (
     <section 
       id="ibge-search-panel"
-      aria-label="Busca de Endereços CNEFE" 
+      aria-label="Busca de Endereços Avançado" 
       className={`w-full flex flex-col gap-4 relative z-20 ${embedded ? 'mt-1 mb-2' : 'mt-10 mb-8'}`}
     >
       {/* Separador e título da seção (apenas quando não embutido) */}
@@ -498,7 +498,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Busca de Endereços CNEFE</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Busca de Endereços Avançado</h2>
                   <span className="text-[10px] font-extrabold uppercase bg-red-50 dark:bg-red-950/80 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full border border-red-200/80 dark:border-red-800/60">
                     IBGE
                   </span>

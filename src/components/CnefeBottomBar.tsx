@@ -76,7 +76,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
 
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <span className="font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight">
-              Busca de Endereços CNEFE
+              Busca de Endereços Avançado
             </span>
 
             {/* Indicação de Polígono Ativo */}
