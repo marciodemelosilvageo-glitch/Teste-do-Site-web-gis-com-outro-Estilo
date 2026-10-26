@@ -746,7 +746,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   {structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado'}
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                  {activeDetailFeature.sourceName} • {structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : 'Piauí'}
+                  {activeDetailFeature.sourceName} • {
+                    (activeDetailFeature.sourceName?.toLowerCase().includes('municipio') ||
+                     (structuredDetails?.nomeMunicipio && (structuredDetails.nomeOficial || activeDetailFeature.name) &&
+                      structuredDetails.nomeMunicipio.toLowerCase().trim() === (structuredDetails.nomeOficial || activeDetailFeature.name).toLowerCase().trim()))
+                      ? (structuredDetails?.nomeUf || 'Piauí')
+                      : (structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : (structuredDetails?.nomeUf || 'Piauí'))
+                  }
                 </p>
               </div>
 
