@@ -31,6 +31,7 @@ export interface CnefeBottomBarProps {
 }
 
 export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
+  isOpen = true,
   isExpanded,
   onToggleExpand,
   isMaximized: isMaximizedProp,
@@ -42,6 +43,8 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
   allowedColumns,
   hasPlottedMarkers = false,
 }) => {
+  if (isOpen === false) return null;
+
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
 

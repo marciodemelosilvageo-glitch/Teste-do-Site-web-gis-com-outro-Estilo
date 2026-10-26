@@ -2408,6 +2408,7 @@ export default function App() {
           {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
           <CnefeBottomBar
             isOpen={isCnefeBottomBarOpen}
+            isExpanded={isCnefeBottomBarExpanded}
             onOpen={() => setIsCnefeBottomBarOpen(true)}
             onClose={() => setIsCnefeBottomBarOpen(false)}
             onToggleExpand={() => {
