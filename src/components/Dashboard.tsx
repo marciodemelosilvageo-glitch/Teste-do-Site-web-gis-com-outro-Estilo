@@ -50,67 +50,9 @@ const formatTitle = (text: string): string => {
 export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
   const [copied, setCopied] = useState(false);
 
-  // Se nenhuma feição estiver selecionada, renderiza o Onboarding elegante estilo Apple
-  if (!selectedFeatures || selectedFeatures.length === 0) {
-    return (
-      <div 
-        id="dashboard-container"
-        className="w-full rounded-3xl p-6 bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-sm text-center space-y-5 animate-fadeIn"
-      >
-        <div className="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
-          <Activity className="w-7 h-7" />
-        </div>
-
-        <div className="space-y-1.5">
-          <h3 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Raio-X Territorial e Domiciliar
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
-            Selecione qualquer bairro, município ou setor censitário no mapa para carregar a análise demográfica oficial do IBGE.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2.5 text-left pt-2">
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-[#007AFF] dark:text-blue-400 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">População Residente</p>
-              <p className="text-[11px] text-slate-400">Total de habitantes e média de pessoas por residência.</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <Home className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Estrutura Habitacional</p>
-              <p className="text-[11px] text-slate-400">Domicílios particulares ocupados, vagos e coletivos.</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Taxa de Vacância</p>
-              <p className="text-[11px] text-slate-400">Percentual de imóveis desocupados ou de uso ocasional.</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#007AFF]">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Base de Dados: Censo IBGE 2022</span>
-        </div>
-      </div>
-    );
-  }
-
+  // Hook executado incondicionalmente no topo do componente (conforme regras do React)
   const {
+    hasData,
     title,
     municipio,
     bairro,
@@ -129,6 +71,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
     pctCol,
     count
   } = useMemo(() => {
+    if (!selectedFeatures || selectedFeatures.length === 0) {
+      return {
+        hasData: false,
+        title: '',
+        municipio: '',
+        bairro: '',
+        areaKm2: null,
+        sumPop: 0,
+        sumDomTotal: 0,
+        sumDomPart: 0,
+        sumDomOcup: 0,
+        sumVagos: 0,
+        taxaVac: '0.0',
+        densidade: '0.00',
+        sumDomCol: 0,
+        taxaOcupacao: '0.0',
+        pctOcup: 0,
+        pctVagos: 0,
+        pctCol: 0,
+        count: 0
+      };
+    }
+
     const totalCount = selectedFeatures.length;
     let localTitle = 'Selecione um local';
     let munName = '';
@@ -190,6 +155,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
     const pCol = Math.max(0, 100 - pOcup - pVagos);
 
     return {
+      hasData: true,
       title: formatTitle(localTitle),
       municipio: formatTitle(munName),
       bairro: formatTitle(bairroName),
@@ -209,6 +175,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
       count: totalCount
     };
   }, [selectedFeatures]);
+
+  // Se nenhuma feição estiver selecionada, renderiza o Onboarding elegante estilo Apple
+  if (!hasData) {
+    return (
+      <div 
+        id="dashboard-container"
+        className="w-full rounded-3xl p-6 bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-sm text-center space-y-5 animate-fadeIn"
+      >
+        <div className="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
+          <Activity className="w-7 h-7" />
+        </div>
+
+        <div className="space-y-1.5">
+          <h3 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Raio-X Territorial e Domiciliar
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+            Selecione qualquer bairro, município ou setor censitário no mapa para carregar a análise demográfica oficial do IBGE.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2.5 text-left pt-2">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-[#007AFF] dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">População Residente</p>
+              <p className="text-[11px] text-slate-400">Total de habitantes e média de pessoas por residência.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <Home className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Estrutura Habitacional</p>
+              <p className="text-[11px] text-slate-400">Domicílios particulares ocupados, vagos e coletivos.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Taxa de Vacância</p>
+              <p className="text-[11px] text-slate-400">Percentual de imóveis desocupados ou de uso ocasional.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#007AFF]">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Base de Dados: Censo IBGE 2022</span>
+        </div>
+      </div>
+    );
+  }
 
   // Ação de copiar resumo demográfico
   const handleCopySummary = () => {

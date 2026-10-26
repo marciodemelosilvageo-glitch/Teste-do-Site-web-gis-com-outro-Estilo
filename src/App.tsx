@@ -366,7 +366,6 @@ export default function App() {
   useEffect(() => {
     if (selectedFeatures.length > 0) {
       setSidebarTab('details');
-      setIsSidebarCollapsed(false);
     }
   }, [selectedFeatures]);
 
