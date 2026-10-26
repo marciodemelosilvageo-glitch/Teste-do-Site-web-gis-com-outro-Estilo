@@ -2716,15 +2716,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* BOTÃO AJUDA FLUTUANTE */}
-      <button 
-        id="help-btn" 
-        onClick={() => setIsHelpOpen(true)}
-        className="fixed bottom-6 right-6 bg-red-600 text-white p-4 rounded-full shadow-lg hover:bg-red-700 z-[2000] flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer" 
-        title="Ajuda e Instruções"
-      >
-        <HelpCircle className="h-7 w-7" />
-      </button>
+
 
       {/* MODAL DE AJUDA */}
       <AnimatePresence>
