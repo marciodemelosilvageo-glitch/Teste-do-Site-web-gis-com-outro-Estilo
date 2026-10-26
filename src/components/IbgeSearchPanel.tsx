@@ -857,7 +857,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
               <>
                 <div className={`overflow-x-auto overflow-y-auto custom-scrollbar ${
                   embedded 
-                    ? (isMaximized ? 'max-h-[calc(82vh-230px)] min-h-[350px]' : 'max-h-[calc(46vh-170px)] min-h-[190px]') 
+                    ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-180px)] min-h-[160px]' 
                     : 'max-h-[540px]'
                 }`}>
                   <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
