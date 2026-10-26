@@ -2682,7 +2682,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               bottom: !isBottomBarOpen 
                 ? '16px' 
                 : isBottomBarExpanded 
-                  ? (isBottomBarMaximized ? 'calc(75vh + 14px)' : 'clamp(334px, calc(46vh + 14px), 454px)')
+                  ? (isBottomBarMaximized ? 'calc(82vh + 14px)' : 'clamp(334px, calc(46vh + 14px), 454px)')
                   : '58px'
             }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -2877,7 +2877,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               bottom: !isBottomBarOpen 
                 ? '8px' 
                 : isBottomBarExpanded 
-                  ? (isBottomBarMaximized ? 'calc(75vh + 10px)' : 'clamp(330px, calc(46vh + 10px), 450px)')
+                  ? (isBottomBarMaximized ? 'calc(82vh + 10px)' : 'clamp(330px, calc(46vh + 10px), 450px)')
                   : '54px'
             }}
           >

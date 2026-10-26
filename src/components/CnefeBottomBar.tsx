@@ -44,13 +44,37 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
 }) => {
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
-  const toggleMaximize = onToggleMaximize || (() => setInternalMaximized(prev => !prev));
+
+  const handleToggleMaximize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onToggleMaximize) {
+      onToggleMaximize();
+    } else {
+      setInternalMaximized(prev => !prev);
+    }
+  };
+
+  const handleToggleExpand = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isExpanded) {
+      // Ao recolher, reseta o estado de maximizado para o padrão normal
+      if (isMaximized && onToggleMaximize) {
+        onToggleMaximize();
+      }
+      setInternalMaximized(false);
+    }
+    onToggleExpand();
+  };
 
   return (
     <div 
-      className={`absolute bottom-0 left-0 right-0 z-20 pointer-events-auto transition-all duration-300 ease-out flex flex-col bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] rounded-t-2xl sm:rounded-t-3xl overflow-hidden ${
+      className={`absolute bottom-0 left-0 right-0 z-[1100] pointer-events-auto transition-all duration-300 ease-out flex flex-col bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] rounded-t-2xl sm:rounded-t-3xl overflow-hidden ${
         isExpanded 
-          ? (isMaximized ? 'h-[75vh] max-h-[75vh]' : 'h-[46vh] max-h-[440px] min-h-[320px]')
+          ? (isMaximized ? 'h-[82vh] max-h-[82vh] min-h-[480px]' : 'h-[46vh] max-h-[460px] min-h-[320px]')
           : 'h-[46px]'
       }`}
     >
@@ -58,15 +82,15 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
       {/* CABEÇALHO / BARRA DOCK FIXA (SEMPRE VISÍVEL NA BASE DO MAPA) */}
       {/* ============================================================== */}
       <div 
-        onClick={() => {
-          if (!isExpanded) onToggleExpand();
+        onClick={(e) => {
+          if (!isExpanded) handleToggleExpand(e);
         }}
         className={`w-full px-3.5 sm:px-6 flex items-center justify-between gap-3 shrink-0 select-none cursor-pointer border-b transition-colors ${
           isExpanded 
             ? 'h-12 border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]' 
             : 'h-[46px] border-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
         }`}
-        title={isExpanded ? "Clique para recolher para a parte inferior" : "Clique para abrir a busca de baixo para cima"}
+        title={isExpanded ? "Clique no botão Recolher para fechar" : "Clique para abrir a busca de endereços"}
       >
         {/* Esquerda: Identificação da Ferramenta */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -102,7 +126,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
             <button
               type="button"
               onClick={onClearPlot}
-              className="px-2.5 py-1 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
               title="Limpar marcadores de endereço do mapa"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -114,19 +138,24 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
           {isExpanded && (
             <button
               type="button"
-              onClick={toggleMaximize}
-              className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 text-xs transition-colors cursor-pointer"
-              title={isMaximized ? "Reduzir altura para ver mais o mapa" : "Expandir painel"}
+              onClick={handleToggleMaximize}
+              className={`px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+                isMaximized
+                  ? 'bg-[#007AFF] text-white hover:bg-[#0066d6] shadow-blue-500/25'
+                  : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300'
+              }`}
+              title={isMaximized ? "Restaurar altura normal (ver mais mapa)" : "Expandir painel (ver mais tabela)"}
             >
               {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="hidden md:inline">{isMaximized ? 'Restaurar' : 'Expandir'}</span>
             </button>
           )}
 
           {/* Botão Principal de Abrir / Recolher */}
           <button
             type="button"
-            onClick={onToggleExpand}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+            onClick={handleToggleExpand}
+            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
               isExpanded
                 ? 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300'
                 : 'bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-blue-500/25'
@@ -146,6 +175,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
         <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 animate-fadeIn">
           <IbgeSearchPanel
             embedded={true}
+            isMaximized={isMaximized}
             onPlotAddress={onPlotAddress}
             onPlotAllAddresses={onPlotAllAddresses}
             onClearPlot={onClearPlot}

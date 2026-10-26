@@ -37,6 +37,7 @@ interface IbgeSearchPanelProps {
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
   embedded?: boolean;
+  isMaximized?: boolean;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -95,7 +96,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   onClearPlot,
   externalPolygonResult,
   allowedColumns,
-  embedded = false
+  embedded = false,
+  isMaximized = false
 }) => {
   const visibleTableColumns = useMemo(() => {
     if (!allowedColumns) return tableColumns;
@@ -853,7 +855,11 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
             
             {results.length > 0 ? (
               <>
-                <div className="overflow-x-auto max-h-[540px] custom-scrollbar select-none">
+                <div className={`overflow-x-auto overflow-y-auto custom-scrollbar ${
+                  embedded 
+                    ? (isMaximized ? 'max-h-[calc(82vh-230px)] min-h-[350px]' : 'max-h-[calc(46vh-170px)] min-h-[190px]') 
+                    : 'max-h-[540px]'
+                }`}>
                   <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
                     <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md text-slate-700 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none">
                       <tr>

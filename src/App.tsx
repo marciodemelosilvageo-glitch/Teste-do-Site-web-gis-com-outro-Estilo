@@ -2410,8 +2410,15 @@ export default function App() {
             isOpen={isCnefeBottomBarOpen}
             onOpen={() => setIsCnefeBottomBarOpen(true)}
             onClose={() => setIsCnefeBottomBarOpen(false)}
-            isExpanded={isCnefeBottomBarExpanded}
-            onToggleExpand={() => setIsCnefeBottomBarExpanded(prev => !prev)}
+            onToggleExpand={() => {
+              setIsCnefeBottomBarExpanded(prev => {
+                const next = !prev;
+                if (!next) {
+                  setIsCnefeBottomBarMaximized(false);
+                }
+                return next;
+              });
+            }}
             isMaximized={isCnefeBottomBarMaximized}
             onToggleMaximize={() => setIsCnefeBottomBarMaximized(prev => !prev)}
             onPlotAddress={handlePlotAddress}
