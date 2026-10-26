@@ -52,17 +52,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
 import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
-import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { Dashboard } from './Dashboard';
-import { PropertyTable } from './PropertyTable';
 
-export type SidebarTab = 'search' | 'layers' | 'cnefe' | 'dashboard' | 'table' | 'details';
+export type SidebarTab = 'search' | 'details' | 'dashboard';
 
 interface AppleSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   activeTab: SidebarTab;
   setActiveTab: (tab: SidebarTab) => void;
+  onOpenCnefeBottomBar?: () => void;
   
   // Busca
   searchQuery: string;
@@ -150,6 +149,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onToggleCollapse,
   activeTab,
   setActiveTab,
+  onOpenCnefeBottomBar,
   searchQuery,
   setSearchQuery,
   onSearch,
@@ -505,25 +505,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             <Search className="w-5 h-5" />
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              onToggleCollapse();
-              setActiveTab('layers');
-            }}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
-              activeTab === 'layers'
-                ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
-            title="Camadas"
-          >
-            <Layers className="w-5 h-5" />
-            {activeLayers.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#007AFF]" />
-            )}
-          </button>
-
           {hasFeature && (
             <button
               type="button"
@@ -547,22 +528,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             type="button"
             onClick={() => {
               onToggleCollapse();
-              setActiveTab('cnefe');
-            }}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-              activeTab === 'cnefe'
-                ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
-            title="Endereços CNEFE (IBGE)"
-          >
-            <Home className="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              onToggleCollapse();
               setActiveTab('dashboard');
             }}
             className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
@@ -573,22 +538,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             title="Raio-X Demográfico"
           >
             <Users className="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              onToggleCollapse();
-              setActiveTab('table');
-            }}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-              activeTab === 'table'
-                ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
-            title="Tabela de Dados"
-          >
-            <Table2 className="w-5 h-5" />
           </button>
         </div>
 
@@ -665,24 +614,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             <span>Buscar</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('layers')}
-            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'layers'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Camadas</span>
-            {activeLayers.length > 0 && (
-              <span className="text-[10px] bg-blue-100 dark:bg-blue-900/60 text-[#007AFF] dark:text-[#0a84ff] px-1.5 py-0.2 rounded-full font-black">
-                {activeLayers.length}
-              </span>
-            )}
-          </button>
-
           {hasFeature && (
             <button
               type="button"
@@ -700,19 +631,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('cnefe')}
-            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'cnefe'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
-            }`}
-          >
-            <Home className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">IBGE</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActiveTab('dashboard')}
             className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'dashboard'
@@ -721,20 +639,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Raio-X</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('table')}
-            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'table'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#0a84ff] shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
-            }`}
-          >
-            <Table2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Tabela</span>
+            <span>Raio-X</span>
           </button>
         </div>
       </div>
@@ -803,8 +708,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               {/* Botão Buscar Endereços CNEFE no Polígono */}
               <button
                 type="button"
-                onClick={() => onSearchPolygonAddresses(activeDetailFeature)}
+                onClick={() => {
+                  onSearchPolygonAddresses(activeDetailFeature);
+                  onOpenCnefeBottomBar?.();
+                }}
                 className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                title="Abrir busca de endereços CNEFE desta área na barra inferior"
               >
                 <Home className="w-5 h-5 text-[#FF9500]" />
                 <span>CNEFE</span>
@@ -1081,113 +990,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* ABA: CAMADAS (GUIAS) */}
-        {/* ============================================================== */}
-        {activeTab === 'layers' && (
-          <div className="space-y-4 animate-fadeIn">
-            {/* Ações Rápidas */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const all = dataSources.filter(s => allowedLayerNames.includes(s.name)).map(s => s.name);
-                  setActiveLayers(all);
-                  showToast('Todas as camadas foram ativadas.');
-                }}
-                className="flex-1 py-2 px-3 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-              >
-                Ligar Tudo
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveLayers([]);
-                  showToast('Todas as camadas foram desligadas.');
-                }}
-                className="flex-1 py-2 px-3 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-              >
-                Desligar Tudo
-              </button>
-
-              <button
-                type="button"
-                onClick={onToggleMultiSelect}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  isMultiSelectMode 
-                    ? 'bg-[#007AFF] text-white shadow-sm' 
-                    : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300'
-                }`}
-                title="Multiseleção de áreas no mapa"
-              >
-                Multiseleção: {isMultiSelectMode ? 'ON' : 'OFF'}
-              </button>
-            </div>
-
-            {/* Lista de Camadas com Toggles Apple */}
-            <div className="space-y-2">
-              {dataSources
-                .filter(source => allowedLayerNames.includes(source.name))
-                .map(source => {
-                  const isActive = activeLayers.includes(source.name);
-                  return (
-                    <div
-                      key={source.name}
-                      className="p-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div 
-                          className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" 
-                          style={{ backgroundColor: source.color || '#007AFF' }} 
-                        />
-                        <span className={`text-xs font-bold truncate ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
-                          {source.name}
-                        </span>
-                      </div>
-
-                      {/* Apple Switch Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isActive) {
-                            setActiveLayers(activeLayers.filter((l: string) => l !== source.name));
-                          } else {
-                            setActiveLayers([...activeLayers, source.name]);
-                          }
-                        }}
-                        className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                          isActive ? 'bg-[#34C759]' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                            isActive ? 'right-0.5' : 'left-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* ABA: ENDEREÇOS IBGE CNEFE (DUCKDB) */}
-        {/* ============================================================== */}
-        {activeTab === 'cnefe' && (
-          <div className="animate-fadeIn">
-            <IbgeSearchPanel
-              onPlotAddress={onPlotAddress}
-              onPlotAllAddresses={onPlotAllAddresses}
-              onClearPlot={onClearPlot}
-              externalPolygonResult={cnefeExternalResult}
-              allowedColumns={allowedColumns}
-            />
-          </div>
-        )}
-
-        {/* ============================================================== */}
         {/* ABA: RAIO-X TERRITORIAL E DOMICILIAR */}
         {/* ============================================================== */}
         {activeTab === 'dashboard' && (
@@ -1206,51 +1008,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           </div>
         )}
 
-        {/* ============================================================== */}
-        {/* ABA: TABELA DE ESPECIFICAÇÕES & EXPORTAÇÃO */}
-        {/* ============================================================== */}
-        {activeTab === 'table' && (
-          <div className="space-y-4 animate-fadeIn">
-            {selectedFeatures.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs space-y-2">
-                <Table2 className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
-                <p className="font-bold text-slate-600 dark:text-slate-300">
-                  Nenhuma feição selecionada
-                </p>
-                <p>Selecione uma ou mais áreas no mapa para visualizar a tabela de atributos ou exportar.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onOpenFullTableModal}
-                    className="flex-1 py-2.5 px-3 bg-[#007AFF] hover:bg-[#0066d6] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    <span>Expandir Tabela Completa</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onOpenExportModal}
-                    className="py-2.5 px-3 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Exportar</span>
-                  </button>
-                </div>
-
-                <PropertyTable
-                  selectedFeatures={selectedFeatures}
-                  showToast={showToast}
-                  allowedProperties={allowedProperties}
-                  onSearchPolygonAddresses={onSearchPolygonAddresses}
-                />
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 4. RODAPÉ DA BARRA LATERAL (Card Apple: Usuário + Info) */}

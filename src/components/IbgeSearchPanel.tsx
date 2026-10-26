@@ -36,6 +36,7 @@ interface IbgeSearchPanelProps {
   onClearPlot?: () => void;
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
+  embedded?: boolean;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -93,7 +94,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   onPlotAllAddresses, 
   onClearPlot,
   externalPolygonResult,
-  allowedColumns
+  allowedColumns,
+  embedded = false
 }) => {
   const visibleTableColumns = useMemo(() => {
     if (!allowedColumns) return tableColumns;
@@ -465,37 +467,49 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   }, [municipiosList, municipioBusca]);
 
   return (
-    <section aria-label="Busca de Endereços CNEFE" className="w-full mt-10 mb-8 flex flex-col gap-4 relative z-20">
-      {/* Separador e título da seção */}
-      <div className="flex items-center gap-4 mb-1">
-        <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent flex-1" />
-        <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700/80 shadow-xs">
-          <Building2 size={15} className="text-red-600 dark:text-red-400" />
-          <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">Dashboard de Endereços</span>
+    <section 
+      id="ibge-search-panel"
+      aria-label="Busca de Endereços CNEFE" 
+      className={`w-full flex flex-col gap-4 relative z-20 ${embedded ? 'mt-1 mb-2' : 'mt-10 mb-8'}`}
+    >
+      {/* Separador e título da seção (apenas quando não embutido) */}
+      {!embedded && (
+        <div className="flex items-center gap-4 mb-1">
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent flex-1" />
+          <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700/80 shadow-xs">
+            <Building2 size={15} className="text-red-600 dark:text-red-400" />
+            <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">Dashboard de Endereços</span>
+          </div>
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent flex-1" />
         </div>
-        <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent flex-1" />
-      </div>
+      )}
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-7 relative backdrop-blur-sm">
-        {/* Cabeçalho */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-red-600 to-rose-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0">
-              <Table2 size={22} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Busca de Endereços CNEFE</h2>
-                <span className="text-[10px] font-extrabold uppercase bg-red-50 dark:bg-red-950/80 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full border border-red-200/80 dark:border-red-800/60">
-                  IBGE
-                </span>
+      <div className={`rounded-2xl transition-all ${
+        embedded 
+          ? 'bg-transparent border-0 p-1 sm:p-2 shadow-none' 
+          : 'bg-white dark:bg-slate-900 shadow-xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-7 relative backdrop-blur-sm'
+      }`}>
+        {/* Cabeçalho (apenas quando não embutido, pois a bottom bar já possui seu header elegante) */}
+        {!embedded && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-red-600 to-rose-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0">
+                <Table2 size={22} />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                Localização precisa de logradouros, domicílios e estabelecimentos em todos os municípios do Piauí.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Busca de Endereços CNEFE</h2>
+                  <span className="text-[10px] font-extrabold uppercase bg-red-50 dark:bg-red-950/80 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full border border-red-200/80 dark:border-red-800/60">
+                    IBGE
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                  Localização precisa de logradouros, domicílios e estabelecimentos em todos os municípios do Piauí.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Formulário de Busca */}
         <form onSubmit={(e) => { e.preventDefault(); handleSearch(undefined, e); }} className="flex flex-col lg:flex-row items-stretch lg:items-start gap-4 mb-6">

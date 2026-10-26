@@ -23,6 +23,7 @@ import { MapComponent } from './components/MapComponent';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './components/IbgeSearchPanel';
 import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
+import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters } from './utils';
@@ -358,6 +359,8 @@ export default function App() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('search');
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
+  const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
 
   // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa
   useEffect(() => {
@@ -601,6 +604,8 @@ export default function App() {
         sourceLayerName: feat.sourceName,
         timestamp: Date.now()
       });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
 
       logActivity(
         'ENDERECO',
@@ -2290,6 +2295,10 @@ export default function App() {
               showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
             }}
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
+            onOpenCnefeBottomBar={() => {
+              setIsCnefeBottomBarOpen(true);
+              setIsCnefeBottomBarExpanded(true);
+            }}
             activeLayers={activeLayers}
             setActiveLayers={setActiveLayers}
             allowedLayerNames={allowedLayerNames || []}
@@ -2391,6 +2400,21 @@ export default function App() {
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSaveFavoriteLayers={handleSaveFavoriteLayers}
             onLoadFavoriteLayers={handleLoadFavoriteLayers}
+          />
+
+          {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
+          <CnefeBottomBar
+            isOpen={isCnefeBottomBarOpen}
+            onOpen={() => setIsCnefeBottomBarOpen(true)}
+            onClose={() => setIsCnefeBottomBarOpen(false)}
+            isExpanded={isCnefeBottomBarExpanded}
+            onToggleExpand={() => setIsCnefeBottomBarExpanded(prev => !prev)}
+            onPlotAddress={handlePlotAddress}
+            onPlotAllAddresses={handlePlotAllAddresses}
+            onClearPlot={handleClearPlot}
+            externalPolygonResult={cnefeExternalResult}
+            allowedColumns={effectiveSession?.addressColumnsPermissions}
+            hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
           />
         </div>
       </div>
