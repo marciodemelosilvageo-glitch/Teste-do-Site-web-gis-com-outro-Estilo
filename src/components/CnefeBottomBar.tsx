@@ -20,6 +20,8 @@ export interface CnefeBottomBarProps {
   onClose?: () => void;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
   onPlotAddress: (address: any) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
@@ -31,6 +33,8 @@ export interface CnefeBottomBarProps {
 export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
   isExpanded,
   onToggleExpand,
+  isMaximized: isMaximizedProp,
+  onToggleMaximize,
   onPlotAddress,
   onPlotAllAddresses,
   onClearPlot,
@@ -38,7 +42,9 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
   allowedColumns,
   hasPlottedMarkers = false,
 }) => {
-  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
+  const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
+  const toggleMaximize = onToggleMaximize || (() => setInternalMaximized(prev => !prev));
 
   return (
     <div 
@@ -111,7 +117,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
           {isExpanded && (
             <button
               type="button"
-              onClick={() => setIsMaximized(prev => !prev)}
+              onClick={toggleMaximize}
               className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 text-xs transition-colors cursor-pointer"
               title={isMaximized ? "Reduzir altura para ver mais o mapa" : "Expandir painel"}
             >

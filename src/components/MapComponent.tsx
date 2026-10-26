@@ -231,6 +231,9 @@ interface MapComponentProps {
   onSearchPolygonAddresses?: (feat: { feature: any; title: string; sourceName: string; layer: any }) => void;
   onSaveFavoriteLayers?: () => void;
   onLoadFavoriteLayers?: () => void;
+  isBottomBarOpen?: boolean;
+  isBottomBarExpanded?: boolean;
+  isBottomBarMaximized?: boolean;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -257,7 +260,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   allowLayerPanel = true,
   onSearchPolygonAddresses,
   onSaveFavoriteLayers,
-  onLoadFavoriteLayers
+  onLoadFavoriteLayers,
+  isBottomBarOpen = true,
+  isBottomBarExpanded = false,
+  isBottomBarMaximized = false
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -2661,7 +2667,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
         {!isPrintMode ? (
           <div 
-            className="absolute bottom-6 left-3 z-[990] flex flex-col items-start print:hidden select-none"
+            className="absolute left-3 z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
+            style={{
+              bottom: !isBottomBarOpen 
+                ? '16px' 
+                : isBottomBarExpanded 
+                  ? (isBottomBarMaximized ? 'calc(75vh + 14px)' : 'clamp(334px, calc(46vh + 14px), 454px)')
+                  : '58px'
+            }}
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
@@ -2848,7 +2861,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         {/* Apple Maps Legal Bar no Canto Inferior Direito */}
         {!isPrintMode && (
-          <div className="absolute bottom-2 right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10">
+          <div 
+            className="absolute right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out"
+            style={{
+              bottom: !isBottomBarOpen 
+                ? '8px' 
+                : isBottomBarExpanded 
+                  ? (isBottomBarMaximized ? 'calc(75vh + 10px)' : 'clamp(330px, calc(46vh + 10px), 450px)')
+                  : '54px'
+            }}
+          >
             <span>Termos</span>
             <span>•</span>
             <span>Legal</span>

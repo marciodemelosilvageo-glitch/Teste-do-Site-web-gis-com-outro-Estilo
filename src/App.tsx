@@ -361,6 +361,7 @@ export default function App() {
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
   const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
+  const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
 
   // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa
   useEffect(() => {
@@ -2400,6 +2401,9 @@ export default function App() {
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSaveFavoriteLayers={handleSaveFavoriteLayers}
             onLoadFavoriteLayers={handleLoadFavoriteLayers}
+            isBottomBarOpen={isCnefeBottomBarOpen}
+            isBottomBarExpanded={isCnefeBottomBarExpanded}
+            isBottomBarMaximized={isCnefeBottomBarMaximized}
           />
 
           {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
@@ -2409,6 +2413,8 @@ export default function App() {
             onClose={() => setIsCnefeBottomBarOpen(false)}
             isExpanded={isCnefeBottomBarExpanded}
             onToggleExpand={() => setIsCnefeBottomBarExpanded(prev => !prev)}
+            isMaximized={isCnefeBottomBarMaximized}
+            onToggleMaximize={() => setIsCnefeBottomBarMaximized(prev => !prev)}
             onPlotAddress={handlePlotAddress}
             onPlotAllAddresses={handlePlotAllAddresses}
             onClearPlot={handleClearPlot}
