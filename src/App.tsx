@@ -1539,7 +1539,7 @@ export default function App() {
     showToast(`Plotando endereço no mapa...`);
     
     // Rolar a tela para o topo para ver o mapa
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // map is already visible on screen
   };
 
   const handlePlotAllAddresses = (results: any[]) => {
@@ -1576,7 +1576,7 @@ export default function App() {
     
     logActivity('ENDERECO', `Plotou ${validCoords.length} endereços simultâneos no mapa`, userRole);
     showToast(`Plotando ${validCoords.length} endereços no mapa...`);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // map is already visible on screen
   };
 
   const handleClearPlot = () => {
