@@ -622,32 +622,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             </div>
           )}
 
-          {/* 4. Endereços CNEFE */}
-          <div className="relative group w-full flex items-center">
-            <button
-              type="button"
-              onClick={onOpenCnefeBottomBar}
-              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                  : 'px-3 py-2.5 text-sm'
-              }`}
-              title={isCollapsed ? "Busca de Endereços" : "Abrir busca de endereços na barra inferior"}
-            >
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#007AFF]/20 to-[#5856D6]/20 text-[#007AFF] dark:text-[#0a84ff] flex items-center justify-center shrink-0">
-                <Home className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
-              </div>
-              {!isCollapsed && <span className="truncate">Endereços</span>}
-            </button>
-
-            {/* Tooltip */}
-            {isCollapsed && (
-              <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
-                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
-                <span>Endereços</span>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Rodapé do Estágio 1 */}
