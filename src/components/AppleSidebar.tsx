@@ -132,14 +132,9 @@ interface AppleSidebarProps {
 
 // Categorias Apple estilo maps.apple.com com cores e ícones de alta fidelidade
 const APPLE_CATEGORIES = [
-  { id: 'bairros', name: 'Bairros', icon: Store, color: 'bg-amber-500', query: 'Bairro' },
-  { id: 'municipios', name: 'Municípios', icon: Building2, color: 'bg-blue-500', query: 'Teresina' },
-  { id: 'favelas', name: 'Comunidades', icon: Home, color: 'bg-emerald-500', query: 'Comunidade' },
-  { id: 'setores', name: 'Setores IBGE', icon: Layers, color: 'bg-purple-500', query: 'Setor' },
   { id: 'farmacias', name: 'Farmácias', icon: Pill, color: 'bg-rose-500', query: 'Farmácia' },
   { id: 'restaurantes', name: 'Restaurantes', icon: UtensilsCrossed, color: 'bg-orange-500', query: 'Restaurante' },
-  { id: 'transporte', name: 'Transporte', icon: Bus, color: 'bg-sky-500', query: 'Terminal' },
-  { id: 'postos', name: 'Postos Gasolina', icon: Fuel, color: 'bg-blue-600', query: 'Posto' },
+  { id: 'postos', name: 'Postos de Gasolina', icon: Fuel, color: 'bg-blue-600', query: 'Posto' },
   { id: 'hoteis', name: 'Hotéis', icon: Hotel, color: 'bg-indigo-500', query: 'Hotel' },
   { id: 'hospitais', name: 'Hospitais', icon: Hospital, color: 'bg-red-600', query: 'Hospital' }
 ];
@@ -944,7 +939,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   Encontrar por tipo
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-2">
                   {APPLE_CATEGORIES.map(cat => {
                     const Icon = cat.icon;
                     return (
@@ -955,12 +950,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                           setSearchQuery(cat.query);
                           onSearch(cat.query);
                         }}
-                        className="p-2.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer flex items-center gap-2.5 text-left border border-black/5 dark:border-white/5"
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-3.5 text-left border border-black/5 dark:border-white/5"
                       >
-                        <div className={`w-8 h-8 rounded-xl ${cat.color} text-white flex items-center justify-center shrink-0 shadow-sm`}>
+                        <div className={`w-8 h-8 rounded-full ${cat.color} text-white flex items-center justify-center shrink-0 shadow-sm`}>
                           <Icon className="w-4 h-4" />
                         </div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                           {cat.name}
                         </span>
                       </button>
