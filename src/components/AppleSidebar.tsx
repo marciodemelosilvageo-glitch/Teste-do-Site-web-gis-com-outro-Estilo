@@ -561,7 +561,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
                   : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
-              title={isCollapsed ? "Raio-X Territorial" : undefined}
+              title={isCollapsed ? "Raio-X Territorial e Domiciliar" : undefined}
             >
               <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                 activeTab === 'dashboard' 
@@ -577,7 +577,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             {isCollapsed && (
               <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
                 <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
-                <span>Raio-X</span>
+                <span>Raio-X Territorial e Domiciliar</span>
               </div>
             )}
           </div>
@@ -742,7 +742,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
             <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
               {activeTab === 'search' && 'Buscar'}
-              {activeTab === 'dashboard' && 'Raio-X Territorial'}
+              {activeTab === 'dashboard' && 'Raio-X Territorial e Domiciliar'}
               {activeTab === 'details' && 'Detalhes da Feição'}
             </h2>
 
@@ -1104,18 +1104,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {/* ABA: RAIO-X TERRITORIAL E DOMICILIAR */}
         {/* ============================================================== */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-4 animate-fadeIn">
-            {selectedFeatures.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs space-y-2">
-                <Users className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
-                <p className="font-bold text-slate-600 dark:text-slate-300">
-                  Nenhuma região selecionada
-                </p>
-                <p>Toque em um bairro, município ou setor censitário no mapa para gerar o Raio-X populacional.</p>
-              </div>
-            ) : (
-              <Dashboard selectedFeatures={selectedFeatures} />
-            )}
+          <div className="animate-fadeIn">
+            <Dashboard selectedFeatures={selectedFeatures} />
           </div>
         )}
           </div>
