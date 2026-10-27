@@ -202,6 +202,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Controlar se a feição exibida em detalhes foi aberta a partir de um clique no resultado da busca lateral
+  const [openedFromSearch, setOpenedFromSearch] = useState<boolean>(false);
+  const lastSearchClickTimeRef = useRef<number>(0);
+
   // Feição ativa detalhada (última selecionada)
   const activeDetailFeature = useMemo(() => {
     if (selectedFeatures.length === 0) return null;
@@ -271,10 +275,21 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     };
   }, [isLocalidade, activeDetailFeature]);
 
+  // Sincronizar origem da seleção: se a feição mudou por clique no mapa ou outra via fora do resultado de busca, resetar openedFromSearch
+  useEffect(() => {
+    const isFromSearchClick = Date.now() - lastSearchClickTimeRef.current < 2500;
+    if (isFromSearchClick) {
+      lastSearchClickTimeRef.current = 0; // Consumido com sucesso
+    } else {
+      setOpenedFromSearch(false);
+    }
+  }, [activeDetailFeature]);
+
   // Se a feição for desmarcada (nada selecionado) e a aba aberta for 'details', fechar a aba
   useEffect(() => {
     if (!activeDetailFeature && activeTab === 'details') {
       setActiveTab(null);
+      setOpenedFromSearch(false);
     }
   }, [activeDetailFeature, activeTab, setActiveTab]);
 
@@ -671,7 +686,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             <div className="relative group w-full flex items-center">
               <button
                 type="button"
-                onClick={() => setActiveTab(activeTab === 'details' ? null : 'details')}
+                onClick={() => {
+                  setOpenedFromSearch(false);
+                  setActiveTab(activeTab === 'details' ? null : 'details');
+                }}
                 className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
                   isCollapsed 
                     ? 'w-11 h-11 justify-center p-0 mx-auto' 
@@ -806,7 +824,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveTab(null)}
+              onClick={() => {
+                setOpenedFromSearch(false);
+                setActiveTab(null);
+              }}
               className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer active:scale-90"
               title="Fechar painel"
               aria-label="Fechar painel"
@@ -824,13 +845,18 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             {/* Header do Cartão do Local */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('search')}
-                  className="text-xs font-bold text-[#007AFF] hover:underline flex items-center gap-1 mb-1 cursor-pointer"
-                >
-                  <span>&larr; Voltar para busca</span>
-                </button>
+                {openedFromSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('search');
+                      setOpenedFromSearch(false);
+                    }}
+                    className="text-xs font-bold text-[#007AFF] hover:underline flex items-center gap-1 mb-1 cursor-pointer"
+                  >
+                    <span>&larr; Voltar para busca</span>
+                  </button>
+                )}
                 <h2 className="text-xl font-black text-slate-900 dark:text-white truncate tracking-tight">
                   {structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado'}
                 </h2>
@@ -848,6 +874,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  setOpenedFromSearch(false);
                   onRemoveFromSelection(activeDetailFeature.id);
                   setActiveTab(null);
                 }}
@@ -1292,6 +1319,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                                 key={idx}
                                 type="button"
                                 onClick={() => {
+                                  lastSearchClickTimeRef.current = Date.now();
+                                  setOpenedFromSearch(true);
                                   onResultItemClick(groupName, item);
                                   setActiveTab('details');
                                 }}
