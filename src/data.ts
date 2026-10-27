@@ -111,7 +111,7 @@ export const layerColors: Record<string, string> = {
   "Áreas de Desenvolvimento": "#FFCC00",       // Apple Yellow
   "Comunidades Rurais de Teresina": "#34C759",  // Apple Green
   "Favelas e Comunidades": "#FF2D55",          // Apple Pink / Rose
-  "Localidades (Piauí)": "#FF3B30",            // Apple Red
+  "Localidades (Piauí)": "#34C759",            // Apple Maps Green
   "Núcleos Urbanos": "#30B0C7",                // Apple Teal
   "RISP": "#00C7BE"                            // Apple Mint
 };

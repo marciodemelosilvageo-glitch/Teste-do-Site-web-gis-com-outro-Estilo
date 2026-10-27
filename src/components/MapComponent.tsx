@@ -75,35 +75,168 @@ const computeSpatialMinZooms = (features: any[]): Map<any, number> => {
   return minZoomMap;
 };
 
-const createGoogleMapsLabelIcon = (name: string, zoom: number, customColor?: string) => {
-  const dotColor = customColor || '#dc2626';
-  const fontSize = zoom <= 9 ? '10px' : zoom <= 11 ? '11px' : '12px';
+const getAppleMapsPoiIconSvg = (name: string, isSelected: boolean = false) => {
+  const n = (name || '').toLowerCase();
+  const fill = '#143820'; // Verde floresta profundo idêntico ao Apple Maps
+  const size = isSelected ? 22 : 12;
 
-  const formattedName = toTitleCase(name);
-  const safeName = String(formattedName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Se o nome remeter a estádio, arena, clube militar, esporte (ex: "Círculo Militar de Teresina"):
+  if (
+    n.includes('militar') || 
+    n.includes('circulo') || 
+    n.includes('círculo') || 
+    n.includes('estadio') || 
+    n.includes('estádio') || 
+    n.includes('arena') || 
+    n.includes('clube') || 
+    n.includes('campo') || 
+    n.includes('esporte')
+  ) {
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg">
+        <line x1="7" y1="3" x2="11" y2="3" stroke="${fill}" stroke-width="1.6" stroke-linecap="round" />
+        <line x1="8" y1="3" x2="8" y2="7.5" stroke="${fill}" stroke-width="1.2" />
+        <line x1="10" y1="3" x2="10" y2="7.5" stroke="${fill}" stroke-width="1.2" />
+        <line x1="13" y1="3" x2="17" y2="3" stroke="${fill}" stroke-width="1.6" stroke-linecap="round" />
+        <line x1="14" y1="3" x2="14" y2="7.5" stroke="${fill}" stroke-width="1.2" />
+        <line x1="16" y1="3" x2="16" y2="7.5" stroke="${fill}" stroke-width="1.2" />
+        <ellipse cx="12" cy="11.5" rx="7.5" ry="3.8" fill="none" stroke="${fill}" stroke-width="1.7" />
+        <line x1="6.5" y1="11.5" x2="17.5" y2="11.5" stroke="${fill}" stroke-width="0.9" />
+        <line x1="12" y1="8.2" x2="12" y2="14.8" stroke="${fill}" stroke-width="0.9" />
+        <path d="M 4.5 11.5 v 2.8 c 0 2.2 3.4 3.8 7.5 3.8 s 7.5 -1.6 7.5 -3.8 v -2.8" fill="${fill}" fill-opacity="0.25" stroke="${fill}" stroke-width="1.6" />
+        <path d="M 10.5 18.1 v -2.2 a 1.5 1.5 0 0 1 3 0 v 2.2" fill="${fill}" />
+      </svg>
+    `;
+  }
 
-  // SVG de alfinete (map pin) customizado com classes CSS para animação e hover
-  const pinSvg = `
-    <svg class="localidade-pin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${dotColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-      <circle cx="12" cy="10" r="3" fill="#ffffff" stroke="none"></circle>
+  // Se for igreja, capela, santuário, catedral:
+  if (n.includes('igreja') || n.includes('capela') || n.includes('santuario') || n.includes('santuário') || n.includes('catedral')) {
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11 2h2v3h3v2h-3v3h-2V7H8V5h3V2z"/>
+        <path d="M12 11L4 16v6h16v-6l-8-5zm-2 9v-3a2 2 0 0 1 4 0v3h-4z"/>
+      </svg>
+    `;
+  }
+
+  // Se for escola, colégio, universidade, faculdade:
+  if (n.includes('escola') || n.includes('colegio') || n.includes('colégio') || n.includes('faculdade') || n.includes('ensino')) {
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm0 8.7L4.5 9 12 4.9 19.5 9 12 11.7zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+      </svg>
+    `;
+  }
+
+  // Se for posto de saúde, hospital, UBS:
+  if (n.includes('posto') || n.includes('saude') || n.includes('saúde') || n.includes('ubs') || n.includes('hospital')) {
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 10.5h-5.5V5h-3v5.5H5v3h5.5V19h3v-5.5H19v-3z"/>
+      </svg>
+    `;
+  }
+
+  // Ícone padrão de Localidade / Povoado / Marco Cívico Apple Maps:
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3L2 8v2h20V8L12 3zm-7 7v8h3v-8H5zm5 0v8h4v-8h-4zm6 0v8h3v-8h-3zM2 19v2h20v-2H2z" />
     </svg>
   `;
+};
+
+const createAppleMapsLocalidadeIcon = (
+  name: string,
+  zoom: number,
+  isSelected: boolean = false,
+  customColor?: string
+) => {
+  const dotColor = customColor && customColor !== '#dc2626' ? customColor : '#34C759';
+  const formattedName = toTitleCase(name);
+  const safeName = String(formattedName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const iconSvg = getAppleMapsPoiIconSvg(name, isSelected);
+
+  if (isSelected) {
+    // Estado Selecionado (Image 2): Balão Apple Maps grande com ponta, anchor dot na coordenada e animação "mechendo"
+    return L.divIcon({
+      className: 'apple-maps-selected-marker-wrapper',
+      iconSize: [44, 56],
+      iconAnchor: [22, 50], // Centro exato do anchor dot na coordenada geográfica
+      popupAnchor: [0, -56],
+      html: `
+        <div class="apple-pin-container is-selected">
+          <div class="apple-anchor-pulse"></div>
+          <div class="apple-anchor-dot"></div>
+          <div class="apple-balloon-body">
+            <svg class="apple-balloon-svg" viewBox="0 0 44 46" width="44" height="46" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="appleGreenGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#7cf2a8" />
+                  <stop offset="45%" stop-color="${dotColor}" />
+                  <stop offset="100%" stop-color="#1ea144" />
+                </linearGradient>
+                <filter id="applePinShadowSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x="-20%" y="-10%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#000000" flood-opacity="0.5" />
+                </filter>
+              </defs>
+              <path 
+                d="M 22 43.5 
+                   C 20.2 38.5, 5 30, 5 19.5 
+                   A 17 17 0 1 1 39 19.5 
+                   C 39 30, 23.8 38.5, 22 43.5 Z" 
+                fill="url(#appleGreenGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" 
+                stroke="#172b1d" 
+                stroke-width="2" 
+                stroke-linejoin="round"
+                filter="url(#applePinShadowSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})"
+              />
+            </svg>
+            <div class="apple-balloon-icon">
+              ${iconSvg}
+            </div>
+          </div>
+          <div class="apple-selected-label">
+            ${safeName}
+          </div>
+        </div>
+      `
+    });
+  }
+
+  // Estado Normal / Não Apertado (Image 1): Círculo pequeno com ícone + nome à direita
+  const fontSize = zoom <= 9 ? '11px' : zoom <= 11 ? '11.5px' : '12.5px';
 
   return L.divIcon({
-    className: 'google-maps-localidade-label',
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
+    className: 'apple-maps-unselected-marker-wrapper',
+    iconSize: [22, 22],
+    iconAnchor: [11, 11], // Centro do círculo
+    popupAnchor: [0, -14],
     html: `
-      <div class="localidade-marker-container">
-        ${pinSvg}
-        <span class="localidade-marker-text" style="font-size: ${fontSize};">
+      <div class="apple-pin-container is-unselected">
+        <div class="apple-unselected-badge">
+          <svg class="apple-badge-svg" viewBox="0 0 22 22" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="appleGreenGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#70e89b" />
+                <stop offset="50%" stop-color="${dotColor}" />
+                <stop offset="100%" stop-color="#239c47" />
+              </linearGradient>
+            </defs>
+            <circle cx="11" cy="11" r="9.5" fill="url(#appleGreenGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" stroke="#172b1d" stroke-width="1.6" />
+          </svg>
+          <div class="apple-badge-icon">
+            ${iconSvg}
+          </div>
+        </div>
+        <span class="apple-unselected-label" style="font-size: ${fontSize};">
           ${safeName}
         </span>
       </div>
     `
   });
 };
+
+const createGoogleMapsLabelIcon = createAppleMapsLocalidadeIcon;
 
 interface LabelBox {
   minX: number;
@@ -156,7 +289,12 @@ const updateLocalidadesViewport = (
 
     // Apenas elementos DENTRO da área de visão atual no zoom do usuário
     if (latLng && bounds.contains(latLng)) {
-      const isSelected = selectedFeatures.some(f => f.layer === marker || f.id === String((marker as any)._leaflet_id));
+      const isSelected = selectedFeatures.some(f => 
+        f.layer === marker || 
+        f.id === String((marker as any)._leaflet_id) ||
+        (marker.featureProps && f.properties && f.properties === marker.featureProps) ||
+        (f.name && marker.featureName && f.name.toLowerCase() === marker.featureName.toLowerCase() && f.sourceName === "Localidades (Piauí)")
+      );
       const passesZoom = currentZoom >= marker.minZoom;
 
       if (passesZoom || isSelected) {
@@ -165,13 +303,20 @@ const updateLocalidadesViewport = (
         const nameLen = (marker.featureName || '').length;
         const textWidth = nameLen * charWidth + 24;
 
-        // Bounding box rigoroso cobrindo o pin (-14px a +14px horizontal, -24px a 0px vertical) + o texto (+14px a +14px+textWidth horizontal, -18px a +6px vertical)
-        const box: LabelBox = {
-          minX: pt.x - 14,
-          minY: pt.y - 24,
-          maxX: pt.x + 14 + textWidth,
-          maxY: pt.y + 8,
-        };
+        // Bounding box rigoroso cobrindo o pin e o texto
+        const box: LabelBox = isSelected
+          ? {
+              minX: pt.x - 24,
+              minY: pt.y - 56,
+              maxX: pt.x + 24,
+              maxY: pt.y + 36,
+            }
+          : {
+              minX: pt.x - 14,
+              minY: pt.y - 14,
+              maxX: pt.x + 14 + textWidth,
+              maxY: pt.y + 14,
+            };
 
         // Evita colisão/sobreposição de texto se o rótulo não for explicitamente selecionado
         if (!isSelected) {
@@ -188,8 +333,14 @@ const updateLocalidadesViewport = (
         }
 
         if (typeof marker.setIcon === 'function') {
-          marker.setIcon(createGoogleMapsLabelIcon(marker.featureName, currentZoom, customColor));
+          marker.setIcon(createAppleMapsLocalidadeIcon(marker.featureName, currentZoom, isSelected, customColor));
         }
+        if (isSelected && typeof marker.setZIndexOffset === 'function') {
+          marker.setZIndexOffset(100000);
+        } else if (typeof marker.setZIndexOffset === 'function') {
+          marker.setZIndexOffset(0);
+        }
+
         layer.addLayer(marker);
         placedBoxes.push(box);
         count++;
@@ -1023,13 +1174,41 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const applySelectedStyleToLayer = (layer: any, isSelected: boolean) => {
     if (!layer) return;
 
-    // Camada de Localidades (Pontos) possui ícone próprio e NÃO recebe animação de contorno tracejado
-    if (layer.customSourceName === "Localidades (Piauí)" || layer._icon || (typeof L !== 'undefined' && layer instanceof L.Marker)) {
+    // Camada de Localidades (Pontos) possui ícone próprio e animação estilo Apple Maps
+    if (layer.customSourceName === "Localidades (Piauí)" || (layer as any).featureName) {
+      if (typeof layer.setIcon === 'function') {
+        const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#34C759';
+        const currentZoom = mapRef.current ? mapRef.current.getZoom() : 11;
+        layer.setIcon(createAppleMapsLocalidadeIcon((layer as any).featureName || 'Localidade', currentZoom, isSelected, customColor));
+        if (isSelected && typeof layer.setZIndexOffset === 'function') {
+          layer.setZIndexOffset(100000);
+        } else if (typeof layer.setZIndexOffset === 'function') {
+          layer.setZIndexOffset(0);
+        }
+      }
+      return;
+    }
+
+    if (layer._icon || (typeof L !== 'undefined' && layer instanceof L.Marker)) {
       return;
     }
 
     const updateSingle = (l: any) => {
-      if (l.customSourceName === "Localidades (Piauí)" || l._icon || (typeof L !== 'undefined' && l instanceof L.Marker)) {
+      if (l.customSourceName === "Localidades (Piauí)" || (l as any).featureName) {
+        if (typeof l.setIcon === 'function') {
+          const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#34C759';
+          const currentZoom = mapRef.current ? mapRef.current.getZoom() : 11;
+          l.setIcon(createAppleMapsLocalidadeIcon((l as any).featureName || 'Localidade', currentZoom, isSelected, customColor));
+          if (isSelected && typeof l.setZIndexOffset === 'function') {
+            l.setZIndexOffset(100000);
+          } else if (typeof l.setZIndexOffset === 'function') {
+            l.setZIndexOffset(0);
+          }
+        }
+        return;
+      }
+
+      if (l._icon || (typeof L !== 'undefined' && l instanceof L.Marker)) {
         return;
       }
 
@@ -1089,6 +1268,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         applySelectedStyleToLayer(lyr, true);
       }
     });
+
+    // Sincroniza e redesenha a camada de Localidades na tela para o estado Apple Maps selecionado/deselecionado
+    const locLayer = loadedLayersRef.current["Localidades (Piauí)"];
+    if (locLayer && mapRef.current && mapRef.current.hasLayer(locLayer)) {
+      const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#34C759';
+      updateLocalidadesViewport(locLayer, mapRef.current, selectedFeatures, customColor);
+    }
   }, [selectedFeatures]);
 
   // Inicializar o Leaflet Map
@@ -1718,7 +1904,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             const passesZoomCheck = source.name === "Localidades (Piauí)" ? currentZoom >= 8 : true;
 
             if (source.name === "Localidades (Piauí)" && (layer as any).allMarkers) {
-              const customColor = layerColorsRef.current[source.name] || '#dc2626';
+              const customColor = layerColorsRef.current[source.name] || '#34C759';
               updateLocalidadesViewport(layer, map, selectedFeatures, customColor);
             }
 
@@ -1762,7 +1948,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         if (!mapRef.current) return;
         const locLayer = loadedLayersRef.current["Localidades (Piauí)"];
         if (locLayer && map.hasLayer(locLayer)) {
-          const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#dc2626';
+          const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#34C759';
           updateLocalidadesViewport(locLayer, map, selectedFeatures, customColor);
         }
         updateLegendViewport();
@@ -2084,8 +2270,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
           (layer as any)._popupContentHtml = popupContentHtml;
 
-          // Se for camada de ponto (que não seja polígono), mantém o popup padrão anexado
-          if (!isPolygon && !isAreaLayer) {
+          // Se for camada de ponto (que não seja polígono nem Localidades com balão Apple Maps), mantém o popup padrão anexado
+          if (!isPolygon && !isAreaLayer && source.name !== "Localidades (Piauí)") {
             layer.bindPopup(popupContentHtml);
           }
 
@@ -2110,6 +2296,19 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
               onSelectionChange((prevSelected) => {
                 const alreadySelected = prevSelected.some(item => item.id === String(layer._leaflet_id));
+
+                // Resposta instantânea tátil nos pontos de Localidade
+                if (source.name === "Localidades (Piauí)" || (layer as any).featureName) {
+                  const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#34C759';
+                  const currentZoom = mapRef.current ? mapRef.current.getZoom() : 11;
+                  const willSelect = !alreadySelected;
+                  layer.setIcon(createAppleMapsLocalidadeIcon((layer as any).featureName || title, currentZoom, willSelect, customColor));
+                  if (willSelect && typeof (layer as any).setZIndexOffset === 'function') {
+                    (layer as any).setZIndexOffset(100000);
+                  } else if (typeof (layer as any).setZIndexOffset === 'function') {
+                    (layer as any).setZIndexOffset(0);
+                  }
+                }
 
                 if (multi) {
                   if (alreadySelected) {
@@ -2159,7 +2358,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       let leafletLayer: L.GeoJSON;
 
-      // Se for a camada de Localidades (Pontos), usar Rótulos Estilo Google Mapas
+      // Se for a camada de Localidades (Pontos), usar Rótulos e Balões Estilo Apple Maps (maps.apple.com)
       if (source.name === "Localidades (Piauí)") {
         const allMarkers: any[] = [];
         const minZoomMap = computeSpatialMinZooms(data.features || []);
@@ -2170,14 +2369,24 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const rawName = props.Localidade || props.NM_LOCALIDA || props.name || props.Nome || props.NM_MUN || props.NM_AGLOM || getIdentifier(props);
           const name = toTitleCase(String(getTranslatedValue('Localidade', rawName) || rawName || 'Localidade').trim());
 
-          const customColor = layerColorsRef.current[source.name] || '#dc2626';
+          const customColor = layerColorsRef.current[source.name] || '#34C759';
           const initialZoom = mapRef.current ? mapRef.current.getZoom() : 8;
 
-          const icon = createGoogleMapsLabelIcon(name, initialZoom, customColor);
+          const isSelected = selectedFeatures.some(f => 
+            f.id === String(feature.id) || 
+            (f.properties && f.properties === props) ||
+            (f.name && f.name.toLowerCase() === name.toLowerCase() && f.sourceName === "Localidades (Piauí)")
+          );
+          const icon = createAppleMapsLocalidadeIcon(name, initialZoom, isSelected, customColor);
           const marker = L.marker(latlng, { icon, pane: 'markerPane' }) as any;
           marker.minZoom = minZoom;
           marker.featureName = name;
           marker.featureLatLng = latlng;
+          marker.featureProps = props;
+          marker.customSourceName = source.name;
+          if (isSelected) {
+            marker.setZIndexOffset(100000);
+          }
           allMarkers.push(marker);
           return marker;
         };
@@ -2190,7 +2399,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         // Filtrar de acordo com a VIEWPORT visível no zoom atual do mapa
         if (mapRef.current) {
-          const customColor = layerColorsRef.current[source.name] || '#dc2626';
+          const customColor = layerColorsRef.current[source.name] || '#34C759';
           updateLocalidadesViewport(leafletLayer, mapRef.current, selectedFeatures, customColor);
         }
       } else {

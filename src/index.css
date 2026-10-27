@@ -581,109 +581,300 @@ path.layer-measure-resultarea:hover {
 }
 
 /* ============================================================
-   ANIMAÇÃO E ESTILIZAÇÃO PREMIUM DAS LOCALIDADES (PIAUÍ)
+   ESTILIZAÇÃO E ANIMAÇÃO APPLE MAPS (MAPS.APPLE.COM)
+   CAMADA DE LOCALIDADES (PIAUÍ)
    ============================================================ */
 
-.google-maps-localidade-label {
+.apple-maps-unselected-marker-wrapper,
+.apple-maps-selected-marker-wrapper {
   background: transparent !important;
   border: none !important;
   overflow: visible !important;
   pointer-events: auto !important;
-  transition: z-index 0s !important;
 }
 
-.google-maps-localidade-label:hover {
-  z-index: 99999 !important;
+.apple-maps-selected-marker-wrapper {
+  z-index: 999999 !important; /* Marcador selecionado sempre em primeiro plano */
 }
 
-.localidade-marker-container {
+/* ------------------------------------------------------------
+   ESTADO 1: NÃO APERTADO / REPOUSO (Badge circular + Rótulo lateral)
+   ------------------------------------------------------------ */
+
+.apple-pin-container.is-unselected {
   position: relative;
-  pointer-events: auto;
-  cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-  z-index: 500;
   display: inline-flex;
   align-items: center;
-  transform-origin: 0% 100%;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+  user-select: none;
+  cursor: pointer;
+  white-space: nowrap;
+  pointer-events: auto;
+  transform-origin: 11px 11px;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.22s ease;
   will-change: transform;
 }
 
-.localidade-pin-icon {
-  position: absolute;
-  left: -10px;
-  bottom: 0;
-  width: 20px;
-  height: 20px;
-  filter: drop-shadow(0px 2px 3px rgba(0, 0, 0, 0.4));
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+.apple-unselected-badge {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
-.localidade-marker-text {
+.apple-badge-svg {
   position: absolute;
-  left: 12px;
-  bottom: 2px;
-  font-weight: 700;
-  color: #0f172a;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.apple-badge-icon {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apple-unselected-label {
+  margin-left: 7px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  line-height: 1.1;
+  color: #55e28a;
+  text-shadow: 
+    -1.5px -1.5px 0 #0e1d13, 
+     1.5px -1.5px 0 #0e1d13, 
+    -1.5px  1.5px 0 #0e1d13, 
+     1.5px  1.5px 0 #0e1d13, 
+     0 1px 3px rgba(0, 0, 0, 0.85),
+     0 0 8px rgba(52, 199, 89, 0.4);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, text-shadow 0.2s ease;
+}
+
+/* Efeito ao passar o mouse (Hover no estado não apertado) */
+.apple-pin-container.is-unselected:hover {
+  transform: scale(1.22) translateY(-2px);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+}
+
+.apple-pin-container.is-unselected:hover .apple-unselected-label {
+  color: #7bf1a8;
+  text-shadow: 
+    -2px -2px 0 #0e1d13, 
+     2px -2px 0 #0e1d13, 
+    -2px  2px 0 #0e1d13, 
+     2px  2px 0 #0e1d13, 
+     0 2px 6px rgba(0, 0, 0, 0.95),
+     0 0 12px rgba(52, 199, 89, 0.65);
+}
+
+/* Rótulo no tema claro */
+body:not(.dark) .apple-unselected-label {
+  color: #166534;
   text-shadow: 
     -1.5px -1.5px 0 #ffffff, 
      1.5px -1.5px 0 #ffffff, 
     -1.5px  1.5px 0 #ffffff, 
      1.5px  1.5px 0 #ffffff, 
-     0 0 4px #ffffff, 
-     0 0 6px #ffffff;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  letter-spacing: -0.2px;
-  line-height: 1;
-  transition: color 0.2s ease, text-shadow 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+     0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
-/* EFEITO AO PASSAR O MOUSE (HOVER): AMPLIAÇÃO SUAVE E ELEGANTE DO PINO E DO NOME */
-.google-maps-localidade-label:hover .localidade-marker-container {
-  transform: scale(1.35) translateY(-3px);
-  filter: drop-shadow(0px 6px 14px rgba(0, 0, 0, 0.25));
-}
-
-.google-maps-localidade-label:hover .localidade-pin-icon {
-  filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.55)) brightness(1.15);
-}
-
-.google-maps-localidade-label:hover .localidade-marker-text {
-  color: #b91c1c;
-  font-weight: 800;
+body:not(.dark) .apple-pin-container.is-unselected:hover .apple-unselected-label {
+  color: #14532d;
   text-shadow: 
     -2px -2px 0 #ffffff, 
      2px -2px 0 #ffffff, 
     -2px  2px 0 #ffffff, 
      2px  2px 0 #ffffff, 
-     0 0 6px #ffffff, 
-     0 0 10px #ffffff, 
-     0 0 12px rgba(220, 38, 38, 0.35);
+     0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
-/* Suporte para Modo Escuro (Dark Mode) */
-.dark .localidade-marker-text {
-  color: #f8fafc;
-  text-shadow: 
-    -1.5px -1.5px 0 #0f172a, 
-     1.5px -1.5px 0 #0f172a, 
-    -1.5px  1.5px 0 #0f172a, 
-     1.5px  1.5px 0 #0f172a, 
-     0 0 4px #0f172a, 
-     0 0 6px #0f172a;
+/* ------------------------------------------------------------
+   ESTADO 2: APERTADO / SELECIONADO (Balão Apple + "Mechendo")
+   ------------------------------------------------------------ */
+
+.apple-pin-container.is-selected {
+  position: relative;
+  width: 44px;
+  height: 56px;
+  user-select: none;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
-.dark .google-maps-localidade-label:hover .localidade-marker-text {
-  color: #fca5a5;
+/* Ponto de Ancoragem (Anchor Dot) na coordenada GPS exata */
+.apple-anchor-dot {
+  position: absolute;
+  left: 19px;
+  top: 47px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #7bf1a8 0%, #34c759 60%, #1ea144 100%);
+  border: 1.5px solid #142a1b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  z-index: 5;
+}
+
+/* Radar pulse sutil emanando da coordenada */
+.apple-anchor-pulse {
+  position: absolute;
+  left: 14px;
+  top: 42px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(52, 199, 89, 0.45);
+  pointer-events: none;
+  animation: appleAnchorRadar 2.4s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+  z-index: 4;
+}
+
+@keyframes appleAnchorRadar {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Balão Apple Maps flutuando acima da ponta com animação "mechendo" */
+.apple-balloon-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 46px;
+  transform-origin: 22px 43.5px; /* Origem exata na ponta do alfinete */
+  animation: 
+    applePinSelectedPop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    applePinWobbleLoop 3.2s ease-in-out 0.65s infinite;
+  z-index: 10;
+  will-change: transform;
+}
+
+.apple-balloon-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 46px;
+}
+
+.apple-balloon-icon {
+  position: absolute;
+  top: 8.5px;
+  left: 11px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+}
+
+/* Rótulo Centralizado Abaixo do Pino (Estilo Apple Maps) */
+.apple-selected-label {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 155px;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #ffffff;
   text-shadow: 
-    -2px -2px 0 #0f172a, 
-     2px -2px 0 #0f172a, 
-    -2px  2px 0 #0f172a, 
-     2px  2px 0 #0f172a, 
-     0 0 6px #0f172a, 
-     0 0 10px #0f172a, 
-     0 0 14px rgba(239, 68, 68, 0.5);
+    -1.5px -1.5px 0 #000000, 
+     1.5px -1.5px 0 #000000, 
+    -1.5px  1.5px 0 #000000, 
+     1.5px  1.5px 0 #000000, 
+     0 2px 6px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+  white-space: normal;
+  word-break: break-word;
+  animation: appleLabelFadeIn 0.3s ease-out 0.1s both;
+  z-index: 15;
+}
+
+@keyframes appleLabelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------
+   ANIMAÇÕES APPLE MAPS: POP ELÁSTICO & "MECHENDO" (WOBBLE)
+   ------------------------------------------------------------ */
+
+/* 1. Entrada com Salto Elástico e Balanço Inicial */
+@keyframes applePinSelectedPop {
+  0% {
+    transform: scale(0.2) translateY(16px) rotate(0deg);
+    opacity: 0.3;
+  }
+  32% {
+    transform: scale(1.28) translateY(-9px) rotate(-8deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.92) translateY(3px) rotate(6deg);
+  }
+  68% {
+    transform: scale(1.08) translateY(-3px) rotate(-3deg);
+  }
+  84% {
+    transform: scale(0.98) translateY(1px) rotate(1.5deg);
+  }
+  100% {
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+
+/* 2. Animação Contínua "Mechendo" (Idle Spring Wobble) */
+@keyframes applePinWobbleLoop {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  15% {
+    transform: translateY(-3.5px) rotate(-3.5deg) scale(1.02);
+  }
+  30% {
+    transform: translateY(-1px) rotate(2.5deg) scale(1.01);
+  }
+  45% {
+    transform: translateY(-4px) rotate(-2.5deg) scale(1.03);
+  }
+  60% {
+    transform: translateY(-0.5px) rotate(1.8deg) scale(1.01);
+  }
+  75% {
+    transform: translateY(-2px) rotate(-1.2deg) scale(1.015);
+  }
+  90% {
+    transform: translateY(0) rotate(0.6deg) scale(1);
+  }
 }
 
 /* ============================================================
