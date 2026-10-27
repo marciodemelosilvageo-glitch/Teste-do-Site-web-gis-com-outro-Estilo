@@ -265,6 +265,21 @@ const isOverlapping = (b1: LabelBox, b2: LabelBox, margin: number): boolean => {
   );
 };
 
+const getLocalidadeFeatureKey = (props: any, latLng?: any): string => {
+  if (props) {
+    const idVal = props.id_Localidades ?? props.id_localidades ?? props.ID ?? props.id ?? props.CD_LOCALIDADE;
+    if (idVal !== undefined && idVal !== null && idVal !== '') {
+      return `id_${idVal}`;
+    }
+  }
+  if (latLng) {
+    const lat = typeof latLng.lat === 'number' ? latLng.lat : (typeof latLng.lat === 'function' ? latLng.lat() : 0);
+    const lng = typeof latLng.lng === 'number' ? latLng.lng : (typeof latLng.lng === 'function' ? latLng.lng() : 0);
+    return `coord_${lat.toFixed(5)}_${lng.toFixed(5)}`;
+  }
+  return '';
+};
+
 const updateLocalidadesViewport = (
   layer: any,
   map: L.Map,
@@ -278,6 +293,19 @@ const updateLocalidadesViewport = (
   if (currentZoom < 8) {
     layer.clearLayers();
     return;
+  }
+
+  // Conjunto estrito de marcadores e chaves únicas selecionadas (nunca por nome compartilhado)
+  const selectedLocKeys = new Set<string>();
+  const selectedLocMarkers = new Set<any>();
+  if (selectedFeatures && selectedFeatures.length > 0) {
+    for (const f of selectedFeatures) {
+      if (f.sourceName === "Localidades (Piauí)") {
+        if (f.layer) selectedLocMarkers.add(f.layer);
+        const k = (f.layer as any)?.localidadeKey || getLocalidadeFeatureKey(f.properties, (f.layer as any)?.featureLatLng);
+        if (k) selectedLocKeys.add(k);
+      }
+    }
   }
 
   // Limites visíveis da tela do usuário com margem leve
@@ -300,12 +328,8 @@ const updateLocalidadesViewport = (
 
     // Apenas elementos DENTRO da área de visão atual no zoom do usuário
     if (latLng && bounds.contains(latLng)) {
-      const isSelected = selectedFeatures.some(f => 
-        f.layer === marker || 
-        f.id === String((marker as any)._leaflet_id) ||
-        (marker.featureProps && f.properties && f.properties === marker.featureProps) ||
-        (f.name && marker.featureName && f.name.toLowerCase() === marker.featureName.toLowerCase() && f.sourceName === "Localidades (Piauí)")
-      );
+      const markerKey = marker.localidadeKey || getLocalidadeFeatureKey(marker.featureProps, marker.featureLatLng);
+      const isSelected = selectedLocMarkers.has(marker) || (markerKey ? selectedLocKeys.has(markerKey) : false);
       const passesZoom = currentZoom >= marker.minZoom;
 
       if (passesZoom || isSelected) {
@@ -431,6 +455,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   const lastMeasureModelRef = useRef<any>(null);
   const onSearchPolygonAddressesRef = useRef(onSearchPolygonAddresses);
+  const selectedFeaturesRef = useRef<SelectedFeature[]>(selectedFeatures);
+
+  useEffect(() => {
+    selectedFeaturesRef.current = selectedFeatures;
+  }, [selectedFeatures]);
 
   const [activeMeasureInfo, setActiveMeasureInfo] = useState<{
     layer: any;
@@ -1916,7 +1945,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
             if (source.name === "Localidades (Piauí)" && (layer as any).allMarkers) {
               const customColor = layerColorsRef.current[source.name] || '#34C759';
-              updateLocalidadesViewport(layer, map, selectedFeatures, customColor);
+              updateLocalidadesViewport(layer, map, selectedFeaturesRef.current, customColor);
             }
 
             if (!map.hasLayer(layer) && passesZoomCheck) {
@@ -1960,7 +1989,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         const locLayer = loadedLayersRef.current["Localidades (Piauí)"];
         if (locLayer && map.hasLayer(locLayer)) {
           const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#34C759';
-          updateLocalidadesViewport(locLayer, map, selectedFeatures, customColor);
+          updateLocalidadesViewport(locLayer, map, selectedFeaturesRef.current, customColor);
         }
         updateLegendViewport();
       }, 100);
@@ -2297,6 +2326,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                 return;
               }
 
+              // REGRA DE DESSELEÇÃO LIMPA E SEGURA:
+              // Se há alguma localidade selecionada e o usuário clicou em uma feição
+              // que NÃO é da camada de localidades (ex: Município, Bairro, etc.):
+              // O primeiro clique APENAS desseleciona a localidade e fecha qualquer balão!
+              // Não abre o balão nem seleciona o município/bairro diretamente.
+              const hasSelectedLocalidade = selectedFeaturesRef.current.some(
+                f => f.sourceName === "Localidades (Piauí)"
+              );
+              const isCurrentClickLocalidade = source.name === "Localidades (Piauí)";
+
+              if (hasSelectedLocalidade && !isCurrentClickLocalidade) {
+                clearPolygonCallout();
+                onSelectionChange([]);
+                return;
+              }
+
               // Para feições poligonais, enquadra o polígono e abre o Balão Callout Lateral com linha conectora a partir da borda
               if (isPolygon || isAreaLayer) {
                 openPolygonCallout(layer, popupContentHtml, ev.latlng, true);
@@ -2307,19 +2352,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
               onSelectionChange((prevSelected) => {
                 const alreadySelected = prevSelected.some(item => item.id === String(layer._leaflet_id));
-
-                // Resposta instantânea tátil nos pontos de Localidade
-                if (source.name === "Localidades (Piauí)" || (layer as any).featureName) {
-                  const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#34C759';
-                  const currentZoom = mapRef.current ? mapRef.current.getZoom() : 11;
-                  const willSelect = !alreadySelected;
-                  layer.setIcon(createAppleMapsLocalidadeIcon((layer as any).featureName || title, currentZoom, willSelect, customColor));
-                  if (willSelect && typeof (layer as any).setZIndexOffset === 'function') {
-                    (layer as any).setZIndexOffset(100000);
-                  } else if (typeof (layer as any).setZIndexOffset === 'function') {
-                    (layer as any).setZIndexOffset(0);
-                  }
-                }
 
                 if (multi) {
                   if (alreadySelected) {
@@ -2339,9 +2371,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     return [...prevSelected, newFeat];
                   }
                 } else {
-                  // Seleção simples: limpa outros estilos
+                  // Seleção simples: desmarca as anteriores com segurança
                   prevSelected.forEach(item => {
-                    applySelectedStyleToLayer(item.layer, false);
+                    if (item.layer) {
+                      applySelectedStyleToLayer(item.layer, false);
+                    }
                   });
 
                   if (alreadySelected) {
@@ -2383,17 +2417,20 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const customColor = layerColorsRef.current[source.name] || '#34C759';
           const initialZoom = mapRef.current ? mapRef.current.getZoom() : 8;
 
-          const isSelected = selectedFeatures.some(f => 
-            f.id === String(feature.id) || 
-            (f.properties && f.properties === props) ||
-            (f.name && f.name.toLowerCase() === name.toLowerCase() && f.sourceName === "Localidades (Piauí)")
-          );
+          const locKey = getLocalidadeFeatureKey(props, latlng);
+          const isSelected = selectedFeaturesRef.current.some(f => {
+            if (f.sourceName !== "Localidades (Piauí)") return false;
+            const featKey = (f.layer as any)?.localidadeKey || getLocalidadeFeatureKey(f.properties, (f.layer as any)?.featureLatLng);
+            return locKey && featKey ? locKey === featKey : false;
+          });
+
           const icon = createAppleMapsLocalidadeIcon(name, initialZoom, isSelected, customColor);
           const marker = L.marker(latlng, { icon, pane: 'markerPane' }) as any;
           marker.minZoom = minZoom;
           marker.featureName = name;
           marker.featureLatLng = latlng;
           marker.featureProps = props;
+          marker.localidadeKey = locKey;
           marker.customSourceName = source.name;
           if (isSelected) {
             marker.setZIndexOffset(100000);
@@ -2411,7 +2448,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         // Filtrar de acordo com a VIEWPORT visível no zoom atual do mapa
         if (mapRef.current) {
           const customColor = layerColorsRef.current[source.name] || '#34C759';
-          updateLocalidadesViewport(leafletLayer, mapRef.current, selectedFeatures, customColor);
+          updateLocalidadesViewport(leafletLayer, mapRef.current, selectedFeaturesRef.current, customColor);
         }
       } else {
         leafletLayer = L.geoJSON(data, geojsonOptions);
@@ -2715,7 +2752,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       const markersToUpdate = (layer as any).allMarkers || [];
       if (markersToUpdate.length > 0) {
         if (mapRef.current) {
-          updateLocalidadesViewport(layer, mapRef.current, selectedFeatures, color);
+          updateLocalidadesViewport(layer, mapRef.current, selectedFeaturesRef.current, color);
         }
       } else {
         layer.eachLayer((lyr: any) => {
