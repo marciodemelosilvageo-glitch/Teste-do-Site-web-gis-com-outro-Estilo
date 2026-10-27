@@ -94,6 +94,16 @@ input:-webkit-autofill:active {
   pointer-events: none !important;
 }
 
+/* Marcador invisível de captura de eventos cobrindo o mapa com cursor de precisão */
+.leaflet-measure-capture-marker {
+  outline: none !important;
+  border: none !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  cursor: crosshair !important;
+}
+
 /* Padding interno confortável */
 .leaflet-control-measure .leaflet-control-measure-interaction {
   padding: 16px 18px !important;

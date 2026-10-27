@@ -484,6 +484,33 @@ export function patchMeasureControl() {
         }
       };
 
+      // Patch para _handleMeasureDoubleClick que cria a feição permanente e abre o popup
+      const originalDblClick = MeasureControl.prototype._handleMeasureDoubleClick;
+      MeasureControl.prototype._handleMeasureDoubleClick = function() {
+        if (this._latlngs && this._latlngs.length >= 1) {
+          if (typeof originalDblClick === 'function') {
+            originalDblClick.call(this);
+          }
+        } else {
+          if (typeof this._finishMeasure === 'function') {
+            this._finishMeasure();
+          }
+        }
+      };
+
+      // Centraliza e dimensiona o marcador de captura para cobrir 100% da tela sem causar rolagem (pan) no mapa
+      MeasureControl.prototype._setCaptureMarkerIcon = function() {
+        if (!this._map || !this._captureMarker) return;
+        const size = this._map.getSize().multiplyBy(2);
+        this._captureMarker.setIcon(
+          L.divIcon({
+            className: 'leaflet-measure-capture-marker',
+            iconSize: size,
+            iconAnchor: [size.x / 2, size.y / 2]
+          })
+        );
+      };
+
       const originalStartMeasure = MeasureControl.prototype._startMeasure;
       MeasureControl.prototype._startMeasure = function() {
         if (this._container) {
@@ -512,6 +539,14 @@ export function patchMeasureControl() {
           originalStartMeasure.call(this);
         } finally {
           (L as any).marker = origMarker;
+        }
+
+        // Remove tabindex para evitar rolagem da página ao clicar no marcador invisível
+        if (this._captureMarker) {
+          const el = this._captureMarker.getElement ? this._captureMarker.getElement() : null;
+          if (el) {
+            el.removeAttribute('tabindex');
+          }
         }
 
         this._map.fire('measurechange', { latlngs: [] });

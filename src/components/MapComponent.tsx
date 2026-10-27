@@ -494,16 +494,27 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     isMeasuringActiveRef.current = isMeasuringActive;
   }, [isMeasuringActive]);
 
+  const measurePoints = measureHistory || [];
+  const pointCount = measurePoints.length;
+
   const handleToggleMeasure = useCallback(() => {
     if (!mapRef.current) return;
     const measureControl = (mapRef.current as any).measureControl;
     
     if (isMeasuringActive) {
-      if (measureControl && typeof measureControl._finishMeasure === 'function') {
-        measureControl._finishMeasure();
+      if (measureControl) {
+        if (measurePoints && measurePoints.length >= 2 && typeof measureControl._handleMeasureDoubleClick === 'function') {
+          if (!measureControl._latlngs || measureControl._latlngs.length < measurePoints.length) {
+            measureControl._latlngs = [...measurePoints];
+          }
+          measureControl._handleMeasureDoubleClick();
+          showToast('Medição concluída e traçada no mapa!');
+        } else if (typeof measureControl._finishMeasure === 'function') {
+          measureControl._finishMeasure();
+          showToast('Medição encerrada.');
+        }
       }
       setIsMeasuringActive(false);
-      showToast('Medição encerrada.');
     } else {
       if (measureControl && typeof measureControl._startMeasure === 'function') {
         measureControl._startMeasure();
@@ -511,12 +522,18 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       setIsMeasuringActive(true);
       showToast('📏 Modo Medição ativado! Toque no mapa para marcar pontos.');
     }
-  }, [isMeasuringActive, showToast]);
+  }, [isMeasuringActive, measurePoints, showToast]);
 
   const handleCancelMeasure = useCallback(() => {
     if (mapRef.current && (mapRef.current as any).measureControl) {
       try {
-        (mapRef.current as any).measureControl._clearMeasure();
+        const mc = (mapRef.current as any).measureControl;
+        if (typeof mc._clearMeasure === 'function') {
+          mc._clearMeasure();
+        }
+        if (typeof mc._finishMeasure === 'function') {
+          mc._finishMeasure();
+        }
       } catch (err) {
         console.error("Erro ao cancelar medição", err);
       }
@@ -530,24 +547,29 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
   const handleFinishMeasure = useCallback(() => {
     if (mapRef.current && (mapRef.current as any).measureControl) {
+      const mc = (mapRef.current as any).measureControl;
       try {
-        (mapRef.current as any).measureControl._finishMeasure();
+        if (typeof mc._handleMeasureDoubleClick === 'function') {
+          if (measurePoints && measurePoints.length >= 2 && (!mc._latlngs || mc._latlngs.length < measurePoints.length)) {
+            mc._latlngs = [...measurePoints];
+          }
+          mc._handleMeasureDoubleClick();
+        } else if (typeof mc._finishMeasure === 'function') {
+          mc._finishMeasure();
+        }
       } catch (err) {
         console.error("Erro ao finalizar medição", err);
       }
     }
     setIsMeasuringActive(false);
     showToast('Medição concluída e traçada no mapa!');
-  }, [showToast]);
+  }, [measurePoints, showToast]);
 
   const handleRemoveMeasurePoint = useCallback((index: number) => {
     if (mapRef.current && (mapRef.current as any).measureControl) {
       (mapRef.current as any).measureControl.removePoint(index);
     }
   }, []);
-
-  const measurePoints = measureHistory || [];
-  const pointCount = measurePoints.length;
 
   const totalDistanceMeters = useMemo(() => {
     if (pointCount < 2) return 0;
@@ -1385,8 +1407,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }).catch(err => console.error("Error loading leaflet-measure", err));
     }
 
-    map.on('measurefinish', () => {
+    map.on('measurefinish', (e: any) => {
       setIsMeasuringActive(false);
+      lastMeasureModelRef.current = e;
     });
 
     if (onMeasureChange) {
@@ -2452,13 +2475,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           // Clique na feição
           layer.on('click', (ev: L.LeafletMouseEvent) => {
             try {
-              // Se a ferramenta de medição estiver ativa, não interceptamos o clique,
-              // permitindo que o evento suba até o mapa para registrar o ponto da medição sobre qualquer camada
+              // Se a ferramenta de medição estiver ativa, repassa o clique diretamente para o controle de medição
+              // permitindo marcar pontos sobre qualquer camada, polígono ou feição
               if (isMeasuringActiveRef.current) {
+                const mc = (mapRef.current as any)?.measureControl;
+                if (mc && typeof mc._handleMeasureClick === 'function') {
+                  mc._handleMeasureClick(ev);
+                }
                 return;
               }
               const measuringPrompt = document.querySelector('.js-measuringprompt') as HTMLElement;
               if (measuringPrompt && measuringPrompt.style.display !== 'none') {
+                const mc = (mapRef.current as any)?.measureControl;
+                if (mc && typeof mc._handleMeasureClick === 'function') {
+                  mc._handleMeasureClick(ev);
+                }
                 return;
               }
 
