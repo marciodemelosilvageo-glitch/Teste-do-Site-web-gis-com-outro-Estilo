@@ -27,7 +27,7 @@ import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters } from './utils';
-import { buscarEnderecosPorPoligono } from './duckdb';
+import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade } from './duckdb';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const AdminPanelModal = lazy(() => import('./components/AdminPanelModal').then(m => ({ default: m.AdminPanelModal })));
@@ -631,6 +631,57 @@ export default function App() {
       showToast('Erro ao consultar endereços do CNEFE para este polígono.');
     }
   };
+
+  // Busca direta de endereços CNEFE pela coluna "localidade" em um determinado município
+  const handleSearchLocalidadeAddresses = async (localidade: string, municipio: string) => {
+    try {
+      const locClean = (localidade || '').trim();
+      const munClean = (municipio || '').trim();
+      if (!locClean) {
+        showToast('Nome da localidade não identificado para a pesquisa.');
+        return;
+      }
+
+      showToast(`🔍 Consultando endereços da localidade "${locClean}"${munClean ? ` em ${munClean}` : ''}...`);
+
+      const res = await buscarEnderecosPorLocalidade(munClean, locClean, 3000);
+
+      if (!res.results || res.results.length === 0) {
+        showToast(`Nenhum endereço com a localidade "${locClean}" foi localizado no CNEFE${munClean ? ` (${munClean})` : ''}.`);
+        return;
+      }
+
+      setCnefeExternalResult({
+        results: res.results,
+        totalEncontrado: res.totalEncontrado,
+        title: `Localidade: ${toTitleCase(locClean)}${munClean ? ` • ${toTitleCase(munClean)}` : ''}`,
+        sourceLayerName: 'Localidades (Piauí)',
+        timestamp: Date.now()
+      });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
+
+      logActivity(
+        'ENDERECO',
+        `Busca CNEFE por Localidade: "${locClean}"`,
+        userRole,
+        `${res.totalEncontrado} endereços encontrados no município de ${munClean || 'Piauí'}`
+      );
+
+      showToast(`✨ ${res.totalEncontrado} endereço(s) CNEFE encontrado(s) para "${locClean}"!`);
+
+      setTimeout(() => {
+        const el = document.getElementById('ibge-search-panel');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } catch (err) {
+      console.error('Erro ao buscar endereços da localidade no CNEFE:', err);
+      showToast('Erro ao consultar endereços da localidade no CNEFE.');
+    }
+  };
+
   // Login direto em conta autenticada
   const handleDirectLoginPreviousUser = (user: RegisteredUser) => {
     document.body.style.overflow = '';
@@ -2299,6 +2350,7 @@ export default function App() {
               showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
             }}
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
+            onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
             onOpenCnefeBottomBar={() => {
               setIsCnefeBottomBarOpen(true);
               setIsCnefeBottomBarExpanded(true);
@@ -2465,6 +2517,7 @@ export default function App() {
                 showToast={showToast}
                 allowedProperties={isAdmin ? undefined : effectiveSession.featurePropertiesPermissions}
                 onSearchPolygonAddresses={handleSearchPolygonAddresses}
+                onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
               />
             </div>
           </div>

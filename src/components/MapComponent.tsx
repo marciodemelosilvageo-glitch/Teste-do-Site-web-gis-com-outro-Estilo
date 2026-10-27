@@ -2389,7 +2389,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               extraInfo += renderCopyableField('MUNICÍPIO', toTitleCase(municipio));
             }
             if (latitude && longitude) {
-              const coordStr = `${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`;
+              const coordStr = `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`;
               extraInfo += renderCopyableField('COORDENADA', coordStr);
             }
           }

@@ -409,3 +409,93 @@ export async function buscarEnderecosPorPoligono(
     }
   }
 }
+
+/**
+ * Busca direta e otimizada de endereços no CNEFE filtrando especificamente
+ * pela coluna "localidade" para um determinado município.
+ */
+export async function buscarEnderecosPorLocalidade(
+  municipio: string,
+  localidade: string,
+  limit: number = 3000
+): Promise<{ results: any[]; totalEncontrado: number }> {
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    const cleanMun = (municipio || '').trim();
+    const cleanLoc = (localidade || '').trim();
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 3000));
+
+    const whereClauses: string[] = [];
+
+    if (cleanMun && cleanMun !== 'Todos') {
+      const escMun = escapeSqlLiteral(cleanMun);
+      whereClauses.push(`strip_accents(lower(municipio)) = strip_accents(lower('${escMun}'))`);
+    }
+
+    if (cleanLoc) {
+      const escLoc = escapeSqlLikePattern(cleanLoc.toLowerCase());
+      // Pesquisa direta e prioritária na coluna "localidade" conforme solicitado
+      whereClauses.push(`strip_accents(lower(COALESCE(CAST("localidade" AS VARCHAR), ''))) LIKE '%${escLoc}%'`);
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT * FROM (
+        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
+        FROM enderecos
+        ${whereSql}
+      )
+      ORDER BY "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC
+      LIMIT ${safeLimit};
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    let rawResults = rows.map(r => r.toJSON());
+    let totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+
+    // Fallback inteligente: se a coluna localidade não estiver preenchida nas linhas do CNEFE
+    // daquela região mas o logradouro, bairro ou complemento contiverem o nome da localidade:
+    if (rawResults.length === 0 && cleanLoc) {
+      const escLoc = escapeSqlLikePattern(cleanLoc.toLowerCase());
+      const fallbackClauses: string[] = [];
+      if (cleanMun && cleanMun !== 'Todos') {
+        const escMun = escapeSqlLiteral(cleanMun);
+        fallbackClauses.push(`strip_accents(lower(municipio)) = strip_accents(lower('${escMun}'))`);
+      }
+      fallbackClauses.push(`(
+        strip_accents(lower(COALESCE(CAST("endereco" AS VARCHAR), ''))) LIKE '%${escLoc}%' OR
+        strip_accents(lower(COALESCE(CAST("bairro" AS VARCHAR), ''))) LIKE '%${escLoc}%' OR
+        strip_accents(lower(COALESCE(CAST("complemento" AS VARCHAR), ''))) LIKE '%${escLoc}%'
+      )`);
+
+      const fallbackSql = `
+        SELECT * FROM (
+          SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
+          FROM enderecos
+          WHERE ${fallbackClauses.join(' AND ')}
+        )
+        ORDER BY "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC
+        LIMIT ${safeLimit};
+      `;
+      const fallbackRes = await conn.query(fallbackSql);
+      const fallbackRows = fallbackRes.toArray();
+      rawResults = fallbackRows.map(r => r.toJSON());
+      totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+    }
+
+    return { results: rawResults, totalEncontrado };
+  } catch (e) {
+    console.error("Erro na busca de endereços por localidade no DuckDB:", e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
+

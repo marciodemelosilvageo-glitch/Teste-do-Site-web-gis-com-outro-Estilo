@@ -89,6 +89,7 @@ interface AppleSidebarProps {
   isMultiSelectMode: boolean;
   onToggleMultiSelect: () => void;
   onSearchPolygonAddresses: (feat: SelectedFeature) => void;
+  onSearchLocalidadeAddresses?: (localidade: string, municipio: string) => void;
   
   // Camadas
   activeLayers: string[];
@@ -168,6 +169,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   isMultiSelectMode,
   onToggleMultiSelect,
   onSearchPolygonAddresses,
+  onSearchLocalidadeAddresses,
   activeLayers,
   setActiveLayers,
   allowedLayerNames,
@@ -205,6 +207,69 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     if (selectedFeatures.length === 0) return null;
     return selectedFeatures[selectedFeatures.length - 1];
   }, [selectedFeatures]);
+
+  // Identificar se a feição selecionada pertence à camada de Localidades
+  const isLocalidade = useMemo(() => {
+    if (!activeDetailFeature) return false;
+    return activeDetailFeature.sourceName === "Localidades (Piauí)";
+  }, [activeDetailFeature]);
+
+  // Coordenadas geográficas rigorosamente formatadas
+  const featureCoords = useMemo(() => {
+    if (!activeDetailFeature) return null;
+    const props = activeDetailFeature.properties || {};
+    const rawLat = props.LATITUDE ?? props.Latitude ?? props.latitude ?? props.lat ?? props.LAT;
+    const rawLng = props.LONGITUDE ?? props.Longitude ?? props.longitude ?? props.lng ?? props.lon ?? props.LON;
+    if (rawLat != null && rawLng != null && String(rawLat).trim() !== '' && String(rawLng).trim() !== '') {
+      const lat = parseFloat(String(rawLat).replace(',', '.'));
+      const lng = parseFloat(String(rawLng).replace(',', '.'));
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { lat, lng };
+      }
+    }
+    if (activeDetailFeature.layer) {
+      const lyr = activeDetailFeature.layer as any;
+      if (typeof lyr.getLatLng === 'function') {
+        const ll = lyr.getLatLng();
+        if (ll && !isNaN(ll.lat) && !isNaN(ll.lng)) {
+          return { lat: ll.lat, lng: ll.lng };
+        }
+      }
+      if (typeof lyr.getBounds === 'function') {
+        const b = lyr.getBounds();
+        if (b && typeof b.isValid === 'function' && b.isValid()) {
+          const c = b.getCenter();
+          if (c && !isNaN(c.lat) && !isNaN(c.lng)) {
+            return { lat: c.lat, lng: c.lng };
+          }
+        }
+      }
+    }
+    return null;
+  }, [activeDetailFeature]);
+
+  // Metadados específicos e limpos para a camada de Localidades
+  const localidadeMetadata = useMemo(() => {
+    if (!isLocalidade || !activeDetailFeature?.properties) return null;
+    const props = activeDetailFeature.properties;
+    const rawNome = props.Localidade || props.NM_LOCALIDA || props.Nome || activeDetailFeature.name || '';
+    const nome = toTitleCase(String(getTranslatedValue('Localidade', rawNome) || rawNome || '').trim());
+    const rawMun = props['Nome do município'] || props.MUNICIPIO || props.Municipio || props.NM_MUN || '';
+    const municipio = toTitleCase(String(rawMun).trim());
+    const rawCep = props.CEP || props.cep || '';
+    const cleanCep = String(rawCep).replace(/\D/g, '');
+    const cep = cleanCep.length === 8 ? `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}` : (rawCep ? String(rawCep) : '');
+    const idLoc = props.id_Localidades ?? props.id_localidades ?? props.ID ?? props.id ?? null;
+    const rawAglom = props.Agromerado || props.AGROMERADO || props.Aglomerado || '';
+    const aglomerado = rawAglom ? toTitleCase(String(rawAglom).trim()) : null;
+    return {
+      nome,
+      municipio,
+      cep,
+      id: idLoc != null ? String(idLoc) : null,
+      aglomerado
+    };
+  }, [isLocalidade, activeDetailFeature]);
 
   // Se a feição for desmarcada (nada selecionado) e a aba aberta for 'details', fechar a aba
   useEffect(() => {
@@ -349,7 +414,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     if (d.nomeRgI && isAllowed('NM_RGI')) {
       items.push({ key: 'NM_RGI', label: 'Região Imediata', value: d.nomeRgI });
     }
-    if (d.nomeUf && isAllowed('NM_UF')) {
+    // Nome da UF: Ocultado estritamente na camada de Localidades conforme solicitado
+    if (!isLocalidade && d.nomeUf && isAllowed('NM_UF')) {
       items.push({ key: 'NM_UF', label: 'Nome da UF', value: `${d.nomeUf} (PI)` });
     }
 
@@ -424,11 +490,27 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         if (alreadyHandled.has(lowK) || standardExcluded.has(lowK) || isCodeOrSystemProperty(k)) return;
         if (val == null || String(val).trim() === '') return;
         if (!isAllowed(k)) return;
+        // Não exibir Nome da UF nem IDs técnicos redundantes especificamente na camada de Localidades
+        if (isLocalidade && (lowK === 'nm_uf' || lowK === 'nome uf' || lowK === 'nome_uf' || lowK === 'uf')) return;
+        if (isLocalidade && (lowK === 'id_localidades' || lowK === 'id localidades' || lowK === 'id localidade')) return;
 
         let displayVal = getTranslatedValue(k, val);
         if (typeof val === 'string') {
           displayVal = toTitleCase(displayVal);
         }
+        // Se for latitude ou longitude, sempre formatar com 6 dígitos após a vírgula
+        if ((lowK === 'latitude' || lowK === 'longitude' || lowK === 'lat' || lowK === 'lng' || lowK === 'lon') && val != null) {
+          const num = parseFloat(String(val).replace(',', '.'));
+          if (!isNaN(num)) {
+            displayVal = num.toFixed(6);
+          }
+        }
+        // Formatar CEP brasileiro
+        if (lowK === 'cep' && val != null) {
+          const c = String(val).replace(/\D/g, '');
+          if (c.length === 8) displayVal = `${c.slice(0, 5)}-${c.slice(5)}`;
+        }
+
         const label = propertyNames[k] || k;
         items.push({
           key: k,
@@ -776,93 +858,246 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               </button>
             </div>
 
-            {/* Linha de Botões de Ação Apple (Screenshot 3: Trajetos, Info, etc.) */}
-            <div className="grid grid-cols-4 gap-2 pt-1">
-              {/* Botão Trajetos / Focar (Azul Apple #007AFF) */}
-              <button
-                type="button"
-                onClick={() => onZoomToFeature(activeDetailFeature)}
-                className="py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
-              >
-                <Navigation className="w-5 h-5 fill-white text-white" />
-                <span>Focar</span>
-              </button>
+            {/* Linha de Botões de Ação Apple */}
+            {isLocalidade ? (
+              /* Ações exclusivas para Localidades: sem Raio-X e sem CNEFE Polígono, com Busca Direta no CNEFE */
+              <div className="space-y-2 pt-1">
+                {/* Botão Principal: Busca Direta de Endereços por Localidade no CNEFE */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const loc = localidadeMetadata?.nome || structuredDetails?.nomeLocalidade || activeDetailFeature.name || '';
+                    const mun = localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || '';
+                    if (onSearchLocalidadeAddresses) {
+                      onSearchLocalidadeAddresses(loc, mun);
+                    }
+                  }}
+                  className="w-full py-3 px-3.5 bg-gradient-to-r from-[#FF9500] to-[#FF5E3A] hover:brightness-105 active:scale-[0.98] text-white rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/25 transition-all cursor-pointer font-bold text-xs sm:text-sm"
+                  title={`Buscar endereços cadastrados no CNEFE para a localidade "${localidadeMetadata?.nome || activeDetailFeature.name}" no município de ${localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || 'Piauí'}`}
+                >
+                  <Home className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Buscar Endereços desta Localidade</span>
+                </button>
 
-              {/* Botão Raio-X */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('dashboard')}
-                className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-              >
-                <Users className="w-5 h-5 text-[#34C759]" />
-                <span>Raio-X</span>
-              </button>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Botão Focar */}
+                  <button
+                    type="button"
+                    onClick={() => onZoomToFeature(activeDetailFeature)}
+                    className="py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                  >
+                    <Navigation className="w-4 h-4 fill-white text-white" />
+                    <span>Focar no Ponto</span>
+                  </button>
 
-              {/* Botão Buscar Endereços CNEFE no Polígono */}
-              <button
-                type="button"
-                onClick={() => {
-                  onSearchPolygonAddresses(activeDetailFeature);
-                  onOpenCnefeBottomBar?.();
-                }}
-                className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-                title="Abrir Busca de Endereços Avançado desta área na barra inferior"
-              >
-                <Home className="w-5 h-5 text-[#FF9500]" />
-                <span>CNEFE</span>
-              </button>
-
-              {/* Botão Exportar */}
-              <button
-                type="button"
-                onClick={onOpenExportModal}
-                className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-              >
-                <Download className="w-5 h-5 text-[#AF52DE]" />
-                <span>Exportar</span>
-              </button>
-            </div>
-
-            {/* Informações Úteis (KPIs Demográficos Apple) */}
-            <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Informações Úteis
-              </h3>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">População</span>
-                  <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {structuredDetails?.popTotal ? `${structuredDetails.popTotal.toLocaleString('pt-BR')} hab` : '—'}
-                  </span>
+                  {/* Botão Exportar */}
+                  <button
+                    type="button"
+                    onClick={onOpenExportModal}
+                    className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-[#AF52DE]" />
+                    <span>Exportar</span>
+                  </button>
                 </div>
-
-                <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Domicílios</span>
-                  <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {structuredDetails?.domTotal ? structuredDetails.domTotal.toLocaleString('pt-BR') : '—'}
-                  </span>
-                </div>
-
-                {structuredDetails?.mediaMoradores && (
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Média de Moradores</span>
-                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      {structuredDetails.mediaMoradores} /dom.
-                    </span>
-                  </div>
-                )}
-
-                {structuredDetails?.areaKm2 && (
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Área Territorial</span>
-                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      {structuredDetails.areaKm2}
-                    </span>
-                  </div>
-                )}
               </div>
-            </div>
+            ) : (
+              /* Ações padrão para camadas poligonais / territoriais */
+              <div className="grid grid-cols-4 gap-2 pt-1">
+                {/* Botão Trajetos / Focar (Azul Apple #007AFF) */}
+                <button
+                  type="button"
+                  onClick={() => onZoomToFeature(activeDetailFeature)}
+                  className="py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
+                >
+                  <Navigation className="w-5 h-5 fill-white text-white" />
+                  <span>Focar</span>
+                </button>
+
+                {/* Botão Raio-X */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dashboard')}
+                  className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                >
+                  <Users className="w-5 h-5 text-[#34C759]" />
+                  <span>Raio-X</span>
+                </button>
+
+                {/* Botão Buscar Endereços CNEFE no Polígono */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSearchPolygonAddresses(activeDetailFeature);
+                    onOpenCnefeBottomBar?.();
+                  }}
+                  className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                  title="Abrir Busca de Endereços Avançado desta área na barra inferior"
+                >
+                  <Home className="w-5 h-5 text-[#FF9500]" />
+                  <span>CNEFE</span>
+                </button>
+
+                {/* Botão Exportar */}
+                <button
+                  type="button"
+                  onClick={onOpenExportModal}
+                  className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                >
+                  <Download className="w-5 h-5 text-[#AF52DE]" />
+                  <span>Exportar</span>
+                </button>
+              </div>
+            )}
+
+            {/* Informações Específicas / Dados da Feição */}
+            {isLocalidade ? (
+              /* Card Exclusivo de Dados Úteis da Localidade */
+              <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Dados da Localidade
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FF3B30]/10 text-[#FF3B30] dark:bg-[#FF3B30]/20 dark:text-[#FF453A] border border-[#FF3B30]/20">
+                    Ponto Geográfico
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Município</span>
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block" title={localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || 'Piauí'}>
+                      {localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || 'Piauí'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">CEP</span>
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                      {localidadeMetadata?.cep || '—'}
+                    </span>
+                  </div>
+
+                  {localidadeMetadata?.id && (
+                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">ID da Localidade</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                        #{localidadeMetadata.id}
+                      </span>
+                    </div>
+                  )}
+
+                  {localidadeMetadata?.aglomerado && (
+                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Aglomerado</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block" title={localidadeMetadata.aglomerado}>
+                        {localidadeMetadata.aglomerado}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Informações Úteis Demográficas para Feições Poligonais */
+              <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Informações Úteis
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">População</span>
+                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      {structuredDetails?.popTotal ? `${structuredDetails.popTotal.toLocaleString('pt-BR')} hab` : '—'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Domicílios</span>
+                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      {structuredDetails?.domTotal ? structuredDetails.domTotal.toLocaleString('pt-BR') : '—'}
+                    </span>
+                  </div>
+
+                  {structuredDetails?.mediaMoradores && (
+                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Média de Moradores</span>
+                      <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                        {structuredDetails.mediaMoradores} /dom.
+                      </span>
+                    </div>
+                  )}
+
+                  {structuredDetails?.areaKm2 && (
+                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Área Territorial</span>
+                      <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                        {structuredDetails.areaKm2}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Seção de Coordenadas Geográficas com 6 dígitos decimais exatos */}
+            {featureCoords && (
+              <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-[#007AFF]" />
+                    <span>Coordenadas Geográficas</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(`${featureCoords.lat.toFixed(6)}, ${featureCoords.lng.toFixed(6)}`, 'Coordenadas completas')}
+                    className="text-[11px] font-bold text-[#007AFF] hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Copiar par de coordenadas com 6 dígitos"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copiar Par</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Latitude (6 dígitos) */}
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs flex items-center justify-between border border-black/5 dark:border-white/5">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Latitude</span>
+                      <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 block truncate">
+                        {featureCoords.lat.toFixed(6)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(featureCoords.lat.toFixed(6), 'Latitude')}
+                      className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                      title="Copiar Latitude"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Longitude (6 dígitos) */}
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs flex items-center justify-between border border-black/5 dark:border-white/5">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Longitude</span>
+                      <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 block truncate">
+                        {featureCoords.lng.toFixed(6)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(featureCoords.lng.toFixed(6), 'Longitude')}
+                      className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                      title="Copiar Longitude"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Detalhes e Atributos da Feição */}
             <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2">

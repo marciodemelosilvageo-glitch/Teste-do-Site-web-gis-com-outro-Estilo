@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Copy, Search } from 'lucide-react';
+import { Copy, Search, Home } from 'lucide-react';
 import { SelectedFeature } from '../types';
 import { propertyNames } from '../data';
 import { 
@@ -14,6 +14,7 @@ interface PropertyTableProps {
   showToast: (msg: string) => void;
   allowedProperties?: Record<string, boolean>;
   onSearchPolygonAddresses?: (feature: SelectedFeature) => void;
+  onSearchLocalidadeAddresses?: (localidade: string, municipio: string) => void;
 }
 
 // Helper para obter valores numéricos
@@ -35,7 +36,8 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
   selectedFeatures, 
   showToast,
   allowedProperties,
-  onSearchPolygonAddresses
+  onSearchPolygonAddresses,
+  onSearchLocalidadeAddresses
 }) => {
   if (!selectedFeatures || selectedFeatures.length === 0) {
     return null;
@@ -88,7 +90,9 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
           if (low === 'aisp' || low === 'cod_aisp') return;
         }
         
-        if (feat.sourceName === "Localidades (Piauí)" || feat.sourceName === "Comunidades Rurais de Teresina") {
+        if (feat.sourceName === "Localidades (Piauí)") {
+          if (['id localidades', 'id_localidades', 'id localidade', 'total de domicilios', 'total de domicílios', 'taxa de vacancia', 'taxa de vacância', 'media de moradores', 'média de moradores', 'nm_uf', 'nome uf', 'nome_uf', 'uf'].includes(low)) return;
+        } else if (feat.sourceName === "Comunidades Rurais de Teresina") {
           if (['id localidades', 'id_localidades', 'id localidade', 'total de domicilios', 'total de domicílios', 'taxa de vacancia', 'taxa de vacância', 'media de moradores', 'média de moradores'].includes(low)) return;
         }
 
@@ -100,7 +104,12 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
         if (val == null || String(val).trim() === '') return;
 
         let translatedVal = getTranslatedValue(key, val);
-        if (typeof val === 'string' && (key.startsWith('NM_') || key.toLowerCase().includes('nome') || key.toLowerCase().includes('localida') || key.toLowerCase().includes('bairro') || key.toLowerCase().includes('municip') || key.toLowerCase().includes('endereco') || key.toLowerCase().includes('logradouro'))) {
+        if ((low === 'latitude' || low === 'longitude' || low === 'lat' || low === 'lng') && val != null) {
+          const numVal = parseFloat(String(val).replace(',', '.'));
+          if (!isNaN(numVal)) {
+            translatedVal = numVal.toFixed(6);
+          }
+        } else if (typeof val === 'string' && (key.startsWith('NM_') || key.toLowerCase().includes('nome') || key.toLowerCase().includes('localida') || key.toLowerCase().includes('bairro') || key.toLowerCase().includes('municip') || key.toLowerCase().includes('endereco') || key.toLowerCase().includes('logradouro'))) {
           translatedVal = toTitleCase(translatedVal);
         } else if (key === 'AREA_KM2' && typeof val === 'number') {
           translatedVal = `${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} km²`;
@@ -202,15 +211,37 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
           Especificação das Feições {count > 1 ? `(${count} selecionadas)` : ''}
         </h3>
 
-        {onSearchPolygonAddresses && selectedFeatures.length === 1 && !['Coordenadas', 'Coordenada', 'Coordenadas IBGE'].includes(selectedFeatures[0].sourceName) && (
-          <button 
-            onClick={() => onSearchPolygonAddresses(selectedFeatures[0])}
-            className="px-4 py-2 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md shadow-blue-500/20 cursor-pointer self-start sm:self-auto" 
-            title="Consultar e listar todos os endereços do CNEFE/IBGE contidos neste polígono"
-          >
-            <Search className="h-4 w-4" />
-            Buscar Endereços CNEFE no Polígono
-          </button>
+        {selectedFeatures.length === 1 && !['Coordenadas', 'Coordenada', 'Coordenadas IBGE'].includes(selectedFeatures[0].sourceName) && (
+          selectedFeatures[0].sourceName === "Localidades (Piauí)" ? (
+            <button 
+              onClick={() => {
+                const f = selectedFeatures[0];
+                const loc = f.properties?.Localidade || f.properties?.NM_LOCALIDA || f.name || '';
+                const mun = f.properties?.['Nome do município'] || f.properties?.MUNICIPIO || f.properties?.Municipio || f.properties?.NM_MUN || '';
+                if (onSearchLocalidadeAddresses) {
+                  onSearchLocalidadeAddresses(loc, mun);
+                } else if (onSearchPolygonAddresses) {
+                  onSearchPolygonAddresses(f);
+                }
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-[#FF9500] to-[#FF5E3A] hover:brightness-105 active:scale-95 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md shadow-orange-500/20 cursor-pointer self-start sm:self-auto" 
+              title="Consultar e listar todos os endereços do CNEFE/IBGE desta localidade"
+            >
+              <Home className="h-4 w-4" />
+              Buscar Endereços desta Localidade
+            </button>
+          ) : (
+            onSearchPolygonAddresses && (
+              <button 
+                onClick={() => onSearchPolygonAddresses(selectedFeatures[0])}
+                className="px-4 py-2 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md shadow-blue-500/20 cursor-pointer self-start sm:self-auto" 
+                title="Consultar e listar todos os endereços do CNEFE/IBGE contidos neste polígono"
+              >
+                <Search className="h-4 w-4" />
+                Buscar Endereços CNEFE no Polígono
+              </button>
+            )
+          )
         )}
       </div>
 

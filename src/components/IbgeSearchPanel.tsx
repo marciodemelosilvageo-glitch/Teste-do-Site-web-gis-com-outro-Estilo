@@ -815,12 +815,12 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                 {polygonSearchTitle && (
                   <div className="bg-amber-500/10 dark:bg-amber-950/70 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
                     <MapPin size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>Polígono: {polygonSearchTitle}</span>
+                    <span>{polygonSearchTitle.startsWith('Localidade:') ? polygonSearchTitle : `Polígono: ${polygonSearchTitle}`}</span>
                     <button
                       type="button"
                       onClick={handleClear}
                       className="ml-1 p-0.5 rounded-md hover:bg-amber-200/80 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer"
-                      title="Limpar pesquisa por polígono"
+                      title="Limpar pesquisa"
                     >
                       <X size={12} />
                     </button>
@@ -965,7 +965,15 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                             }
                             const valStr = String(val);
                             const isTextCol = ['municipio', 'endereco', 'bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural', 'estabelecimento'].includes(col.key);
-                            const displayVal = isTextCol ? toTitleCase(valStr) : valStr;
+                            let displayVal = isTextCol ? toTitleCase(valStr) : valStr;
+
+                            // Formatar Latitude e Longitude com exatamente 6 dígitos após a vírgula/ponto
+                            if ((col.key === 'latitude' || col.key === 'longitude') && val != null) {
+                              const numVal = parseFloat(String(val).replace(',', '.'));
+                              if (!isNaN(numVal)) {
+                                displayVal = numVal.toFixed(6);
+                              }
+                            }
 
                             return (
                               <td 
