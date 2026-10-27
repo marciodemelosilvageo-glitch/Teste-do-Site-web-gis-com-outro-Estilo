@@ -364,9 +364,12 @@ export default function App() {
 
   // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa,
   // mas se o usuário já estiver na ferramenta Raio-X (dashboard), permanece nela!
+  // E quando o usuário desmarcar a feição (nada selecionado), fecha o painel de detalhes.
   useEffect(() => {
     if (selectedFeatures.length > 0) {
       setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
+    } else {
+      setSidebarTab(prev => (prev === 'details' ? null : prev));
     }
   }, [selectedFeatures]);
 

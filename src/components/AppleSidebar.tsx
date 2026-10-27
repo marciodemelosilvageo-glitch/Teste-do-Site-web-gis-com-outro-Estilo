@@ -206,6 +206,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     return selectedFeatures[selectedFeatures.length - 1];
   }, [selectedFeatures]);
 
+  // Se a feição for desmarcada (nada selecionado) e a aba aberta for 'details', fechar a aba
+  useEffect(() => {
+    if (!activeDetailFeature && activeTab === 'details') {
+      setActiveTab(null);
+    }
+  }, [activeDetailFeature, activeTab, setActiveTab]);
+
   // Extração estruturada de informações amigáveis e descritivas (Nomes, Demografia, Área, Situação e Tipo)
   const structuredDetails = useMemo(() => {
     if (!activeDetailFeature || !activeDetailFeature.properties) return null;
@@ -703,7 +710,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       {/* ============================================================== */}
       {/* ESTÁGIO 2: PAINEL DA FERRAMENTA SELECIONADA (SEGUNDO ESTÁGIO)  */}
       {/* ============================================================== */}
-      {activeTab && (
+      {activeTab && (activeTab !== 'details' || activeDetailFeature) && (
         <div
           className="h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden shrink-0 animate-fadeIn"
         >
@@ -760,7 +767,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 type="button"
                 onClick={() => {
                   onRemoveFromSelection(activeDetailFeature.id);
-                  setActiveTab('search');
+                  setActiveTab(null);
                 }}
                 className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer"
                 title="Fechar detalhes"
