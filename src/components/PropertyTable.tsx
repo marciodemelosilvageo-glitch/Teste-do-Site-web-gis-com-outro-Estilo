@@ -198,14 +198,14 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
   return (
     <div id="info-table-container" className="w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-5 border border-slate-200/80 dark:border-slate-800">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
-        <h3 className="text-lg font-bold text-red-900 dark:text-red-300 border-l-4 border-red-600 pl-3">
+        <h3 className="text-lg font-black text-slate-900 dark:text-white border-l-4 border-[#007AFF] pl-3 tracking-tight">
           Especificação das Feições {count > 1 ? `(${count} selecionadas)` : ''}
         </h3>
 
         {onSearchPolygonAddresses && selectedFeatures.length === 1 && !['Coordenadas', 'Coordenada', 'Coordenadas IBGE'].includes(selectedFeatures[0].sourceName) && (
           <button 
             onClick={() => onSearchPolygonAddresses(selectedFeatures[0])}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer self-start sm:self-auto" 
+            className="px-4 py-2 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md shadow-blue-500/20 cursor-pointer self-start sm:self-auto" 
             title="Consultar e listar todos os endereços do CNEFE/IBGE contidos neste polígono"
           >
             <Search className="h-4 w-4" />

@@ -491,32 +491,32 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       {/* Separador e título da seção (apenas quando não embutido) */}
       {!embedded && (
         <div className="flex items-center gap-4 mb-1">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent flex-1" />
-          <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700/80 shadow-xs">
-            <Building2 size={15} className="text-red-600 dark:text-red-400" />
+          <div className="h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent flex-1" />
+          <div className="flex items-center gap-2 px-3.5 py-1 bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl rounded-full border border-black/5 dark:border-white/10 shadow-xs">
+            <Building2 size={15} className="text-[#007AFF] dark:text-[#64D2FF]" />
             <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">Dashboard de Endereços</span>
           </div>
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent flex-1" />
+          <div className="h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent flex-1" />
         </div>
       )}
 
-      <div className={`rounded-2xl transition-all ${
+      <div className={`rounded-3xl transition-all ${
         embedded 
           ? 'bg-transparent border-0 p-1 sm:p-2 shadow-none' 
-          : 'bg-white dark:bg-slate-900 shadow-xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-7 relative backdrop-blur-sm'
+          : 'bg-white/85 dark:bg-[#1c1c1e]/85 shadow-[0_20px_45px_-12px_rgba(0,0,0,0.12)] border border-black/5 dark:border-white/10 p-5 sm:p-7 relative backdrop-blur-2xl'
       }`}>
-        {/* Cabeçalho (apenas quando não embutido, pois a bottom bar já possui seu header elegante) */}
+        {/* Cabeçalho (apenas quando não embutido) */}
         {!embedded && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-5 border-b border-black/5 dark:border-white/10">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-red-600 to-rose-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shadow-md shadow-blue-500/25 shrink-0">
                 <Table2 size={22} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Busca de Endereços Avançado</h2>
-                  <span className="text-[10px] font-extrabold uppercase bg-red-50 dark:bg-red-950/80 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full border border-red-200/80 dark:border-red-800/60">
-                    IBGE
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">Busca de Endereços Avançado</h2>
+                  <span className="text-[10px] font-extrabold uppercase bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#64D2FF] px-2.5 py-0.5 rounded-full border border-[#007AFF]/20">
+                    IBGE CNEFE
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
@@ -527,17 +527,19 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
           </div>
         )}
 
-        {/* Formulário de Busca */}
+        {/* Formulário de Busca Estilo Apple */}
         <form onSubmit={(e) => { e.preventDefault(); handleSearch(undefined, e); }} className="flex flex-col lg:flex-row items-stretch lg:items-start gap-4 mb-6">
           {/* Município */}
           <div className="flex-1 relative" ref={selectRef}>
             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              <Building2 size={13} className="text-red-600 dark:text-red-400" />
+              <Building2 size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
               Município
             </label>
             <div className="relative">
               <div 
-                className={`w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500/20 flex justify-between items-center transition-all cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 ${isSelectOpen ? 'border-red-500 ring-2 ring-red-500/20 bg-white dark:bg-slate-800' : ''}`}
+                className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none flex justify-between items-center transition-all cursor-pointer ${
+                  isSelectOpen ? 'border-[#007AFF] ring-2 ring-[#007AFF]/25 bg-white dark:bg-[#2c2c2e]' : ''
+                }`}
                 onClick={() => { 
                   ensureMunicipiosLoaded();
                   setIsSelectOpen(prev => !prev); 
@@ -549,12 +551,12 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     ? "Carregando municípios..." 
                     : municipio === "Todos" ? "Todos os Municípios" : municipio}
                 </span>
-                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isSelectOpen ? 'rotate-180 text-red-600' : ''}`} />
+                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isSelectOpen ? 'rotate-180 text-[#007AFF]' : ''}`} />
               </div>
               
               {isSelectOpen && (
-                <div className="mt-2 w-full bg-white dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-64 flex flex-col overflow-hidden transition-all animate-fadeIn">
-                  <div className="p-2 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10">
+                <div className="mt-2 w-full bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-3xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.2)] max-h-64 flex flex-col overflow-hidden transition-all animate-fadeIn z-30">
+                  <div className="p-2 border-b border-black/5 dark:border-white/10 sticky top-0 bg-white/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl z-10">
                     <div className="relative">
                       <input
                         type="text"
@@ -562,7 +564,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         value={municipioBusca}
                         onChange={(e) => setMunicipioBusca(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                        className="w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
                         autoFocus
                       />
                       <Search size={13} className="absolute left-2.5 top-2 text-slate-400" />
@@ -571,16 +573,16 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   <div className="overflow-y-auto py-1 custom-scrollbar max-h-48">
                     {isLoadingMunicipios ? (
                       <div className="px-3 py-4 text-xs text-center text-slate-400 flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                        <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
                         <span>Carregando municípios...</span>
                       </div>
                     ) : (
                       <>
                         <div 
-                          className={`px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
+                          className={`px-3 py-2 text-xs font-bold transition-colors cursor-pointer rounded-xl mx-1 ${
                             municipio === "Todos" 
-                              ? 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 font-extrabold' 
-                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                              ? 'bg-[#007AFF] text-white font-extrabold' 
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#64D2FF]'
                           }`}
                           onClick={() => { setMunicipio("Todos"); setIsSelectOpen(false); }}
                         >
@@ -589,10 +591,10 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         {filteredMunicipios.map(m => (
                           <div 
                             key={m} 
-                            className={`px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                            className={`px-3 py-2 text-xs font-medium transition-colors cursor-pointer rounded-xl mx-1 ${
                               municipio === m 
-                                ? 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 font-bold' 
-                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                                ? 'bg-[#007AFF] text-white font-bold' 
+                                : 'text-slate-700 dark:text-slate-300 hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#64D2FF]'
                             }`}
                             onClick={() => { setMunicipio(m); setIsSelectOpen(false); }}
                           >
@@ -612,10 +614,10 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
             </div>
           </div>
           
-          {/* Campo de Busca Principal */}
+          {/* Campo de Busca Principal (iOS Search Bar) */}
           <div className="flex-[2] relative">
             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              <Search size={13} className="text-red-600 dark:text-red-400" />
+              <Search size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
               Endereço, número, Bairro
             </label>
             <div className="relative flex items-center">
@@ -624,18 +626,18 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                 value={textoBusca}
                 onChange={(e) => setTextoBusca(e.target.value)}
                 onFocus={() => ensureMunicipiosLoaded()}
-                placeholder="Endereço, número, Bairro..."
-                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all"
+                placeholder="Ex: Avenida Frei Serafim, Centro..."
+                className="w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all"
               />
               {textoBusca.trim() !== '' && (
                 <div className="absolute right-2.5 flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => toggleSaveSearch(textoBusca)}
-                    className={`p-1.5 transition-colors cursor-pointer rounded-lg ${
+                    className={`p-1.5 transition-colors cursor-pointer rounded-xl ${
                       savedSearches.some(s => s && typeof s === 'string' && s.toLowerCase() === textoBusca.trim().toLowerCase())
                         ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50'
-                        : 'text-slate-400 hover:text-amber-500 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                        : 'text-slate-400 hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/10'
                     }`}
                     title={
                       savedSearches.some(s => s && typeof s === 'string' && s.toLowerCase() === textoBusca.trim().toLowerCase())
@@ -648,7 +650,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => setTextoBusca('')}
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 cursor-pointer rounded-lg transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-[#FF3B30] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer rounded-xl transition-colors"
                     title="Limpar texto"
                   >
                     <X className="w-4 h-4" />
@@ -661,13 +663,13 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
           {/* Limite de Resultados */}
           <div className="w-full lg:w-28">
             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              <Filter size={13} className="text-red-600 dark:text-red-400" />
+              <Filter size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
               Limite
             </label>
             <select 
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all cursor-pointer"
+              className="w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl px-3 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all cursor-pointer"
             >
               <option value={100}>100</option>
               <option value={500}>500</option>
@@ -677,18 +679,23 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
             </select>
           </div>
           
-          {/* Opção Avançada */}
+          {/* Opção Avançada (Apple iPhone Switch) */}
           <div className="flex flex-col">
             <div className="h-[22px] hidden lg:block" />
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 transition-all h-10">
-              <input 
-                type="checkbox" 
-                checked={modoAvancado} 
-                onChange={(e) => setModoAvancado(e.target.checked)}
-                className="w-4 h-4 rounded text-red-600 focus:ring-red-500 border-slate-300 dark:border-slate-600 cursor-pointer"
-              />
-              <span className="whitespace-nowrap">Avançado</span>
-            </label>
+            <div 
+              onClick={() => setModoAvancado(prev => !prev)}
+              className="flex items-center justify-between gap-3 bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 px-3.5 py-2 rounded-2xl h-10 transition-all cursor-pointer select-none shadow-2xs"
+              title="Alternar busca avançada (correspondência aproximada e fonética)"
+            >
+              <span className="whitespace-nowrap font-bold text-xs text-slate-700 dark:text-slate-200">Avançado</span>
+              <div className={`w-9 h-5 rounded-full transition-colors duration-200 p-0.5 flex items-center relative ${
+                modoAvancado ? 'bg-[#34C759]' : 'bg-slate-300 dark:bg-slate-600'
+              }`}>
+                <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                  modoAvancado ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </div>
+            </div>
           </div>
 
           {/* Botões de Ação */}
@@ -698,7 +705,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
               <button 
                 type="submit" 
                 disabled={isSearching}
-                className="h-10 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:from-red-400 disabled:to-rose-400 text-white px-6 rounded-xl font-bold text-sm shadow-md shadow-red-500/20 hover:shadow-lg hover:shadow-red-500/30 active:scale-[0.98] flex items-center justify-center gap-2 transition-all w-full lg:w-auto cursor-pointer"
+                className="h-10 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 disabled:opacity-50 text-white px-6 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all w-full lg:w-auto cursor-pointer"
               >
                 {isSearching ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
                 <span>Buscar</span>
@@ -708,7 +715,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="h-10 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border border-slate-300/60 dark:border-slate-700 shrink-0"
+                  className="h-10 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-slate-700 dark:text-slate-200 px-4 rounded-2xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0"
                   title="Limpar Pesquisa"
                 >
                   Limpar
@@ -718,13 +725,13 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
           </div>
         </form>
 
-        {/* Histórico e Salvos */}
+        {/* Histórico e Salvos (Apple Capsule Chips) */}
         {(recentSearches.length > 0 || savedSearches.length > 0) && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-6 text-xs bg-slate-50/80 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-6 text-xs bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl border border-black/5 dark:border-white/10">
             {recentSearches.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="flex items-center gap-1 font-extrabold text-slate-500 dark:text-slate-400 select-none uppercase tracking-wider text-[10px]">
-                  <History className="w-3.5 h-3.5 text-red-500" />
+                <span className="flex items-center gap-1 font-extrabold text-[#007AFF] select-none uppercase tracking-wider text-[10px]">
+                  <History className="w-3.5 h-3.5 text-[#007AFF]" />
                   Recentes:
                 </span>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -736,7 +743,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         setTextoBusca(term);
                         handleSearch(term);
                       }}
-                      className="bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/60 text-slate-700 dark:text-slate-200 hover:text-red-700 dark:hover:text-red-300 font-semibold px-2.5 py-1 rounded-lg transition-all cursor-pointer border border-slate-200 dark:border-slate-700 shadow-2xs flex items-center gap-1"
+                      className="bg-white dark:bg-[#2c2c2e] hover:bg-[#007AFF]/10 text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] font-semibold px-3 py-1 rounded-xl transition-all cursor-pointer border border-black/5 dark:border-white/10 shadow-2xs flex items-center gap-1 active:scale-95"
                       title={`Refazer busca: ${term}`}
                     >
                       <span className="truncate max-w-[140px]">{term}</span>
@@ -747,7 +754,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
             )}
 
             {savedSearches.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap border-l border-slate-200 dark:border-slate-700 pl-3">
+              <div className="flex items-center gap-1.5 flex-wrap border-l border-black/10 dark:border-white/10 pl-3">
                 <span className="flex items-center gap-1 font-extrabold text-amber-600 dark:text-amber-400 select-none uppercase tracking-wider text-[10px]">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                   Salvas:
@@ -756,7 +763,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   {savedSearches.map((term, idx) => (
                     <div
                       key={`saved-addr-${idx}`}
-                      className="group bg-amber-50/80 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 font-semibold px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs"
+                      className="group bg-amber-50/90 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-300/60 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 font-semibold px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
                     >
                       <button
                         type="button"
@@ -775,7 +782,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                           e.stopPropagation();
                           removeSavedSearch(term);
                         }}
-                        className="text-amber-600/70 dark:text-amber-400/70 hover:text-red-600 dark:hover:text-red-400 cursor-pointer p-0.5 rounded-full"
+                        className="text-amber-600/70 dark:text-amber-400/70 hover:text-[#FF3B30] cursor-pointer p-0.5 rounded-full"
                         title="Remover das pesquisas salvas"
                       >
                         <X className="w-3 h-3" />
@@ -789,30 +796,30 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
         )}
 
         {errorMsg && (
-          <div className="p-4 mb-6 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded-xl text-xs font-bold border border-red-200 dark:border-red-800/60 flex items-center gap-2">
-            <X className="shrink-0 text-red-500" size={16} />
+          <div className="p-3.5 mb-6 bg-[#FF3B30]/10 text-[#FF3B30] dark:text-[#FF453A] rounded-2xl text-xs font-bold border border-[#FF3B30]/20 flex items-center gap-2.5">
+            <X className="shrink-0 text-[#FF3B30]" size={16} />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Tabela de Resultados do Dashboard */}
+        {/* Tabela de Resultados do Dashboard (Estilo Apple Glass) */}
         {hasSearched && (
-          <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-sm bg-white dark:bg-slate-900">
+          <div className="border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-lg bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl">
             {/* Barra KPI e Ações Rápidas */}
-            <div className="bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-md px-5 py-3.5 flex flex-wrap justify-between items-center gap-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="bg-slate-50/90 dark:bg-[#2c2c2e]/90 backdrop-blur-md px-5 py-3.5 flex flex-wrap justify-between items-center gap-3 border-b border-black/10 dark:border-white/10">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 text-xs font-black px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800/50 flex items-center gap-1.5 shadow-2xs">
+                <div className="bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-black px-3.5 py-1.5 rounded-xl border border-[#007AFF]/20 flex items-center gap-1.5 shadow-2xs">
                   <Sparkles size={14} />
                   <span>{totalEncontrado.toLocaleString('pt-BR')} {totalEncontrado === 1 ? 'Endereço' : 'Endereços'}</span>
                 </div>
                 {polygonSearchTitle && (
-                  <div className="bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 text-xs font-black px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                  <div className="bg-amber-500/10 dark:bg-amber-950/70 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
                     <MapPin size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
                     <span>Polígono: {polygonSearchTitle}</span>
                     <button
                       type="button"
                       onClick={handleClear}
-                      className="ml-1 p-0.5 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer"
+                      className="ml-1 p-0.5 rounded-md hover:bg-amber-200/80 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer"
                       title="Limpar pesquisa por polígono"
                     >
                       <X size={12} />
@@ -834,7 +841,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         onPlotAllAddresses(results);
                         setIsPlotted(true);
                       }}
-                      className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      className="text-xs font-bold bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-500/25 transition-all cursor-pointer"
                     >
                       <Map size={14} /> Plotar Todos no Mapa ({results.length})
                     </button>
@@ -845,7 +852,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         onClearPlot();
                         setIsPlotted(false);
                       }}
-                      className="text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      className="text-xs font-bold bg-black/10 hover:bg-black/15 dark:bg-white/15 dark:hover:bg-white/20 active:scale-95 text-slate-800 dark:text-white px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
                     >
                       <Map size={14} /> Desplotar do Mapa
                     </button>
@@ -853,21 +860,21 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   <button 
                     type="button"
                     onClick={handleClear}
-                    className="text-xs font-bold bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 transition-all cursor-pointer shadow-2xs"
+                    className="text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-[#FF3B30] dark:text-[#FF453A] px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
                     title="Limpar pesquisa e remover resultados"
                   >
                     <Trash2 size={13} /> Limpar Pesquisa
                   </button>
                   <button 
                     onClick={handleResetColumnWidths}
-                    className="text-xs font-bold bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-600/80 transition-all cursor-pointer shadow-2xs"
+                    className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
                     title="Restaurar larguras padrão de todas as colunas"
                   >
                     <RotateCcw size={13} /> Restaurar Colunas
                   </button>
                   <button 
                     onClick={exportToCSV}
-                    className="text-xs font-bold bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-600/80 transition-all cursor-pointer shadow-2xs"
+                    className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
                   >
                     <Download size={14} /> Exportar CSV (Excel)
                   </button>
@@ -883,9 +890,9 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     : 'max-h-[540px]'
                 }`}>
                   <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
-                    <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md text-slate-700 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none">
+                    <thead className="bg-slate-100/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none border-b border-black/10 dark:border-white/10">
                       <tr>
-                        <th className="px-3 py-3 font-extrabold w-14 min-w-[56px] max-w-[56px] text-center border-b border-slate-200 dark:border-slate-700 sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-r">
+                        <th className="px-3 py-3 font-extrabold w-14 min-w-[56px] max-w-[56px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 z-20 bg-slate-100 dark:bg-[#2c2c2e] shadow-r">
                           Ação
                         </th>
                         {visibleTableColumns.map(col => {
@@ -895,9 +902,9 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                             <th 
                               key={col.key} 
                               style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                              className="relative px-3.5 py-3 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-slate-700 group/th"
+                              className="relative px-3.5 py-3 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th"
                             >
-                              <div className="truncate pr-2.5 font-black select-none" title={`${col.label} (Arraste a borda para redimensionar)`}>
+                              <div className="truncate pr-2.5 font-black select-none text-slate-700 dark:text-slate-200" title={`${col.label} (Arraste a borda para redimensionar)`}>
                                 {col.label}
                               </div>
                               
@@ -914,11 +921,11 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                                 }}
                                 title="Arraste para ajustar a largura (duplo clique para restaurar)"
                                 className={`absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex items-center justify-center transition-colors z-20 select-none ${
-                                  isResizingThis ? 'bg-red-500/20' : 'group-hover/th:bg-slate-300/40 dark:group-hover/th:bg-slate-700/60'
+                                  isResizingThis ? 'bg-[#007AFF]/20' : 'group-hover/th:bg-black/5 dark:group-hover/th:bg-white/10'
                                 }`}
                               >
                                 <div className={`w-[2px] h-3/5 rounded-full transition-colors ${
-                                  isResizingThis ? 'bg-red-600 scale-y-125' : 'bg-slate-300 dark:bg-slate-600 group-hover/th:bg-red-500'
+                                  isResizingThis ? 'bg-[#007AFF] scale-y-125' : 'bg-slate-300 dark:bg-slate-600 group-hover/th:bg-[#007AFF]'
                                 }`} />
                               </div>
                             </th>
@@ -926,20 +933,20 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         })}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-black/5 dark:divide-white/5">
                       {paginatedResults.map((row, i) => (
                         <tr 
                           key={row.codigo_unico || i} 
                           onClick={() => onPlotAddress(row)}
-                          className="hover:bg-red-50/70 dark:hover:bg-red-950/30 transition-colors cursor-pointer group"
+                          className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
                         >
-                          <td className="px-3 py-2.5 text-center sticky left-0 z-10 bg-white/95 dark:bg-slate-900/95 group-hover:bg-red-50 dark:group-hover:bg-red-950/30 shadow-r" onClick={(e) => e.stopPropagation()}>
+                          <td className="px-3 py-2 text-center sticky left-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10] shadow-r border-r border-black/5 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => onPlotAddress(row)}
-                              className="bg-red-100 hover:bg-red-600 dark:bg-red-950/80 dark:hover:bg-red-600 text-red-700 hover:text-white dark:text-red-300 dark:hover:text-white p-1.5 rounded-lg transition-all cursor-pointer shadow-2xs"
+                              className="bg-[#007AFF]/10 hover:bg-[#007AFF] dark:bg-[#007AFF]/20 dark:hover:bg-[#007AFF] text-[#007AFF] hover:text-white dark:text-[#64D2FF] dark:hover:text-white p-2 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-90"
                               title="Navegar e destacar no mapa"
                             >
-                              <MapPin size={15} />
+                              <MapPin size={14} />
                             </button>
                           </td>
                           {visibleTableColumns.map(col => {
@@ -977,9 +984,9 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   </table>
                 </div>
 
-                {/* Paginação */}
+                {/* Paginação Estilo Apple */}
                 {totalPages > 1 && (
-                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                  <div className="px-5 py-3.5 bg-slate-50/90 dark:bg-[#2c2c2e]/90 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-xs">
                     <span className="text-slate-500 dark:text-slate-400 font-medium">
                       Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong> ({results.length} carregados)
                     </span>
@@ -987,14 +994,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
-                        className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 cursor-pointer flex items-center gap-1"
+                        className="px-3 py-1.5 bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 rounded-xl text-slate-700 dark:text-slate-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
                       >
                         <ChevronLeft size={14} /> Anterior
                       </button>
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
-                        className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 cursor-pointer flex items-center gap-1"
+                        className="px-3 py-1.5 bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 rounded-xl text-slate-700 dark:text-slate-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
                       >
                         Próxima <ChevronRight size={14} />
                       </button>
