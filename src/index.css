@@ -83,7 +83,11 @@ input:-webkit-autofill:active {
   will-change: transform, opacity;
 }
 
-/* Posicionamento e Estilo da Ferramenta de Medição no Lado Direito (Apple Maps Glass) */
+/* ============================================================
+   FERRAMENTA DE MEDIÇÃO DE DISTÂNCIAS E ÁREAS (APPLE MAPS GLASS)
+   ============================================================ */
+
+/* Posicionamento do container no lado direito, alinhado à barra de controles */
 .leaflet-top.leaflet-right {
   top: 56px !important;
   right: 60px !important;
@@ -91,47 +95,56 @@ input:-webkit-autofill:active {
   pointer-events: none !important;
 }
 
+/* Painel Principal com Efeito Glass Apple */
 .leaflet-top.leaflet-right .leaflet-control-measure {
   pointer-events: auto !important;
   margin: 0 !important;
-  width: 290px !important;
-  max-width: calc(100vw - 75px) !important;
+  width: 310px !important;
+  max-width: calc(100vw - 80px) !important;
   border-radius: 24px !important;
-  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.22), 0 8px 16px -4px rgba(0, 0, 0, 0.1) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  backdrop-filter: blur(20px) !important;
-  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+  border: none !important;
+  backdrop-filter: blur(25px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(190%) !important;
+  background: rgba(255, 255, 255, 0.90) !important;
   overflow: hidden !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .dark .leaflet-top.leaflet-right .leaflet-control-measure {
-  background: rgba(28, 28, 30, 0.95) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(28, 28, 30, 0.90) !important;
+  box-shadow: 0 24px 50px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
   color: #f1f5f9 !important;
-  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.6) !important;
 }
 
-/* Ocultar o botão nativo do leaflet-measure (substituído pelo botão Apple integrado na coluna de controles à direita) */
+/* Ocultar o botão nativo 32px do leaflet-measure (substituído pelo botão Apple Ruler na coluna de controles) */
 .leaflet-control-measure .leaflet-control-measure-toggle {
   display: none !important;
 }
 
-/* Quando não estiver expandido, esconde o container para não bloquear cliques no mapa */
+/* Quando recolhido, esconde completamente para não interceptar cliques no mapa */
 .leaflet-control-measure:not(.leaflet-control-measure-expanded) {
   display: none !important;
 }
 
+/* Padding interno confortável */
 .leaflet-control-measure .leaflet-control-measure-interaction {
-  padding: 14px 16px !important;
+  padding: 16px 18px !important;
 }
 
+/* Cabeçalho do Card com Ícone Badge Apple */
 .leaflet-control-measure h3 {
-  font-size: 13px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 13.5px !important;
   font-weight: 800 !important;
-  color: #1e293b !important;
+  letter-spacing: -0.01em !important;
+  color: #0f172a !important;
+  margin: 0 0 12px 0 !important;
+  padding-bottom: 10px !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-  padding-bottom: 8px !important;
-  margin-bottom: 10px !important;
 }
 
 .dark .leaflet-control-measure h3 {
@@ -139,51 +152,396 @@ input:-webkit-autofill:active {
   border-bottom-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.leaflet-control-measure p {
-  font-size: 11px !important;
-  color: #64748b !important;
+.leaflet-control-measure h3::before {
+  content: "📐" !important;
+  font-size: 13px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #FF9500 0%, #FF5E3A 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(255, 149, 0, 0.35) !important;
+  flex-shrink: 0 !important;
 }
 
-.dark .leaflet-control-measure p {
+/* Texto de Ajuda / Callout estilo Apple Pill */
+.leaflet-control-measure p.js-starthelp {
+  background: rgba(0, 122, 255, 0.08) !important;
+  border: 1px solid rgba(0, 122, 255, 0.16) !important;
+  color: #007AFF !important;
+  padding: 9px 12px !important;
+  border-radius: 14px !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.45 !important;
+  margin: 0 0 12px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.dark .leaflet-control-measure p.js-starthelp {
+  background: rgba(0, 122, 255, 0.15) !important;
+  border-color: rgba(0, 122, 255, 0.3) !important;
+  color: #64D2FF !important;
+}
+
+.leaflet-control-measure p.js-starthelp::before {
+  content: "📍" !important;
+  font-size: 13px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Botão Principal "Criar nova medida" (Apple Gradient Pill Button) */
+.leaflet-control-measure .startprompt .tasks {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.leaflet-control-measure a.start {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 10px 16px !important;
+  background: linear-gradient(135deg, #007AFF 0%, #0066D6 100%) !important;
+  color: #ffffff !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35) !important;
+  background-image: none !important;
+  text-decoration: none !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  cursor: pointer !important;
+}
+
+.leaflet-control-measure a.start:hover {
+  filter: brightness(1.08) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.45) !important;
+  opacity: 1 !important;
+}
+
+.leaflet-control-measure a.start:active {
+  transform: scale(0.98) !important;
+}
+
+.leaflet-control-measure a.start::before {
+  content: "＋" !important;
+  font-weight: 900 !important;
+  font-size: 14px !important;
+}
+
+/* Cards de Resultados em Tempo Real (KPIs com Tipografia Apple SF) */
+.leaflet-control-measure .results .group {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-radius: 14px !important;
+  padding: 8px 12px !important;
+  margin-top: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.dark .leaflet-control-measure .results .group {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.leaflet-control-measure .results .group:first-child {
+  margin-top: 0 !important;
+}
+
+.leaflet-control-measure .results .heading {
+  display: block !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: #64748b !important;
+  margin-bottom: 4px !important;
+}
+
+.dark .leaflet-control-measure .results .heading {
   color: #94a3b8 !important;
 }
 
+.leaflet-control-measure .results p {
+  margin: 0 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  line-height: 1.4 !important;
+}
+
+.dark .leaflet-control-measure .results p {
+  color: #f1f5f9 !important;
+}
+
+.leaflet-control-measure .results .coorddivider {
+  color: #94a3b8 !important;
+  margin: 0 4px !important;
+  font-weight: 400 !important;
+}
+
+/* Barra de Ações (Finalizar / Cancelar) */
 .leaflet-control-measure .tasks {
   border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
-  padding-top: 8px !important;
-  margin-top: 10px !important;
+  padding-top: 12px !important;
+  margin-top: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  list-style: none !important;
+  padding-left: 0 !important;
 }
 
 .dark .leaflet-control-measure .tasks {
   border-top-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.leaflet-control-measure a.start,
-.leaflet-control-measure a.finish,
+.leaflet-control-measure .tasks li {
+  display: inline-flex !important;
+  margin: 0 !important;
+}
+
+/* Botão Cancelar Estilo Apple */
 .leaflet-control-measure a.cancel {
-  font-size: 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 8px 14px !important;
+  background: rgba(255, 59, 48, 0.08) !important;
+  color: #FF3B30 !important;
+  font-size: 11.5px !important;
   font-weight: 700 !important;
-  border-radius: 8px !important;
-  padding: 4px 8px !important;
+  border-radius: 12px !important;
+  background-image: none !important;
   text-decoration: none !important;
-}
-
-.leaflet-control-measure a.finish {
-  background-color: #007aff !important;
-  color: #ffffff !important;
-}
-
-.leaflet-control-measure a.cancel {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-  color: #ef4444 !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  cursor: pointer !important;
 }
 
 .dark .leaflet-control-measure a.cancel {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: #f87171 !important;
+  background: rgba(255, 69, 58, 0.15) !important;
+  color: #FF453A !important;
 }
 
-/* Garante que o polígono medido seja clicável e reabra o balão de busca CNEFE / exclusão */
+.leaflet-control-measure a.cancel:hover {
+  background: rgba(255, 59, 48, 0.16) !important;
+  transform: translateY(-0.5px) !important;
+  opacity: 1 !important;
+}
+
+.dark .leaflet-control-measure a.cancel:hover {
+  background: rgba(255, 69, 58, 0.25) !important;
+}
+
+.leaflet-control-measure a.cancel:active {
+  transform: scale(0.96) !important;
+}
+
+.leaflet-control-measure a.cancel::before {
+  content: "✕" !important;
+  font-weight: 900 !important;
+  font-size: 11px !important;
+}
+
+/* Botão Concluir/Finalizar Estilo Apple */
+.leaflet-control-measure a.finish {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  background: linear-gradient(135deg, #34C759 0%, #28a745 100%) !important;
+  color: #ffffff !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 3px 10px rgba(52, 199, 89, 0.3) !important;
+  background-image: none !important;
+  text-decoration: none !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  cursor: pointer !important;
+}
+
+.leaflet-control-measure a.finish:hover {
+  filter: brightness(1.08) !important;
+  transform: translateY(-0.5px) !important;
+  box-shadow: 0 5px 14px rgba(52, 199, 89, 0.4) !important;
+  opacity: 1 !important;
+}
+
+.leaflet-control-measure a.finish:active {
+  transform: scale(0.96) !important;
+}
+
+.leaflet-control-measure a.finish::before {
+  content: "✓" !important;
+  font-weight: 900 !important;
+  font-size: 12px !important;
+}
+
+/* ============================================================
+   BALÃO DE RESULTADO DA MEDIÇÃO NO MAPA (LEAFLET-MEASURE POPUP)
+   ============================================================ */
+
+.leaflet-measure-resultpopup .leaflet-popup-content-wrapper {
+  border-radius: 20px !important;
+  padding: 14px 16px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif !important;
+}
+
+.dark .leaflet-measure-resultpopup .leaflet-popup-content-wrapper {
+  background: rgba(28, 28, 30, 0.92) !important;
+  box-shadow: 0 24px 50px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+}
+
+.leaflet-measure-resultpopup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(24px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dark .leaflet-measure-resultpopup .leaflet-popup-tip {
+  background: rgba(28, 28, 30, 0.92) !important;
+}
+
+.leaflet-measure-resultpopup h3 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  margin: 0 0 8px 0 !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+.dark .leaflet-measure-resultpopup h3 {
+  color: #f8fafc !important;
+  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.leaflet-measure-resultpopup h3::before {
+  content: "📐" !important;
+  font-size: 13px !important;
+}
+
+.leaflet-measure-resultpopup p {
+  margin: 4px 0 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  line-height: 1.4 !important;
+}
+
+.dark .leaflet-measure-resultpopup p {
+  color: #cbd5e1 !important;
+}
+
+.leaflet-measure-resultpopup .tasks {
+  margin-top: 10px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  list-style: none !important;
+  padding-left: 0 !important;
+}
+
+.dark .leaflet-measure-resultpopup .tasks {
+  border-top-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.leaflet-measure-resultpopup .tasks li {
+  display: inline-flex !important;
+  margin: 0 !important;
+}
+
+.leaflet-measure-resultpopup a.zoomto {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 6px 12px !important;
+  background: rgba(0, 122, 255, 0.08) !important;
+  color: #007AFF !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  background-image: none !important;
+  text-decoration: none !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.dark .leaflet-measure-resultpopup a.zoomto {
+  background: rgba(0, 122, 255, 0.18) !important;
+  color: #64D2FF !important;
+}
+
+.leaflet-measure-resultpopup a.zoomto:hover {
+  background: rgba(0, 122, 255, 0.16) !important;
+  transform: translateY(-0.5px) !important;
+  opacity: 1 !important;
+}
+
+.leaflet-measure-resultpopup a.zoomto::before {
+  content: "⌖" !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.leaflet-measure-resultpopup a.deletemarkup {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 6px 12px !important;
+  background: rgba(255, 59, 48, 0.08) !important;
+  color: #FF3B30 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  background-image: none !important;
+  text-decoration: none !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.dark .leaflet-measure-resultpopup a.deletemarkup {
+  background: rgba(255, 69, 58, 0.15) !important;
+  color: #FF453A !important;
+}
+
+.leaflet-measure-resultpopup a.deletemarkup:hover {
+  background: rgba(255, 59, 48, 0.16) !important;
+  transform: translateY(-0.5px) !important;
+  opacity: 1 !important;
+}
+
+.leaflet-measure-resultpopup a.deletemarkup::before {
+  content: "🗑" !important;
+  font-size: 11px !important;
+}
+
+/* Garante que as geometrias medidas (linhas e polígonos) tenham estilo Apple brilhante e interativo */
 .layer-measure-resultarea,
 .layer-measure-resultline,
 .layer-measure-resultpoint,
@@ -192,22 +550,34 @@ path.layer-measure-resultline,
 path.layer-measure-resultpoint {
   pointer-events: auto !important;
   cursor: pointer !important;
-  transition: stroke-width 0.15s ease, fill-opacity 0.15s ease;
+  transition: stroke-width 0.2s ease, fill-opacity 0.2s ease, filter 0.2s ease;
+}
+
+path.layer-measure-resultarea {
+  stroke: #007AFF !important;
+  stroke-width: 2.5px !important;
+  stroke-linejoin: round !important;
+  stroke-linecap: round !important;
+  fill: #007AFF !important;
+  fill-opacity: 0.22 !important;
 }
 
 path.layer-measure-resultarea:hover {
-  fill-opacity: 0.4 !important;
+  fill-opacity: 0.38 !important;
   stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 8px rgba(0, 122, 255, 0.5)) !important;
 }
 
 .dark path.layer-measure-resultarea {
-  fill-opacity: 0.3 !important;
   stroke: #38bdf8 !important;
+  fill: #38bdf8 !important;
+  fill-opacity: 0.25 !important;
 }
 
 .dark path.layer-measure-resultarea:hover {
-  fill-opacity: 0.5 !important;
+  fill-opacity: 0.45 !important;
   stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.6)) !important;
 }
 
 /* ============================================================

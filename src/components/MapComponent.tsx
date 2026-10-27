@@ -1239,21 +1239,31 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             btn.type = 'button';
             btn.className = 'webgis-popup-cnefe-btn js-cnefe-measure-btn';
             btn.style.width = '100%';
-            btn.style.marginTop = '8px';
+            btn.style.marginTop = '10px';
             btn.style.cursor = 'pointer';
-            btn.style.padding = '8px 12px';
-            btn.style.fontSize = '11.5px';
+            btn.style.padding = '9px 14px';
+            btn.style.fontSize = '12px';
             btn.style.fontWeight = '700';
             btn.style.display = 'flex';
             btn.style.alignItems = 'center';
             btn.style.justifyContent = 'center';
-            btn.style.gap = '6px';
-            btn.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+            btn.style.gap = '7px';
+            btn.style.background = 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)';
             btn.style.color = '#ffffff';
             btn.style.border = 'none';
-            btn.style.borderRadius = '10px';
-            btn.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.35)';
-            btn.style.transition = 'all 0.2s ease';
+            btn.style.borderRadius = '12px';
+            btn.style.boxShadow = '0 4px 14px rgba(0, 122, 255, 0.35)';
+            btn.style.transition = 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+            btn.onmouseenter = () => {
+              btn.style.filter = 'brightness(1.08)';
+              btn.style.transform = 'translateY(-1px)';
+              btn.style.boxShadow = '0 6px 18px rgba(0, 122, 255, 0.45)';
+            };
+            btn.onmouseleave = () => {
+              btn.style.filter = 'none';
+              btn.style.transform = 'translateY(0)';
+              btn.style.boxShadow = '0 4px 14px rgba(0, 122, 255, 0.35)';
+            };
             btn.innerHTML = `
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -2622,21 +2632,28 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           />
         </div>
 
-        {/* BARRA FLUTUANTE DE MEDIÇÃO ATIVA NO MAPA */}
+        {/* BARRA FLUTUANTE DE MEDIÇÃO ATIVA NO MAPA (APPLE MAPS GLASS PILL) */}
         {!isPrintMode && activeMeasureInfo && (
           <div 
-            className="absolute top-16 left-3 sm:left-4 z-[999] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl shadow-2xl border border-red-500/30 flex flex-wrap items-center gap-2 animate-fadeIn text-xs max-w-[95vw] sm:max-w-md"
+            className="absolute top-16 left-3 sm:left-4 z-[999] bg-white/85 dark:bg-[#1c1c1e]/85 backdrop-blur-2xl px-3.5 py-2.5 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] border border-black/5 dark:border-white/10 flex flex-wrap items-center gap-3 animate-fadeIn text-xs max-w-[95vw] sm:max-w-md"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold">
-              <span className="p-1.5 rounded-xl bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 text-sm">📐</span>
+            <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-100 font-bold">
+              <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white text-sm shadow-xs shrink-0">
+                <Ruler className="w-4 h-4" />
+              </span>
               <div className="flex flex-col">
-                <span className="text-[11px] font-black text-red-700 dark:text-red-400 leading-tight">
-                  Polígono Medido: {activeMeasureInfo.areaDisplay}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[12px] font-extrabold text-slate-900 dark:text-white leading-tight">
+                    {activeMeasureInfo.areaDisplay}
+                  </span>
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#64D2FF]">
+                    Área
+                  </span>
+                </div>
                 {activeMeasureInfo.lengthDisplay && (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                  <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
                     Perímetro: {activeMeasureInfo.lengthDisplay}
                   </span>
                 )}
@@ -2677,7 +2694,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     }
                   }
                 }}
-                className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all"
+                className="px-3 py-1.5 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer transition-all"
                 title="Buscar Endereços neste polígono medido"
               >
                 <Search className="w-3.5 h-3.5" />
@@ -2700,10 +2717,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     }
                   }
                 }}
-                className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold cursor-pointer transition-colors"
+                className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-bold cursor-pointer transition-colors active:scale-95"
                 title="Centralizar no mapa e abrir balão"
               >
-                <LocateFixed className="w-4 h-4 text-blue-600" />
+                <LocateFixed className="w-4 h-4 text-[#007AFF]" />
               </button>
 
               <button
@@ -2712,7 +2729,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   e.stopPropagation();
                   handleClearMeasurement();
                 }}
-                className="p-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl font-bold cursor-pointer transition-colors"
+                className="w-8 h-8 flex items-center justify-center bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 text-[#FF3B30] dark:text-[#FF453A] rounded-xl font-bold cursor-pointer transition-colors active:scale-95"
                 title="Apagar / Limpar Medição do Mapa"
               >
                 <Trash2 className="w-4 h-4" />
@@ -2951,27 +2968,29 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           </div>
         )}
 
-        {/* HISTÓRICO DE PONTOS DA MEDIÇÃO (Portal diretamente na caixa da ferramenta de medição) */}
+        {/* HISTÓRICO DE PONTOS DA MEDIÇÃO (Portal diretamente na caixa da ferramenta de medição - Apple Maps Glass) */}
         {measureContainerEl && measureHistory && measureHistory.length > 0 && !isPrintMode && createPortal(
-          <div className="p-2.5 border-t border-slate-200 dark:border-slate-700/80 bg-slate-50/90 dark:bg-slate-900/90 text-left space-y-2 select-text my-1 rounded-b-xl">
+          <div className="pt-3 pb-1 border-t border-black/5 dark:border-white/10 text-left space-y-2.5 select-text">
             <div className="flex items-center justify-between">
-              <h4 className="font-extrabold text-[11px] text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                <Ruler size={13} className="text-red-600 dark:text-red-400 shrink-0" />
-                <span>Histórico de Pontos</span>
+              <h4 className="font-bold text-[11.5px] text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-md bg-[#007AFF]/10 dark:bg-[#007AFF]/20 flex items-center justify-center text-[#007AFF] text-xs">
+                  <Ruler size={11} />
+                </span>
+                <span>Pontos ({measureHistory.length})</span>
               </h4>
-              <span className="text-[9px] bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 px-1.5 py-0.2 rounded-full font-black">
-                {measureHistory.length} {measureHistory.length === 1 ? 'ponto' : 'pontos'}
+              <span className="text-[10px] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] px-2 py-0.5 rounded-full font-bold">
+                {measureHistory.length} {measureHistory.length === 1 ? 'vértice' : 'vértices'}
               </span>
             </div>
 
-            <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
+            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
               {measureHistory.map((pt, i) => (
-                <div key={i} className="flex justify-between items-center bg-white dark:bg-slate-800 p-1.5 rounded-lg text-[10px] group hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-colors border border-slate-200/80 dark:border-slate-700/50">
-                  <div className="text-slate-700 dark:text-slate-200 font-mono flex items-center gap-1 truncate">
-                    <span className="text-red-700 dark:text-red-300 font-extrabold text-[9px] bg-red-100 dark:bg-red-900/60 px-1 py-0.2 rounded shrink-0">
-                      #{i + 1}
+                <div key={i} className="flex justify-between items-center bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] px-2.5 py-1.5 rounded-xl text-[10.5px] group transition-all border border-black/[0.04] dark:border-white/[0.06]">
+                  <div className="text-slate-700 dark:text-slate-200 font-mono flex items-center gap-2 truncate">
+                    <span className="text-[#007AFF] dark:text-[#64D2FF] font-bold text-[9.5px] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 w-4 h-4 rounded-full flex items-center justify-center shrink-0">
+                      {i + 1}
                     </span>
-                    <span className="truncate">
+                    <span className="truncate tracking-tight">
                       {pt.lat.toFixed(5)}&deg;, {pt.lng.toFixed(5)}&deg;
                     </span>
                   </div>
@@ -2983,7 +3002,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                         (mapRef.current as any).measureControl.removePoint(i);
                       }
                     }}
-                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 p-1 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors cursor-pointer shrink-0"
+                    className="text-slate-400 hover:text-[#FF3B30] dark:hover:text-[#FF453A] p-1 hover:bg-[#FF3B30]/10 rounded-lg transition-all cursor-pointer shrink-0 opacity-70 group-hover:opacity-100"
                     title="Excluir este ponto"
                   >
                     <Trash2 size={12} />
