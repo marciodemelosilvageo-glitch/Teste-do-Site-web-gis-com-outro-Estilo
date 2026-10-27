@@ -361,41 +361,103 @@ input:-webkit-autofill:active {
    BALÃO DE RESULTADO DA MEDIÇÃO NO MAPA (LEAFLET-MEASURE POPUP)
    ============================================================ */
 
+.leaflet-measure-resultpopup {
+  margin-bottom: 25px !important;
+  min-width: 310px !important;
+  max-width: 330px !important;
+}
+
 .leaflet-measure-resultpopup .leaflet-popup-content-wrapper {
-  border-radius: 20px !important;
-  padding: 14px 16px !important;
-  background: rgba(255, 255, 255, 0.92) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+  width: 310px !important;
+  min-width: 310px !important;
+  max-width: 330px !important;
+  box-sizing: border-box !important;
+  border-radius: 24px !important;
+  padding: 16px 18px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(25px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(190%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.25) !important;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif !important;
+  overflow: visible !important;
 }
 
 .dark .leaflet-measure-resultpopup .leaflet-popup-content-wrapper {
-  background: rgba(28, 28, 30, 0.92) !important;
-  box-shadow: 0 24px 50px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  background: rgba(28, 28, 30, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 24px 50px -10px rgba(0, 0, 0, 0.7) !important;
   color: #f8fafc !important;
 }
 
+.leaflet-measure-resultpopup .leaflet-popup-content {
+  margin: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  line-height: normal !important;
+}
+
+.leaflet-measure-resultpopup .leaflet-popup-tip-container {
+  overflow: visible !important;
+}
+
 .leaflet-measure-resultpopup .leaflet-popup-tip {
-  background: rgba(255, 255, 255, 0.92) !important;
-  backdrop-filter: blur(24px) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
 }
 
 .dark .leaflet-measure-resultpopup .leaflet-popup-tip {
-  background: rgba(28, 28, 30, 0.92) !important;
+  background: rgba(28, 28, 30, 0.95) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* Botão Fechar (X) Estilo Apple */
+.leaflet-measure-resultpopup .leaflet-popup-close-button {
+  top: 14px !important;
+  right: 14px !important;
+  width: 24px !important;
+  height: 24px !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-radius: 9999px !important;
+  color: #64748b !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-decoration: none !important;
+  transition: all 0.2s ease !important;
+  z-index: 10 !important;
+}
+
+.leaflet-measure-resultpopup .leaflet-popup-close-button:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+  color: #0f172a !important;
+}
+
+.dark .leaflet-measure-resultpopup .leaflet-popup-close-button {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #94a3b8 !important;
+}
+
+.dark .leaflet-measure-resultpopup .leaflet-popup-close-button:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+
+/* Cabeçalho do Popup */
 .leaflet-measure-resultpopup h3 {
   display: flex !important;
   align-items: center !important;
-  gap: 6px !important;
-  font-size: 13px !important;
+  gap: 8px !important;
+  font-size: 13.5px !important;
   font-weight: 800 !important;
+  letter-spacing: -0.01em !important;
   color: #0f172a !important;
-  margin: 0 0 8px 0 !important;
+  margin: 0 0 10px 0 !important;
   padding-bottom: 8px !important;
+  padding-right: 28px !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
 }
 
@@ -406,31 +468,143 @@ input:-webkit-autofill:active {
 
 .leaflet-measure-resultpopup h3::before {
   content: "📐" !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 7px !important;
+  background: linear-gradient(135deg, #FF9500 0%, #FF5E3A 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(255, 149, 0, 0.3) !important;
+  flex-shrink: 0 !important;
 }
 
-.leaflet-measure-resultpopup p {
-  margin: 4px 0 !important;
+/* Cards KPIs no Popup Estilo Apple SF */
+.apple-measure-popup-kpis {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  margin: 10px 0 !important;
+}
+
+.apple-measure-popup-kpis.single {
+  grid-template-columns: 1fr !important;
+}
+
+.apple-measure-popup-kpi-card {
+  padding: 8px 10px !important;
+  border-radius: 14px !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+.dark .apple-measure-popup-kpi-card {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.apple-measure-kpi-label {
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: #64748b !important;
+  margin-bottom: 2px !important;
+  display: block !important;
+}
+
+.dark .apple-measure-kpi-label {
+  color: #94a3b8 !important;
+}
+
+.apple-measure-kpi-val {
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em !important;
+  color: #0f172a !important;
+  line-height: 1.2 !important;
+  display: block !important;
+}
+
+.dark .apple-measure-kpi-val {
+  color: #f8fafc !important;
+}
+
+.apple-measure-kpi-val.text-green {
+  color: #34C759 !important;
+}
+
+.dark .apple-measure-kpi-val.text-green {
+  color: #30d158 !important;
+}
+
+.apple-measure-kpi-val.text-blue {
+  color: #007AFF !important;
+}
+
+.dark .apple-measure-kpi-val.text-blue {
+  color: #64D2FF !important;
+}
+
+.apple-measure-kpi-sub {
+  font-size: 9.5px !important;
+  font-weight: 600 !important;
+  color: #94a3b8 !important;
+  margin-top: 2px !important;
+  display: block !important;
+}
+
+/* Botão Buscar Endereços CNEFE no Popup */
+.webgis-popup-cnefe-btn {
+  width: 100% !important;
+  height: 38px !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #007AFF 0%, #0062cc 100%) !important;
+  color: #ffffff !important;
   font-size: 12px !important;
   font-weight: 700 !important;
-  color: #334155 !important;
-  line-height: 1.4 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.dark .leaflet-measure-resultpopup p {
-  color: #cbd5e1 !important;
+.webgis-popup-cnefe-btn:hover {
+  filter: brightness(1.08) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.45) !important;
 }
 
+.webgis-popup-cnefe-btn:active {
+  transform: scale(0.98) !important;
+}
+
+/* Linha de Ações Secundárias (Centralizar e Excluir) */
 .leaflet-measure-resultpopup .tasks {
-  margin-top: 10px !important;
-  padding-top: 8px !important;
+  margin: 10px 0 0 0 !important;
+  padding: 10px 0 0 0 !important;
   border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
   display: flex !important;
   align-items: center !important;
-  justify-content: flex-end !important;
+  justify-content: space-between !important;
   gap: 8px !important;
   list-style: none !important;
   padding-left: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .dark .leaflet-measure-resultpopup .tasks {
@@ -438,73 +612,83 @@ input:-webkit-autofill:active {
 }
 
 .leaflet-measure-resultpopup .tasks li {
-  display: inline-flex !important;
+  display: flex !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
   margin: 0 !important;
 }
 
-.leaflet-measure-resultpopup a.zoomto {
-  display: inline-flex !important;
+.leaflet-measure-resultpopup a.zoomto,
+.leaflet-measure-resultpopup a.deletemarkup {
+  display: flex !important;
+  flex: 1 1 0% !important;
+  width: 100% !important;
+  height: 34px !important;
   align-items: center !important;
-  gap: 5px !important;
-  padding: 6px 12px !important;
-  background: rgba(0, 122, 255, 0.08) !important;
-  color: #007AFF !important;
-  font-size: 11px !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 0 8px !important;
+  font-size: 11.5px !important;
   font-weight: 700 !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   background-image: none !important;
   text-decoration: none !important;
-  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   cursor: pointer !important;
+}
+
+.leaflet-measure-resultpopup a.zoomto {
+  background: rgba(0, 122, 255, 0.08) !important;
+  color: #007AFF !important;
+  border: 1px solid rgba(0, 122, 255, 0.15) !important;
 }
 
 .dark .leaflet-measure-resultpopup a.zoomto {
   background: rgba(0, 122, 255, 0.18) !important;
   color: #64D2FF !important;
+  border-color: rgba(0, 122, 255, 0.28) !important;
 }
 
 .leaflet-measure-resultpopup a.zoomto:hover {
-  background: rgba(0, 122, 255, 0.16) !important;
+  background: rgba(0, 122, 255, 0.15) !important;
   transform: translateY(-0.5px) !important;
   opacity: 1 !important;
-}
-
-.leaflet-measure-resultpopup a.zoomto::before {
-  content: "⌖" !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
 }
 
 .leaflet-measure-resultpopup a.deletemarkup {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  padding: 6px 12px !important;
   background: rgba(255, 59, 48, 0.08) !important;
   color: #FF3B30 !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  border-radius: 10px !important;
-  background-image: none !important;
-  text-decoration: none !important;
-  transition: all 0.2s ease !important;
-  cursor: pointer !important;
+  border: 1px solid rgba(255, 59, 48, 0.15) !important;
 }
 
 .dark .leaflet-measure-resultpopup a.deletemarkup {
-  background: rgba(255, 69, 58, 0.15) !important;
+  background: rgba(255, 69, 58, 0.18) !important;
   color: #FF453A !important;
+  border-color: rgba(255, 69, 58, 0.28) !important;
 }
 
 .leaflet-measure-resultpopup a.deletemarkup:hover {
-  background: rgba(255, 59, 48, 0.16) !important;
+  background: rgba(255, 59, 48, 0.15) !important;
   transform: translateY(-0.5px) !important;
   opacity: 1 !important;
 }
 
+.leaflet-measure-resultpopup a.zoomto::before,
 .leaflet-measure-resultpopup a.deletemarkup::before {
-  content: "🗑" !important;
-  font-size: 11px !important;
+  display: none !important;
+  content: "" !important;
+}
+
+@media (max-width: 480px) {
+  .leaflet-measure-resultpopup,
+  .leaflet-measure-resultpopup .leaflet-popup-content-wrapper {
+    width: 285px !important;
+    min-width: 285px !important;
+    max-width: calc(100vw - 32px) !important;
+    padding: 14px 14px !important;
+  }
 }
 
 /* Garante que as geometrias medidas (linhas e polígonos) tenham estilo Apple brilhante e interativo */
