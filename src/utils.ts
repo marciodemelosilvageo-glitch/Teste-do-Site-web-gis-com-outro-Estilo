@@ -428,6 +428,16 @@ export const exportSelectionToKML = (filename: string, features: any[]): void =>
 };
 
 export function patchMeasureControl() {
+  if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconUrl: '/marker-icon.png',
+      iconRetinaUrl: '/marker-icon-2x.png',
+      shadowUrl: '/marker-shadow.png',
+      imagePath: '/',
+    });
+  }
+
   if (L.Control && (L.Control as any).Measure) {
     const MeasureControl = (L.Control as any).Measure;
     
@@ -479,7 +489,31 @@ export function patchMeasureControl() {
         if (this._container) {
           this._container.classList.add('leaflet-control-measure-expanded');
         }
-        originalStartMeasure.call(this);
+
+        // Intercepta a criação do marcador invisível de captura durante o _startMeasure
+        // para fornecer um DivIcon transparente imediatamente e evitar requisições 404 de marker-icon.png
+        const origMarker = L.marker;
+        let captureCreated = false;
+        (L as any).marker = function(latlng: any, options: any) {
+          if (!captureCreated) {
+            captureCreated = true;
+            return origMarker(latlng, {
+              ...options,
+              icon: L.divIcon({
+                className: 'leaflet-measure-capture-marker',
+                iconSize: [0, 0]
+              })
+            });
+          }
+          return origMarker(latlng, options);
+        };
+
+        try {
+          originalStartMeasure.call(this);
+        } finally {
+          (L as any).marker = origMarker;
+        }
+
         this._map.fire('measurechange', { latlngs: [] });
       };
       

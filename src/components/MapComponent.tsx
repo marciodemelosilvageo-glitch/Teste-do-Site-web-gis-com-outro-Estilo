@@ -3,6 +3,17 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import L from 'leaflet';
 import 'leaflet-measure/dist/leaflet-measure.css';
+
+// Configuração dos ícones padrão do Leaflet para Vite/Vercel (evita erro 404 de marker-icon.png e marker-shadow.png)
+if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconUrl: '/marker-icon.png',
+    iconRetinaUrl: '/marker-icon-2x.png',
+    shadowUrl: '/marker-shadow.png',
+    imagePath: '/',
+  });
+}
 import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon } from 'lucide-react';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
