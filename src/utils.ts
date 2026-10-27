@@ -444,14 +444,50 @@ export function patchMeasureControl() {
         }
       };
 
+      const originalExpand = MeasureControl.prototype._expand;
+      MeasureControl.prototype._expand = function() {
+        if (this._container) {
+          this._container.classList.add('leaflet-control-measure-expanded');
+        }
+        if (typeof originalExpand === 'function') {
+          originalExpand.call(this);
+        }
+      };
+
+      const originalCollapse = MeasureControl.prototype._collapse;
+      MeasureControl.prototype._collapse = function() {
+        if (this._container && !this._locked) {
+          this._container.classList.remove('leaflet-control-measure-expanded');
+        }
+        if (typeof originalCollapse === 'function') {
+          originalCollapse.call(this);
+        }
+      };
+
+      const originalFinishMeasure = MeasureControl.prototype._finishMeasure;
+      MeasureControl.prototype._finishMeasure = function() {
+        if (this._container) {
+          this._container.classList.remove('leaflet-control-measure-expanded');
+        }
+        if (typeof originalFinishMeasure === 'function') {
+          originalFinishMeasure.call(this);
+        }
+      };
+
       const originalStartMeasure = MeasureControl.prototype._startMeasure;
       MeasureControl.prototype._startMeasure = function() {
+        if (this._container) {
+          this._container.classList.add('leaflet-control-measure-expanded');
+        }
         originalStartMeasure.call(this);
         this._map.fire('measurechange', { latlngs: [] });
       };
       
       const originalClearMeasure = MeasureControl.prototype._clearMeasure;
       MeasureControl.prototype._clearMeasure = function() {
+        if (this._container) {
+          this._container.classList.remove('leaflet-control-measure-expanded');
+        }
         originalClearMeasure.call(this);
         this._map.fire('measurechange', { latlngs: null });
       };

@@ -531,7 +531,7 @@ export default function App() {
 
       // 3. Tecla M -> Alternar/Acionar régua de medição
       if (e.key.toLowerCase() === 'm' && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const measureBtn = document.querySelector('.leaflet-control-measure-toggle, a.leaflet-control-measure-toggle') as HTMLElement;
+        const measureBtn = document.querySelector('#btn-toggle-measure, .leaflet-control-measure-toggle, a.leaflet-control-measure-toggle') as HTMLElement;
         if (measureBtn) {
           e.preventDefault();
           measureBtn.click();

@@ -292,8 +292,45 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
     setActiveMeasureInfo(null);
     lastMeasureModelRef.current = null;
+    setIsMeasuringActive(false);
     showToast('🗑️ Medição removida do mapa.');
   }, [activeMeasureInfo, showToast]);
+
+  const [isMeasuringActive, setIsMeasuringActive] = useState<boolean>(false);
+
+  const handleToggleMeasure = useCallback(() => {
+    if (!mapRef.current) return;
+    const measureControl = (mapRef.current as any).measureControl;
+    const container = mapContainerRef.current;
+    
+    if (isMeasuringActive) {
+      if (measureControl && typeof measureControl._finishMeasure === 'function') {
+        measureControl._finishMeasure();
+      } else {
+        const cancelBtn = container?.querySelector('.leaflet-control-measure .js-cancel') as HTMLElement | null;
+        if (cancelBtn) cancelBtn.click();
+      }
+      setIsMeasuringActive(false);
+      showToast('Medição encerrada.');
+    } else {
+      if (measureControl) {
+        if (typeof measureControl._expand === 'function') {
+          measureControl._expand();
+        }
+        if (typeof measureControl._startMeasure === 'function') {
+          measureControl._startMeasure();
+        } else {
+          const startBtn = container?.querySelector('.leaflet-control-measure .js-start') as HTMLElement | null;
+          if (startBtn) startBtn.click();
+        }
+      } else {
+        const toggleBtn = container?.querySelector('.leaflet-control-measure-toggle, a.leaflet-control-measure-toggle') as HTMLElement | null;
+        if (toggleBtn) toggleBtn.click();
+      }
+      setIsMeasuringActive(true);
+      showToast('📏 Modo Medição ativado! Clique no mapa para adicionar pontos.');
+    }
+  }, [isMeasuringActive, showToast]);
 
   useEffect(() => {
     onSearchPolygonAddressesRef.current = onSearchPolygonAddresses;
@@ -1081,7 +1118,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         if (L.control.measure) {
           // @ts-ignore
           const measureControl = L.control.measure({
-            position: 'topleft',
+            position: 'topright',
             primaryLengthUnit: 'meters',
             secondaryLengthUnit: 'kilometers',
             primaryAreaUnit: 'sqmeters',
@@ -1096,8 +1133,17 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }).catch(err => console.error("Error loading leaflet-measure", err));
     }
 
+    map.on('measurefinish', () => {
+      setIsMeasuringActive(false);
+    });
+
     if (onMeasureChange) {
       map.on('measurechange', (e: any) => {
+        if (e.latlngs === null) {
+          setIsMeasuringActive(false);
+        } else if (Array.isArray(e.latlngs) && e.latlngs.length > 0) {
+          setIsMeasuringActive(true);
+        }
         onMeasureChange(e.latlngs);
       });
     }
@@ -1340,6 +1386,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     });
 
     map.on('measurestart', () => {
+      setIsMeasuringActive(true);
       // Correção para o erro da ferramenta de medição que move o mapa para a direita
       // O leaflet-measure cria um marcador gigante invisível que recebe foco ao clicar.
       // Como o marcador é maior que o mapa, o foco faz o navegador "rolar" (pan) para tentar mostrar o topo dele.
@@ -3127,6 +3174,24 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     <Minus className="w-4 h-4" />
                   </button>
                 </div>
+
+                {/* Ferramenta de Medir Distâncias e Áreas (Estilo Apple Maps) */}
+                {allowMeasureTool && (
+                  <button 
+                    type="button"
+                    id="btn-toggle-measure"
+                    onClick={handleToggleMeasure}
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer ${
+                      isMeasuringActive 
+                        ? 'bg-[#007AFF] text-white shadow-blue-500/30 ring-2 ring-blue-400/50' 
+                        : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                    } active:scale-90`}
+                    title={isMeasuringActive ? "Finalizar / Cancelar Medição (M)" : "Medir Distâncias e Áreas (M)"}
+                    aria-label="Medir Distâncias e Áreas"
+                  >
+                    <Ruler className={`w-4 h-4 ${isMeasuringActive ? 'text-white' : 'text-[#FF9500]'}`} />
+                  </button>
+                )}
 
                 {/* Bússola / Resetar Visão Geral */}
                 <button 
