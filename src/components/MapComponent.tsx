@@ -88,7 +88,7 @@ const computeSpatialMinZooms = (features: any[]): Map<any, number> => {
 
 const getAppleMapsPoiIconSvg = (name: string, isSelected: boolean = false) => {
   const n = (name || '').toLowerCase();
-  const fill = '#143820'; // Verde floresta profundo idêntico ao Apple Maps
+  const fill = '#ffffff'; // Branco puro com alto contraste sobre o pino vermelho Apple
   const size = isSelected ? 22 : 12;
 
   // Se o nome remeter a estádio, arena, clube militar, esporte (ex: "Círculo Militar de Teresina"):
@@ -162,7 +162,7 @@ const createAppleMapsLocalidadeIcon = (
   isSelected: boolean = false,
   customColor?: string
 ) => {
-  const dotColor = customColor && customColor !== '#dc2626' ? customColor : '#34C759';
+  const dotColor = (!customColor || customColor === '#34C759' || customColor === '#dc2626') ? '#FF3B30' : customColor;
   const formattedName = toTitleCase(name);
   const safeName = String(formattedName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const iconSvg = getAppleMapsPoiIconSvg(name, isSelected);
@@ -181,10 +181,10 @@ const createAppleMapsLocalidadeIcon = (
           <div class="apple-balloon-body">
             <svg class="apple-balloon-svg" viewBox="0 0 44 46" width="44" height="46" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <linearGradient id="appleGreenGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stop-color="#7cf2a8" />
+                <linearGradient id="appleRedGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#ff7b72" />
                   <stop offset="45%" stop-color="${dotColor}" />
-                  <stop offset="100%" stop-color="#1ea144" />
+                  <stop offset="100%" stop-color="#c92a2a" />
                 </linearGradient>
                 <filter id="applePinShadowSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x="-20%" y="-10%" width="140%" height="140%">
                   <feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#000000" flood-opacity="0.5" />
@@ -195,8 +195,8 @@ const createAppleMapsLocalidadeIcon = (
                    C 20.2 38.5, 5 30, 5 19.5 
                    A 17 17 0 1 1 39 19.5 
                    C 39 30, 23.8 38.5, 22 43.5 Z" 
-                fill="url(#appleGreenGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" 
-                stroke="#172b1d" 
+                fill="url(#appleRedGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" 
+                stroke="#2a0808" 
                 stroke-width="2" 
                 stroke-linejoin="round"
                 filter="url(#applePinShadowSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})"
@@ -227,13 +227,13 @@ const createAppleMapsLocalidadeIcon = (
         <div class="apple-unselected-badge">
           <svg class="apple-badge-svg" viewBox="0 0 22 22" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <linearGradient id="appleGreenGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stop-color="#70e89b" />
+              <linearGradient id="appleRedGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#ff7b72" />
                 <stop offset="50%" stop-color="${dotColor}" />
-                <stop offset="100%" stop-color="#239c47" />
+                <stop offset="100%" stop-color="#c92a2a" />
               </linearGradient>
             </defs>
-            <circle cx="11" cy="11" r="9.5" fill="url(#appleGreenGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" stroke="#172b1d" stroke-width="1.6" />
+            <circle cx="11" cy="11" r="9.5" fill="url(#appleRedGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" stroke="#2a0808" stroke-width="1.6" />
           </svg>
           <div class="apple-badge-icon">
             ${iconSvg}
@@ -1243,7 +1243,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     // Camada de Localidades (Pontos) possui ícone próprio e animação estilo Apple Maps
     if (layer.customSourceName === "Localidades (Piauí)" || (layer as any).featureName) {
       if (typeof layer.setIcon === 'function') {
-        const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#34C759';
+        const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#FF3B30';
         const currentZoom = mapRef.current ? mapRef.current.getZoom() : 11;
         layer.setIcon(createAppleMapsLocalidadeIcon((layer as any).featureName || 'Localidade', currentZoom, isSelected, customColor));
         if (isSelected && typeof layer.setZIndexOffset === 'function') {
@@ -1262,7 +1262,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     const updateSingle = (l: any) => {
       if (l.customSourceName === "Localidades (Piauí)" || (l as any).featureName) {
         if (typeof l.setIcon === 'function') {
-          const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#34C759';
+          const customColor = layerColorsRef.current?.["Localidades (Piauí)"] || '#FF3B30';
           const currentZoom = mapRef.current ? mapRef.current.getZoom() : 11;
           l.setIcon(createAppleMapsLocalidadeIcon((l as any).featureName || 'Localidade', currentZoom, isSelected, customColor));
           if (isSelected && typeof l.setZIndexOffset === 'function') {
@@ -1338,7 +1338,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     // Sincroniza e redesenha a camada de Localidades na tela para o estado Apple Maps selecionado/deselecionado
     const locLayer = loadedLayersRef.current["Localidades (Piauí)"];
     if (locLayer && mapRef.current && mapRef.current.hasLayer(locLayer)) {
-      const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#34C759';
+      const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#FF3B30';
       updateLocalidadesViewport(locLayer, mapRef.current, selectedFeatures, customColor);
     }
   }, [selectedFeatures]);
@@ -2078,7 +2078,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             const passesZoomCheck = source.name === "Localidades (Piauí)" ? currentZoom >= 8 : true;
 
             if (source.name === "Localidades (Piauí)" && (layer as any).allMarkers) {
-              const customColor = layerColorsRef.current[source.name] || '#34C759';
+              const customColor = layerColorsRef.current[source.name] || '#FF3B30';
               updateLocalidadesViewport(layer, map, selectedFeaturesRef.current, customColor);
             }
 
@@ -2122,7 +2122,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         if (!mapRef.current) return;
         const locLayer = loadedLayersRef.current["Localidades (Piauí)"];
         if (locLayer && map.hasLayer(locLayer)) {
-          const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#34C759';
+          const customColor = layerColorsRef.current["Localidades (Piauí)"] || '#FF3B30';
           updateLocalidadesViewport(locLayer, map, selectedFeaturesRef.current, customColor);
         }
         updateLegendViewport();
@@ -2552,7 +2552,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const rawName = props.Localidade || props.NM_LOCALIDA || props.name || props.Nome || props.NM_MUN || props.NM_AGLOM || getIdentifier(props);
           const name = toTitleCase(String(getTranslatedValue('Localidade', rawName) || rawName || 'Localidade').trim());
 
-          const customColor = layerColorsRef.current[source.name] || '#34C759';
+          const customColor = layerColorsRef.current[source.name] || '#FF3B30';
           const initialZoom = mapRef.current ? mapRef.current.getZoom() : 8;
 
           const locKey = getLocalidadeFeatureKey(props, latlng);
@@ -2585,7 +2585,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         // Filtrar de acordo com a VIEWPORT visível no zoom atual do mapa
         if (mapRef.current) {
-          const customColor = layerColorsRef.current[source.name] || '#34C759';
+          const customColor = layerColorsRef.current[source.name] || '#FF3B30';
           updateLocalidadesViewport(leafletLayer, mapRef.current, selectedFeaturesRef.current, customColor);
         }
       } else {
