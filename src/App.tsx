@@ -1584,8 +1584,9 @@ export default function App() {
 
   const handleClearPlot = () => {
     setSearchCoordinates(null);
-    logActivity('ENDERECO', 'Limpou marcadores de endereços do mapa', userRole);
-    showToast('Coordenadas removidas do mapa.');
+    setCnefeExternalResult(null);
+    logActivity('ENDERECO', 'Limpou marcadores e resultados de endereços do mapa', userRole);
+    showToast('Pesquisa e marcadores de endereços limpos.');
   };
 
   const handleKeyDown = (e: any) => {
@@ -2428,6 +2429,10 @@ export default function App() {
             onPlotAddress={handlePlotAddress}
             onPlotAllAddresses={handlePlotAllAddresses}
             onClearPlot={handleClearPlot}
+            onClearExternalResult={() => {
+              setCnefeExternalResult(null);
+              setSearchCoordinates(null);
+            }}
             externalPolygonResult={cnefeExternalResult}
             allowedColumns={effectiveSession?.addressColumnsPermissions}
             hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}

@@ -16,7 +16,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   RotateCcw,
-  MoveHorizontal
+  MoveHorizontal,
+  Trash2
 } from 'lucide-react';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
 import { toTitleCase } from '../utils';
@@ -34,6 +35,7 @@ interface IbgeSearchPanelProps {
   onPlotAddress: (address: any) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
+  onClearExternalResult?: () => void;
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
   embedded?: boolean;
@@ -94,6 +96,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   onPlotAddress, 
   onPlotAllAddresses, 
   onClearPlot,
+  onClearExternalResult,
   externalPolygonResult,
   allowedColumns,
   embedded = false,
@@ -228,6 +231,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 100);
+    } else if (!externalPolygonResult && polygonSearchTitle) {
+      // Quando o resultado externo for limpo pelo pai (App.tsx), limpar os resultados internos também
+      setResults([]);
+      setTotalEncontrado(0);
+      setHasSearched(false);
+      setIsPlotted(false);
+      setPolygonSearchTitle(null);
+      setCurrentPage(1);
     }
   }, [externalPolygonResult]);
 
@@ -416,6 +427,9 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     setErrorMsg(null);
     if (onClearPlot) {
       onClearPlot();
+    }
+    if (onClearExternalResult) {
+      onClearExternalResult();
     }
   };
 
@@ -693,15 +707,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
               {hasSearched && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setResults([]);
-                    setHasSearched(false);
-                    setTextoBusca('');
-                    if (onClearPlot) onClearPlot();
-                    setIsPlotted(false);
-                    setTotalEncontrado(0);
-                    setCurrentPage(1);
-                  }}
+                  onClick={handleClear}
                   className="h-10 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border border-slate-300/60 dark:border-slate-700 shrink-0"
                   title="Limpar Pesquisa"
                 >
@@ -803,6 +809,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   <div className="bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 text-xs font-black px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs">
                     <MapPin size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
                     <span>Polígono: {polygonSearchTitle}</span>
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      className="ml-1 p-0.5 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer"
+                      title="Limpar pesquisa por polígono"
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
                 )}
                 {totalEncontrado > limit && (
@@ -836,6 +850,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                       <Map size={14} /> Desplotar do Mapa
                     </button>
                   )}
+                  <button 
+                    type="button"
+                    onClick={handleClear}
+                    className="text-xs font-bold bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 transition-all cursor-pointer shadow-2xs"
+                    title="Limpar pesquisa e remover resultados"
+                  >
+                    <Trash2 size={13} /> Limpar Pesquisa
+                  </button>
                   <button 
                     onClick={handleResetColumnWidths}
                     className="text-xs font-bold bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-600/80 transition-all cursor-pointer shadow-2xs"

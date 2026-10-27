@@ -10,7 +10,8 @@ import {
   Maximize2, 
   Minimize2, 
   Sparkles,
-  GripHorizontal 
+  GripHorizontal,
+  X 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
@@ -26,6 +27,7 @@ export interface CnefeBottomBarProps {
   onPlotAddress: (address: any) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
+  onClearExternalResult?: () => void;
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
   hasPlottedMarkers?: boolean;
@@ -40,6 +42,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
   onPlotAddress,
   onPlotAllAddresses,
   onClearPlot,
+  onClearExternalResult,
   externalPolygonResult,
   allowedColumns,
   hasPlottedMarkers = false,
@@ -213,10 +216,22 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
 
             {/* Indicação de Polígono Ativo */}
             {externalPolygonResult && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60 truncate max-w-[200px] sm:max-w-xs">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 pl-2 pr-1.5 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60 truncate max-w-[220px] sm:max-w-xs shadow-2xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span className="truncate">{externalPolygonResult.title}</span>
-                <span className="text-[10px] opacity-75">({externalPolygonResult.totalEncontrado})</span>
+                <span className="text-[10px] opacity-75 shrink-0">({externalPolygonResult.totalEncontrado})</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onClearExternalResult) onClearExternalResult();
+                    if (onClearPlot) onClearPlot();
+                  }}
+                  className="p-0.5 hover:bg-emerald-200/70 dark:hover:bg-emerald-800/60 rounded-full text-emerald-700 dark:text-emerald-200 transition-colors cursor-pointer shrink-0"
+                  title="Limpar pesquisa desta feição"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </span>
             )}
           </div>
@@ -250,16 +265,19 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
 
         {/* Direita: Ações Rápidas & Toggle de Expandir/Recolher */}
         <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {/* Botão de Limpar Marcadores no Mapa */}
-          {hasPlottedMarkers && onClearPlot && (
+          {/* Botão de Limpar Marcadores no Mapa / Pesquisa */}
+          {(hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
             <button
               type="button"
-              onClick={onClearPlot}
+              onClick={() => {
+                onClearPlot();
+                if (onClearExternalResult) onClearExternalResult();
+              }}
               className="px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
-              title="Limpar marcadores de endereço do mapa"
+              title="Limpar pesquisa e marcadores do mapa"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Limpar Mapa</span>
+              <span className="hidden sm:inline">Limpar Pesquisa</span>
             </button>
           )}
 
@@ -308,6 +326,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
             onPlotAddress={onPlotAddress}
             onPlotAllAddresses={onPlotAllAddresses}
             onClearPlot={onClearPlot}
+            onClearExternalResult={onClearExternalResult}
             externalPolygonResult={externalPolygonResult}
             allowedColumns={allowedColumns}
           />
