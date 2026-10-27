@@ -87,45 +87,11 @@ input:-webkit-autofill:active {
    FERRAMENTA DE MEDIÇÃO DE DISTÂNCIAS E ÁREAS (APPLE MAPS GLASS)
    ============================================================ */
 
-/* Posicionamento do container no lado direito, alinhado à barra de controles */
-.leaflet-top.leaflet-right {
-  top: 56px !important;
-  right: 60px !important;
-  z-index: 998 !important;
+/* Ocultar a caixa DOM legada/quebrada do leaflet-measure (substituída pelo Card React Apple Maps nativo) */
+.leaflet-top.leaflet-right,
+.leaflet-control-measure {
+  display: none !important;
   pointer-events: none !important;
-}
-
-/* Painel Principal com Efeito Glass Apple */
-.leaflet-top.leaflet-right .leaflet-control-measure {
-  pointer-events: auto !important;
-  margin: 0 !important;
-  width: 310px !important;
-  max-width: calc(100vw - 80px) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
-  border: none !important;
-  backdrop-filter: blur(25px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(190%) !important;
-  background: rgba(255, 255, 255, 0.90) !important;
-  overflow: hidden !important;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-.dark .leaflet-top.leaflet-right .leaflet-control-measure {
-  background: rgba(28, 28, 30, 0.90) !important;
-  box-shadow: 0 24px 50px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
-  color: #f1f5f9 !important;
-}
-
-/* Ocultar o botão nativo 32px do leaflet-measure (substituído pelo botão Apple Ruler na coluna de controles) */
-.leaflet-control-measure .leaflet-control-measure-toggle {
-  display: none !important;
-}
-
-/* Quando recolhido, esconde completamente para não interceptar cliques no mapa */
-.leaflet-control-measure:not(.leaflet-control-measure-expanded) {
-  display: none !important;
 }
 
 /* Padding interno confortável */

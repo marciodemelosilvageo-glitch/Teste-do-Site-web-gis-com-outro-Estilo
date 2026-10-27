@@ -586,7 +586,38 @@ export const haversineDistanceMeters = (lat1: number, lon1: number, lat2: number
 
 // Formatar distância em metros/km legível
 export const formatDistance = (meters: number): string => {
-  if (meters === 0) return 'No ponto exato (0 m)';
+  if (meters === 0) return '0 m';
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} km`;
+};
+
+// Área geodésica em metros quadrados de um polígono em WGS84
+export const calculateGeodesicAreaMeters = (latlngs: Array<{ lat: number; lng: number }>): number => {
+  if (!latlngs || latlngs.length < 3) return 0;
+  const RADIUS = 6378137;
+  let area = 0;
+  const len = latlngs.length;
+  const rad = Math.PI / 180;
+  for (let i = 0; i < len; i++) {
+    const p1 = latlngs[i];
+    const p2 = latlngs[(i + 1) % len];
+    area += (p2.lng - p1.lng) * rad * (2 + Math.sin(p1.lat * rad) + Math.sin(p2.lat * rad));
+  }
+  return Math.abs((area * RADIUS * RADIUS) / 2.0);
+};
+
+// Formatar área em m² ou hectares legíveis estilo Apple
+export const formatArea = (sqMeters: number): { formatted: string; secondary?: string } => {
+  if (sqMeters === 0) return { formatted: '—' };
+  if (sqMeters >= 10000) {
+    const ha = sqMeters / 10000;
+    return {
+      formatted: `${ha.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ha`,
+      secondary: `${Math.round(sqMeters).toLocaleString('pt-BR')} m²`
+    };
+  }
+  return {
+    formatted: `${sqMeters.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`,
+    secondary: sqMeters >= 1000 ? `${(sqMeters / 10000).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ha` : undefined
+  };
 };

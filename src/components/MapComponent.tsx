@@ -17,7 +17,7 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
 import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon } from 'lucide-react';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, toTitleCase } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase } from '../utils';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
 // Garante que NUNCA haja pontos empilhados ou amontoados em zooms distantes (desaproximados)
@@ -488,40 +488,85 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   }, [activeMeasureInfo, showToast]);
 
   const [isMeasuringActive, setIsMeasuringActive] = useState<boolean>(false);
+  const isMeasuringActiveRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isMeasuringActiveRef.current = isMeasuringActive;
+  }, [isMeasuringActive]);
 
   const handleToggleMeasure = useCallback(() => {
     if (!mapRef.current) return;
     const measureControl = (mapRef.current as any).measureControl;
-    const container = mapContainerRef.current;
     
     if (isMeasuringActive) {
       if (measureControl && typeof measureControl._finishMeasure === 'function') {
         measureControl._finishMeasure();
-      } else {
-        const cancelBtn = container?.querySelector('.leaflet-control-measure .js-cancel') as HTMLElement | null;
-        if (cancelBtn) cancelBtn.click();
       }
       setIsMeasuringActive(false);
       showToast('Medição encerrada.');
     } else {
-      if (measureControl) {
-        if (typeof measureControl._expand === 'function') {
-          measureControl._expand();
-        }
-        if (typeof measureControl._startMeasure === 'function') {
-          measureControl._startMeasure();
-        } else {
-          const startBtn = container?.querySelector('.leaflet-control-measure .js-start') as HTMLElement | null;
-          if (startBtn) startBtn.click();
-        }
-      } else {
-        const toggleBtn = container?.querySelector('.leaflet-control-measure-toggle, a.leaflet-control-measure-toggle') as HTMLElement | null;
-        if (toggleBtn) toggleBtn.click();
+      if (measureControl && typeof measureControl._startMeasure === 'function') {
+        measureControl._startMeasure();
       }
       setIsMeasuringActive(true);
-      showToast('📏 Modo Medição ativado! Clique no mapa para adicionar pontos.');
+      showToast('📏 Modo Medição ativado! Toque no mapa para marcar pontos.');
     }
   }, [isMeasuringActive, showToast]);
+
+  const handleCancelMeasure = useCallback(() => {
+    if (mapRef.current && (mapRef.current as any).measureControl) {
+      try {
+        (mapRef.current as any).measureControl._clearMeasure();
+      } catch (err) {
+        console.error("Erro ao cancelar medição", err);
+      }
+    }
+    setIsMeasuringActive(false);
+    if (onMeasureChange) {
+      onMeasureChange(null);
+    }
+    showToast('Medição cancelada.');
+  }, [onMeasureChange, showToast]);
+
+  const handleFinishMeasure = useCallback(() => {
+    if (mapRef.current && (mapRef.current as any).measureControl) {
+      try {
+        (mapRef.current as any).measureControl._finishMeasure();
+      } catch (err) {
+        console.error("Erro ao finalizar medição", err);
+      }
+    }
+    setIsMeasuringActive(false);
+    showToast('Medição concluída e traçada no mapa!');
+  }, [showToast]);
+
+  const handleRemoveMeasurePoint = useCallback((index: number) => {
+    if (mapRef.current && (mapRef.current as any).measureControl) {
+      (mapRef.current as any).measureControl.removePoint(index);
+    }
+  }, []);
+
+  const measurePoints = measureHistory || [];
+  const pointCount = measurePoints.length;
+
+  const totalDistanceMeters = useMemo(() => {
+    if (pointCount < 2) return 0;
+    let d = 0;
+    for (let i = 0; i < pointCount - 1; i++) {
+      d += haversineDistanceMeters(
+        measurePoints[i].lat,
+        measurePoints[i].lng,
+        measurePoints[i + 1].lat,
+        measurePoints[i + 1].lng
+      );
+    }
+    return d;
+  }, [measurePoints, pointCount]);
+
+  const totalAreaSqMeters = useMemo(() => {
+    if (pointCount < 3) return 0;
+    return calculateGeodesicAreaMeters(measurePoints);
+  }, [measurePoints, pointCount]);
 
   useEffect(() => {
     onSearchPolygonAddressesRef.current = onSearchPolygonAddresses;
@@ -965,9 +1010,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       });
   }, [activeLayers, visibleLayers, layerColorsState, layerStrokeColorsState, layerOpacities, allowedLayerNames, visibleLayersInViewport]);
 
-  // Elemento DOM da ferramenta de medição do Leaflet para portal do histórico
-  const [measureContainerEl, setMeasureContainerEl] = useState<HTMLElement | null>(null);
-
   // Mapeamento de feições e camadas por ID do Leaflet para buscas espaciais
   const layerFeatureMapRef = useRef<Record<string, { feature: any; title: string; sourceName: string; layer: any }>>({});
 
@@ -982,22 +1024,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       delete (window as any).searchAddressesInPolygonByLayerId;
     };
   }, [onSearchPolygonAddresses]);
-
-  useEffect(() => {
-    if (measureHistory && measureHistory.length > 0) {
-      const updateEl = () => {
-        const el = mapContainerRef.current?.querySelector('.leaflet-control-measure') as HTMLElement | null;
-        if (el) {
-          setMeasureContainerEl(el);
-        }
-      };
-      updateEl();
-      const timer = setTimeout(updateEl, 80);
-      return () => clearTimeout(timer);
-    } else {
-      setMeasureContainerEl(null);
-    }
-  }, [measureHistory]);
 
   // Estados para Gestão de até 4 Estilos Personalizados Salvos
   const [savedStyles, setSavedStyles] = useState<SavedStylePreset[]>([]);
@@ -1610,6 +1636,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
     map.on('click', (e: any) => {
       // Ignore click if the measuring tool is active
+      if (isMeasuringActiveRef.current) {
+        return;
+      }
       const measuringPrompt = document.querySelector('.js-measuringprompt') as HTMLElement;
       if (measuringPrompt && measuringPrompt.style.display !== 'none') {
         return;
@@ -2318,13 +2347,17 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           // Clique na feição
           layer.on('click', (ev: L.LeafletMouseEvent) => {
             try {
-              L.DomEvent.stopPropagation(ev);
-              
-              // Ignore click if the measuring tool is active
+              // Se a ferramenta de medição estiver ativa, não interceptamos o clique,
+              // permitindo que o evento suba até o mapa para registrar o ponto da medição sobre qualquer camada
+              if (isMeasuringActiveRef.current) {
+                return;
+              }
               const measuringPrompt = document.querySelector('.js-measuringprompt') as HTMLElement;
               if (measuringPrompt && measuringPrompt.style.display !== 'none') {
                 return;
               }
+
+              L.DomEvent.stopPropagation(ev);
 
               // REGRA DE DESSELEÇÃO LIMPA E SEGURA:
               // Se há alguma localidade selecionada e o usuário clicou em uma feição
@@ -3225,50 +3258,153 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           </div>
         )}
 
-        {/* HISTÓRICO DE PONTOS DA MEDIÇÃO (Portal diretamente na caixa da ferramenta de medição - Apple Maps Glass) */}
-        {measureContainerEl && measureHistory && measureHistory.length > 0 && !isPrintMode && createPortal(
-          <div className="pt-3 pb-1 border-t border-black/5 dark:border-white/10 text-left space-y-2.5 select-text">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-[11.5px] text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-md bg-[#007AFF]/10 dark:bg-[#007AFF]/20 flex items-center justify-center text-[#007AFF] text-xs">
-                  <Ruler size={11} />
-                </span>
-                <span>Pontos ({measureHistory.length})</span>
-              </h4>
-              <span className="text-[10px] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] px-2 py-0.5 rounded-full font-bold">
-                {measureHistory.length} {measureHistory.length === 1 ? 'vértice' : 'vértices'}
+        {/* CARD FLUTUANTE DE MEDIÇÃO APPLE MAPS (MAPS.APPLE.COM) */}
+        {isMeasuringActive && !isPrintMode && (
+          <div 
+            className="absolute top-16 right-16 max-sm:top-16 max-sm:left-3 max-sm:right-3 max-sm:w-auto z-[995] w-[330px] max-w-[calc(100vw-88px)] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/10 dark:border-white/10 p-4 space-y-3 text-left transition-all select-none animate-fadeIn"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF9500] to-[#FF5E3A] flex items-center justify-center text-white shadow-md shadow-orange-500/25 shrink-0">
+                  <Ruler className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-[13px] font-black tracking-tight text-slate-800 dark:text-slate-100 leading-tight">
+                    Medir Distâncias e Áreas
+                  </h3>
+                  <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
+                    {pointCount === 0 
+                      ? 'Pronto para medir' 
+                      : `${pointCount} ${pointCount === 1 ? 'vértice marcado' : 'vértices marcados'}`}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelMeasure}
+                className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 active:scale-95 flex items-center justify-center text-slate-500 hover:text-black dark:text-slate-300 dark:hover:text-white transition-all cursor-pointer"
+                title="Fechar medição"
+                aria-label="Fechar medição"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Dica / Status */}
+            <div className="px-3 py-2 rounded-2xl bg-[#007AFF]/10 dark:bg-[#007AFF]/20 border border-[#007AFF]/20 text-[11.5px] font-semibold text-[#007AFF] dark:text-[#64D2FF] flex items-center gap-2">
+              <span className="text-xs shrink-0">📍</span>
+              <span className="leading-snug">
+                {pointCount === 0 && "Toque ou clique no mapa para fixar o ponto inicial."}
+                {pointCount === 1 && "Clique no mapa para marcar o próximo ponto da distância."}
+                {pointCount === 2 && "Distância medida! Continue marcando pontos para calcular a área."}
+                {pointCount >= 3 && "Área e perímetro calculados em tempo real na tela."}
               </span>
             </div>
 
-            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
-              {measureHistory.map((pt, i) => (
-                <div key={i} className="flex justify-between items-center bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] px-2.5 py-1.5 rounded-xl text-[10.5px] group transition-all border border-black/[0.04] dark:border-white/[0.06]">
-                  <div className="text-slate-700 dark:text-slate-200 font-mono flex items-center gap-2 truncate">
-                    <span className="text-[#007AFF] dark:text-[#64D2FF] font-bold text-[9.5px] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 w-4 h-4 rounded-full flex items-center justify-center shrink-0">
-                      {i + 1}
-                    </span>
-                    <span className="truncate tracking-tight">
-                      {pt.lat.toFixed(5)}&deg;, {pt.lng.toFixed(5)}&deg;
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (mapRef.current && (mapRef.current as any).measureControl) {
-                        (mapRef.current as any).measureControl.removePoint(i);
-                      }
-                    }}
-                    className="text-slate-400 hover:text-[#FF3B30] dark:hover:text-[#FF453A] p-1 hover:bg-[#FF3B30]/10 rounded-lg transition-all cursor-pointer shrink-0 opacity-70 group-hover:opacity-100"
-                    title="Excluir este ponto"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+            {/* Cards de Métricas em Tempo Real (KPIs Apple SF) */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 flex flex-col justify-between">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Distância Total
+                </span>
+                <div className="mt-1">
+                  <span className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
+                    {pointCount >= 2 ? formatDistance(totalDistanceMeters) : '0 m'}
+                  </span>
+                  {pointCount >= 2 && totalDistanceMeters >= 1000 && (
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      {Math.round(totalDistanceMeters).toLocaleString('pt-BR')} metros
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              <div className="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 flex flex-col justify-between">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Área Calculada
+                </span>
+                <div className="mt-1">
+                  <span className={`text-base font-extrabold tracking-tight ${pointCount >= 3 ? 'text-[#34C759] dark:text-[#30d158]' : 'text-slate-400 dark:text-slate-500'}`}>
+                    {pointCount >= 3 ? formatArea(totalAreaSqMeters).formatted : '—'}
+                  </span>
+                  {pointCount >= 3 && formatArea(totalAreaSqMeters).secondary && (
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      {formatArea(totalAreaSqMeters).secondary}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>,
-          measureContainerEl
+
+            {/* Histórico Rolante de Vértices */}
+            {pointCount > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400">
+                    Pontos de Marcação ({pointCount})
+                  </span>
+                  <span className="text-[9.5px] text-slate-400 font-mono">
+                    {measurePoints[pointCount - 1].lat.toFixed(4)}, {measurePoints[pointCount - 1].lng.toFixed(4)}
+                  </span>
+                </div>
+                
+                <div className="max-h-28 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                  {measurePoints.map((pt, i) => (
+                    <div 
+                      key={i} 
+                      className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.03] dark:border-white/[0.04] text-[10.5px] group hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition-all"
+                    >
+                      <div className="flex items-center gap-2 font-mono text-slate-700 dark:text-slate-200 truncate">
+                        <span className="w-4 h-4 rounded-full bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] font-black text-[9px] flex items-center justify-center shrink-0">
+                          {i + 1}
+                        </span>
+                        <span className="truncate">
+                          {pt.lat.toFixed(5)}&deg;, {pt.lng.toFixed(5)}&deg;
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMeasurePoint(i)}
+                        className="text-slate-400 hover:text-[#FF3B30] p-1 rounded-lg transition-all cursor-pointer opacity-40 group-hover:opacity-100 hover:bg-red-500/10"
+                        title="Excluir este ponto"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Botões de Ação na Base */}
+            <div className="flex items-center gap-2 pt-2 border-t border-black/5 dark:border-white/10">
+              <button
+                type="button"
+                onClick={handleCancelMeasure}
+                className="flex-1 py-2 px-3 rounded-2xl bg-black/[0.05] dark:bg-white/10 hover:bg-red-500/10 text-slate-700 dark:text-slate-200 hover:text-[#FF3B30] dark:hover:text-[#FF453A] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Limpar</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={pointCount < 2}
+                onClick={handleFinishMeasure}
+                className={`flex-1 py-2 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  pointCount >= 2 
+                    ? 'bg-gradient-to-r from-[#007AFF] to-[#0062cc] text-white shadow-md shadow-blue-500/30 hover:brightness-110 active:scale-95' 
+                    : 'bg-black/5 dark:bg-white/5 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
+                }`}
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Concluir</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* CONTROLES FLUTUANTES ESTILO APPLE MAPS (MAPS.APPLE.COM) SOBREPOSTOS NO MAPA */}
