@@ -53,6 +53,7 @@ import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../type
 import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
+import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | null;
 

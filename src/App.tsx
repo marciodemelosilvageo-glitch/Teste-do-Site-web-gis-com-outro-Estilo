@@ -26,7 +26,7 @@ import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
-import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters } from './utils';
+import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade } from './duckdb';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
