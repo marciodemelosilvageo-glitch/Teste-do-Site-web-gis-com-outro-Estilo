@@ -21,7 +21,7 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
-import { toTitleCase, normalizeString } from '../utils';
+import { toTitleCase, normalizeString, parseAddressForSort } from '../utils';
 import { logActivity } from '../services/adminService';
 
 export interface ExternalPolygonSearchResult {
@@ -194,9 +194,16 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     });
   };
 
-  // Pesquisa/Filtro em coluna específica dentro dos resultados
-  const [filterColumnKey, setFilterColumnKey] = useState<string>('ALL');
-  const [inResultFilterText, setInResultFilterText] = useState<string>('');
+  // Filtros individuais por coluna via lupinha no cabeçalho da tabela
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [activeSearchCol, setActiveSearchCol] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (activeSearchCol && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [activeSearchCol]);
 
   const [municipio, setMunicipio] = useState('Todos');
   const [municipiosList, setMunicipiosList] = useState<string[]>(() => {
@@ -308,8 +315,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setHasSearched(true);
       setIsPlotted(false);
       setTextoBusca('');
-      setInResultFilterText('');
-      setFilterColumnKey('ALL');
+      setColumnFilters({});
+      setActiveSearchCol(null);
       setSortConfig(null);
       setPolygonSearchTitle(externalPolygonResult.title);
       setErrorMsg(null);
@@ -327,8 +334,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setHasSearched(false);
       setIsPlotted(false);
       setPolygonSearchTitle(null);
-      setInResultFilterText('');
-      setFilterColumnKey('ALL');
+      setColumnFilters({});
+      setActiveSearchCol(null);
       setSortConfig(null);
     }
   }, [externalPolygonResult]);
@@ -493,8 +500,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setTotalEncontrado(res.totalEncontrado);
       setHasSearched(true);
       setIsPlotted(false);
-      setInResultFilterText('');
-      setFilterColumnKey('ALL');
+      setColumnFilters({});
+      setActiveSearchCol(null);
       setSortConfig(null);
 
       logActivity('ENDERECO', `Pesquisou por "${queryText}" (${municipio}) - ${res.totalEncontrado} resultados`, 'user');
@@ -517,8 +524,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     setIsPlotted(false);
     setPolygonSearchTitle(null);
     setErrorMsg(null);
-    setInResultFilterText('');
-    setFilterColumnKey('ALL');
+    setColumnFilters({});
+    setActiveSearchCol(null);
     setSortConfig(null);
     if (onClearPlot) {
       onClearPlot();
@@ -532,23 +539,16 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   const processedResults = useMemo(() => {
     let list = results;
 
-    // 1. Filtragem interna nos resultados por coluna específica ou todas (sem distinção de acentos)
-    const filterText = normalizeString(inResultFilterText);
-    if (filterText) {
-      if (filterColumnKey === 'ALL') {
-        list = list.filter(row => {
-          return Object.entries(row).some(([_, v]) => {
-            if (v === null || v === undefined) return false;
-            return normalizeString(String(v)).includes(filterText);
-          });
+    // 1. Filtragem individual por coluna (ativada pelas lupinhas nos cabeçalhos)
+    const activeFilters = Object.entries(columnFilters).filter(([_, text]) => Boolean(text && text.trim()));
+    if (activeFilters.length > 0) {
+      list = list.filter(row => {
+        return activeFilters.every(([colKey, filterVal]) => {
+          const rowVal = row[colKey];
+          if (rowVal === null || rowVal === undefined) return false;
+          return normalizeString(String(rowVal)).includes(normalizeString(filterVal));
         });
-      } else {
-        list = list.filter(row => {
-          const val = row[filterColumnKey];
-          if (val === null || val === undefined) return false;
-          return normalizeString(String(val)).includes(filterText);
-        });
-      }
+      });
     }
 
     // 2. Ordenação por coluna clicada
@@ -561,6 +561,15 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
 
         if (valA === null || valA === undefined) return 1;
         if (valB === null || valB === undefined) return -1;
+
+        // Se for a coluna de endereço: agrupa os nomes de logradouro iguais primeiro e depois ordena pelo número
+        if (key === 'endereco') {
+          const pA = parseAddressForSort(valA, a.numero_logradouro);
+          const pB = parseAddressForSort(valB, b.numero_logradouro);
+          const streetCmp = pA.streetName.localeCompare(pB.streetName, 'pt-BR');
+          if (streetCmp !== 0) return streetCmp * factor;
+          return (pA.doorNumber - pB.doorNumber) * factor;
+        }
 
         const strA = String(valA).trim();
         const strB = String(valB).trim();
@@ -579,7 +588,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     }
 
     return list;
-  }, [results, inResultFilterText, filterColumnKey, sortConfig]);
+  }, [results, columnFilters, sortConfig]);
 
   const exportToCSV = useCallback(() => {
     const dataToExport = processedResults.length > 0 ? processedResults : results;
@@ -1010,57 +1019,33 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
               )}
             </div>
 
-            {/* Sub-barra: Filtro em Coluna Específica + Configuração de Colunas Visíveis */}
+            {/* Sub-barra: Indicador de Filtros das Colunas e Gerenciamento */}
             {results.length > 0 && (
               <div className="bg-slate-100/60 dark:bg-[#252528]/80 px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 dark:border-white/10">
-                {/* Pesquisa dentro do resultado por coluna específica */}
-                <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-2xl">
-                  <div className="relative shrink-0">
-                    <select
-                      value={filterColumnKey}
-                      onChange={(e) => setFilterColumnKey(e.target.value)}
-                      className="text-xs font-bold bg-white dark:bg-[#3a3a3c] hover:bg-slate-50 dark:hover:bg-[#444446] border border-black/10 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] cursor-pointer shadow-2xs transition-colors"
-                      title="Selecione a coluna para pesquisar dentro do resultado"
-                    >
-                      <option value="ALL">🔍 Todas as Colunas</option>
-                      {tableColumns
-                        .filter(c => !allowedColumns || allowedColumns[c.key] !== false)
-                        .map(col => (
-                          <option key={col.key} value={col.key}>
-                            {col.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={inResultFilterText}
-                      onChange={(e) => setInResultFilterText(e.target.value)}
-                      placeholder={
-                        filterColumnKey === 'ALL'
-                          ? 'Pesquisar em qualquer coluna dos resultados...'
-                          : `Filtrar por "${tableColumns.find(c => c.key === filterColumnKey)?.label || 'coluna'}"...`
-                      }
-                      className="w-full bg-white dark:bg-[#3a3a3c] hover:bg-slate-50 dark:hover:bg-[#444446] border border-black/10 dark:border-white/10 rounded-xl pl-8 pr-8 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] shadow-2xs transition-all"
-                    />
-                    <Search size={13} className="absolute left-2.5 top-2 text-slate-400" />
-                    {inResultFilterText && (
+                {/* Status de Filtros nas Colunas (Lupinhas) */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim())) ? (
+                    <div className="flex items-center gap-2 bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-bold px-3 py-1.5 rounded-xl border border-[#007AFF]/20 shadow-2xs">
+                      <Search size={13} className="shrink-0" />
+                      <span>
+                        Filtro ativo: {processedResults.length} de {results.length} endereços
+                      </span>
                       <button
                         type="button"
-                        onClick={() => setInResultFilterText('')}
-                        className="absolute right-2 top-1.5 p-0.5 text-slate-400 hover:text-rose-500 rounded-md cursor-pointer"
-                        title="Limpar filtro nos resultados"
+                        onClick={() => {
+                          setColumnFilters({});
+                          setActiveSearchCol(null);
+                        }}
+                        className="ml-1 text-[#FF3B30] dark:text-[#FF453A] hover:underline cursor-pointer flex items-center gap-0.5 text-[11px]"
+                        title="Limpar todos os filtros das colunas"
                       >
-                        <X size={13} />
+                        <X size={12} /> Limpar Filtros
                       </button>
-                    )}
-                  </div>
-
-                  {inResultFilterText && (
-                    <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#64D2FF] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 px-2 py-0.5 rounded-lg shrink-0">
-                      {processedResults.length} de {results.length}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+                      <Search size={12} className="text-[#007AFF]" />
+                      <span>Dica: Use a <strong>lupinha</strong> no cabeçalho de qualquer coluna para pesquisar nela diretamente.</span>
                     </span>
                   )}
                 </div>
@@ -1183,31 +1168,109 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                             const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
                             const isResizingThis = resizingColKey === col.key;
                             const isSorted = sortConfig?.key === col.key;
+                            const hasActiveFilter = Boolean(columnFilters[col.key] && columnFilters[col.key].trim());
+                            const isSearchOpen = activeSearchCol === col.key;
+
                             return (
                               <th 
                                 key={col.key} 
                                 style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                className="relative px-3.5 py-2.5 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th"
+                                className="relative px-3 py-2 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th"
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => handleSort(col.key)}
-                                  className="flex items-center justify-between gap-1.5 w-full text-left truncate pr-3 select-none text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] transition-colors cursor-pointer group-hover/th:text-[#007AFF]"
-                                  title={`${col.label} (Clique para ordenar por esta coluna; arraste a borda para redimensionar)`}
-                                >
-                                  <span className="truncate font-black">{col.label}</span>
-                                  <span className="shrink-0">
-                                    {isSorted ? (
-                                      sortConfig?.direction === 'asc' ? (
-                                        <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-                                      ) : (
-                                        <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-                                      )
-                                    ) : (
-                                      <ArrowUpDown size={12} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
+                                {isSearchOpen ? (
+                                  <div 
+                                    className="flex items-center gap-1.5 w-full bg-white dark:bg-[#1c1c1e] px-2 py-1 rounded-xl border border-[#007AFF] ring-2 ring-[#007AFF]/25 shadow-xs" 
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Search size={12} className="text-[#007AFF] shrink-0" />
+                                    <input
+                                      ref={searchInputRef}
+                                      type="text"
+                                      value={columnFilters[col.key] || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setColumnFilters(prev => ({
+                                          ...prev,
+                                          [col.key]: val
+                                        }));
+                                      }}
+                                      placeholder={`Filtrar ${col.label}...`}
+                                      className="w-full text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 placeholder:font-normal"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape' || e.key === 'Enter') {
+                                          setActiveSearchCol(null);
+                                        }
+                                      }}
+                                    />
+                                    {hasActiveFilter && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setColumnFilters(prev => {
+                                            const copy = { ...prev };
+                                            delete copy[col.key];
+                                            return copy;
+                                          });
+                                        }}
+                                        className="p-0.5 text-slate-400 hover:text-rose-500 rounded-md cursor-pointer shrink-0"
+                                        title="Limpar filtro desta coluna"
+                                      >
+                                        <X size={12} />
+                                      </button>
                                     )}
-                                  </span>
-                                </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveSearchCol(null)}
+                                      className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md cursor-pointer shrink-0"
+                                      title="Fechar caixa de pesquisa"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-1 w-full pr-2.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSort(col.key)}
+                                      className="flex items-center gap-1.5 min-w-0 flex-1 text-left truncate select-none text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] transition-colors cursor-pointer group-hover/th:text-[#007AFF]"
+                                      title={`${col.label} (Clique para ordenar por esta coluna; arraste a borda para redimensionar)`}
+                                    >
+                                      <span className="truncate font-black">{col.label}</span>
+                                      <span className="shrink-0">
+                                        {isSorted ? (
+                                          sortConfig?.direction === 'asc' ? (
+                                            <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                          ) : (
+                                            <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                          )
+                                        ) : (
+                                          <ArrowUpDown size={11} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
+                                        )}
+                                      </span>
+                                    </button>
+
+                                    {/* Lupinha para pesquisa direta na coluna */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveSearchCol(col.key);
+                                      }}
+                                      className={`p-1 rounded-lg transition-all cursor-pointer shrink-0 ${
+                                        hasActiveFilter
+                                          ? 'bg-[#007AFF] text-white shadow-2xs'
+                                          : 'text-slate-400 hover:text-[#007AFF] hover:bg-black/5 dark:hover:bg-white/10 opacity-70 group-hover/th:opacity-100'
+                                      }`}
+                                      title={
+                                        hasActiveFilter
+                                          ? `Filtro ativo: "${columnFilters[col.key]}". Clique para alterar ou limpar.`
+                                          : `Pesquisar na coluna "${col.label}"`
+                                      }
+                                    >
+                                      <Search size={12} />
+                                    </button>
+                                  </div>
+                                )}
                                 
                                 {/* Alça de redimensionamento estilo Excel */}
                                 <div
@@ -1293,7 +1356,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     <p className="font-bold text-sm text-slate-600 dark:text-slate-300">Nenhum resultado corresponde ao filtro atual</p>
                     <p className="text-xs text-slate-400">Verifique a grafia ou selecione outra coluna para pesquisar.</p>
                     <button
-                      onClick={() => { setInResultFilterText(''); setFilterColumnKey('ALL'); }}
+                      onClick={() => { setColumnFilters({}); setActiveSearchCol(null); }}
                       className="mt-2 text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 px-3.5 py-1.5 rounded-xl cursor-pointer"
                     >
                       Limpar Filtro nos Resultados

@@ -1,7 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
-import { normalizeString } from './utils';
+import { normalizeString, parseAddressForSort } from './utils';
 
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
@@ -170,12 +170,12 @@ function sortResultsByRelevance(results: any[], queryText: string, targetNumber?
     if (startsA && !startsB) return -1;
     if (!startsA && startsB) return 1;
 
-    // 3. Ordem numérica crescente padrão
-    const valA = parseInt(numA.replace(/\D/g, ''), 10) || 0;
-    const valB = parseInt(numB.replace(/\D/g, ''), 10) || 0;
-    if (valA !== valB) return valA - valB;
-
-    return endA.localeCompare(endB);
+    // 3. Ordem por nome de logradouro (agrupando nomes iguais primeiro) e número da porta
+    const pA = parseAddressForSort(a.endereco, a.numero_logradouro);
+    const pB = parseAddressForSort(b.endereco, b.numero_logradouro);
+    const streetCmp = pA.streetName.localeCompare(pB.streetName, 'pt-BR');
+    if (streetCmp !== 0) return streetCmp;
+    return pA.doorNumber - pB.doorNumber;
   });
 }
 
@@ -274,7 +274,7 @@ export async function buscarEnderecos(
     const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 500));
 
     // Cláusula de ordenação por relevância no SQL do DuckDB
-    let orderBySql = 'ORDER BY TRY_CAST("numero_logradouro" AS BIGINT) ASC, "endereco" ASC';
+    let orderBySql = 'ORDER BY "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC';
     if (detectedTargetNumber) {
       const cleanNum = escapeSqlLiteral(detectedTargetNumber.toLowerCase());
       orderBySql = `

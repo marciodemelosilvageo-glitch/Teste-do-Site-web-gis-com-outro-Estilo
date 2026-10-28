@@ -11,6 +11,33 @@ export const normalizeString = (s: string | null | undefined): string => {
     .trim();
 };
 
+/**
+ * Separa o nome base do logradouro e o número da porta para ordenação coerente.
+ * Exemplo: 'Rua Radialista Jim Borralho - 475' -> streetName: 'rua radialista jim borralho', doorNumber: 475.
+ * Isso garante que todos os endereços do mesmo logradouro fiquem agrupados juntos em ordem numérica.
+ */
+export const parseAddressForSort = (
+  addressStr: string | null | undefined, 
+  doorNum?: string | number | null
+): { streetName: string; doorNumber: number } => {
+  const clean = normalizeString(addressStr || '');
+  if (!clean) {
+    const num = doorNum ? parseInt(String(doorNum).replace(/\D/g, ''), 10) || 0 : 0;
+    return { streetName: '', doorNumber: num };
+  }
+
+  // Padrão CNEFE: 'Nome do Logradouro - 123' ou 'Nome do Logradouro – 123' ou 'Nome do Logradouro, 123' ou 'Nome do Logradouro 123'
+  const match = clean.match(/^(.*?)(?:\s*[-–—,]\s*|\s+)(\d+[a-z]*)$/i);
+  if (match) {
+    const street = match[1].trim();
+    const num = parseInt(match[2].replace(/\D/g, ''), 10) || 0;
+    return { streetName: street, doorNumber: num };
+  }
+
+  const num = doorNum ? parseInt(String(doorNum).replace(/\D/g, ''), 10) || 0 : 0;
+  return { streetName: clean, doorNumber: num };
+};
+
 // Algoritmo de Levenshtein altamente otimizado (alocação mínima com 2 vetores de tamanho reduzido)
 export const levenshteinDistance = (a: string, b: string, maxDistance: number = Infinity): number => {
   if (a === b) return 0;
