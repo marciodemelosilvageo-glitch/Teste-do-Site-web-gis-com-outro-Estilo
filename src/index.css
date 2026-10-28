@@ -801,58 +801,58 @@ path.layer-measure-resultarea:hover {
 }
 
 .apple-unselected-label {
-  margin-left: 7px;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, sans-serif;
-  font-weight: 800;
-  letter-spacing: -0.2px;
-  line-height: 1.1;
-  color: #ff6961;
+  margin-left: 8px;
+  font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: #0f172a;
   text-shadow: 
-    -1.5px -1.5px 0 #2a0808, 
-     1.5px -1.5px 0 #2a0808, 
-    -1.5px  1.5px 0 #2a0808, 
-     1.5px  1.5px 0 #2a0808, 
-     0 1px 3px rgba(0, 0, 0, 0.85),
-     0 0 8px rgba(255, 59, 48, 0.4);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, text-shadow 0.2s ease;
+    0 0 3px #ffffff,
+    0 0 4px #ffffff,
+    0 0 6px #ffffff,
+    0 0 8px #ffffff,
+    0 1px 2px rgba(0, 0, 0, 0.22);
+  transition: transform 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Efeito ao passar o mouse (Hover no estado não apertado) */
 .apple-pin-container.is-unselected:hover {
-  transform: scale(1.22) translateY(-2px);
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+  transform: scale(1.15) translateY(-2px);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
 }
 
 .apple-pin-container.is-unselected:hover .apple-unselected-label {
-  color: #ffa19b;
+  color: #0284c7;
   text-shadow: 
-    -2px -2px 0 #2a0808, 
-     2px -2px 0 #2a0808, 
-    -2px  2px 0 #2a0808, 
-     2px  2px 0 #2a0808, 
-     0 2px 6px rgba(0, 0, 0, 0.95),
-     0 0 12px rgba(255, 59, 48, 0.65);
+    0 0 3px #ffffff,
+    0 0 5px #ffffff,
+    0 0 8px #ffffff,
+    0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
-/* Rótulo no tema claro */
-body:not(.dark) .apple-unselected-label {
-  color: #c5221f;
+/* Rótulo no tema escuro (Dark Mode) */
+.dark .apple-unselected-label,
+html.dark .apple-unselected-label {
+  color: #f8fafc;
   text-shadow: 
-    -1.5px -1.5px 0 #ffffff, 
-     1.5px -1.5px 0 #ffffff, 
-    -1.5px  1.5px 0 #ffffff, 
-     1.5px  1.5px 0 #ffffff, 
-     0 1px 4px rgba(0, 0, 0, 0.3);
+    0 0 3px #0f172a,
+    0 0 4px #0f172a,
+    0 0 6px #0f172a,
+    0 0 8px #0f172a,
+    0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-body:not(.dark) .apple-pin-container.is-unselected:hover .apple-unselected-label {
-  color: #991b1b;
+.dark .apple-pin-container.is-unselected:hover .apple-unselected-label,
+html.dark .apple-pin-container.is-unselected:hover .apple-unselected-label {
+  color: #38bdf8;
   text-shadow: 
-    -2px -2px 0 #ffffff, 
-     2px -2px 0 #ffffff, 
-    -2px  2px 0 #ffffff, 
-     2px  2px 0 #ffffff, 
-     0 2px 8px rgba(0, 0, 0, 0.45);
+    0 0 3px #0f172a,
+    0 0 6px #0f172a,
+    0 0 10px #0284c7,
+    0 2px 6px rgba(0, 0, 0, 0.95);
 }
 
 /* ------------------------------------------------------------
@@ -877,7 +877,7 @@ body:not(.dark) .apple-pin-container.is-unselected:hover .apple-unselected-label
   height: 6px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #ff7b72 0%, #ff3b30 60%, #c92a2a 100%);
-  border: 1.5px solid #2a0808;
+  border: 1.5px solid #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   z-index: 5;
 }
@@ -947,28 +947,37 @@ body:not(.dark) .apple-pin-container.is-unselected:hover .apple-unselected-label
 /* Rótulo Centralizado Abaixo do Pino (Estilo Apple Maps) */
 .apple-selected-label {
   position: absolute;
-  top: 56px;
+  top: 54px;
   left: 50%;
   transform: translateX(-50%);
   width: max-content;
-  max-width: 155px;
+  max-width: 175px;
   text-align: center;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.15;
-  color: #ffffff;
-  text-shadow: 
-    -1.5px -1.5px 0 #000000, 
-     1.5px -1.5px 0 #000000, 
-    -1.5px  1.5px 0 #000000, 
-     1.5px  1.5px 0 #000000, 
-     0 2px 6px rgba(0, 0, 0, 0.95);
+  font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   pointer-events: none;
   white-space: normal;
   word-break: break-word;
   animation: appleLabelFadeIn 0.25s ease-out 0.08s both;
   z-index: 15;
+}
+
+.dark .apple-selected-label,
+html.dark .apple-selected-label {
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
 }
 
 @keyframes appleLabelFadeIn {

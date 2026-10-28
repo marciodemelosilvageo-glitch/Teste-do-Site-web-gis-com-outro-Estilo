@@ -13,14 +13,15 @@ import {
   Building2, 
   Filter, 
   Sparkles, 
-  ChevronLeft, 
-  ChevronRight,
   RotateCcw,
-  MoveHorizontal,
-  Trash2
+  Trash2,
+  SlidersHorizontal,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
-import { toTitleCase } from '../utils';
+import { toTitleCase, normalizeString } from '../utils';
 import { logActivity } from '../services/adminService';
 
 export interface ExternalPolygonSearchResult {
@@ -90,8 +91,6 @@ export const tableColumns = [
   { key: 'tipo_edificacao', label: 'Tipo da edificação dos domicílios' }
 ];
 
-const ITEMS_PER_PAGE = 50;
-
 export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({ 
   onPlotAddress, 
   onPlotAllAddresses, 
@@ -102,10 +101,102 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   embedded = false,
   isMaximized = false
 }) => {
+  // Configuração de colunas visíveis pelo usuário com persistência em localStorage
+  const [userVisibleKeys, setUserVisibleKeys] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('cnefe_user_visible_columns');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {
+        console.error('Erro ao ler colunas visíveis salvas:', e);
+      }
+    }
+    return tableColumns.map(c => c.key);
+  });
+
   const visibleTableColumns = useMemo(() => {
-    if (!allowedColumns) return tableColumns;
-    return tableColumns.filter(c => allowedColumns[c.key] !== false);
-  }, [allowedColumns]);
+    return tableColumns.filter(c => {
+      if (allowedColumns && allowedColumns[c.key] === false) return false;
+      return userVisibleKeys.includes(c.key);
+    });
+  }, [allowedColumns, userVisibleKeys]);
+
+  const toggleColumnVisibility = (key: string) => {
+    setUserVisibleKeys(prev => {
+      let updated: string[];
+      if (prev.includes(key)) {
+        if (prev.length <= 1) return prev; // Mantém no mínimo 1 coluna ativa
+        updated = prev.filter(k => k !== key);
+      } else {
+        updated = [...prev, key];
+      }
+      try {
+        localStorage.setItem('cnefe_user_visible_columns', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const handleSelectAllColumns = () => {
+    const allKeys = tableColumns.map(c => c.key);
+    setUserVisibleKeys(allKeys);
+    try {
+      localStorage.setItem('cnefe_user_visible_columns', JSON.stringify(allKeys));
+    } catch (e) {}
+  };
+
+  const handleResetColumns = () => {
+    const allKeys = tableColumns.map(c => c.key);
+    setUserVisibleKeys(allKeys);
+    try {
+      localStorage.removeItem('cnefe_user_visible_columns');
+    } catch (e) {}
+  };
+
+  const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
+  const [columnSearchText, setColumnSearchText] = useState('');
+  const columnsModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (columnsModalRef.current && !columnsModalRef.current.contains(event.target as Node)) {
+        setIsColumnsModalOpen(false);
+      }
+    };
+    if (isColumnsModalOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isColumnsModalOpen]);
+
+  const filteredModalColumns = useMemo(() => {
+    const q = normalizeString(columnSearchText);
+    const base = tableColumns.filter(c => !allowedColumns || allowedColumns[c.key] !== false);
+    if (!q) return base;
+    return base.filter(c => normalizeString(c.label).includes(q) || normalizeString(c.key).includes(q));
+  }, [columnSearchText, allowedColumns]);
+
+  // Ordenação nas colunas
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const handleSort = (colKey: string) => {
+    setSortConfig(prev => {
+      if (prev?.key === colKey) {
+        if (prev.direction === 'asc') {
+          return { key: colKey, direction: 'desc' };
+        }
+        return null; // desmarca ordenação
+      }
+      return { key: colKey, direction: 'asc' };
+    });
+  };
+
+  // Pesquisa/Filtro em coluna específica dentro dos resultados
+  const [filterColumnKey, setFilterColumnKey] = useState<string>('ALL');
+  const [inResultFilterText, setInResultFilterText] = useState<string>('');
 
   const [municipio, setMunicipio] = useState('Todos');
   const [municipiosList, setMunicipiosList] = useState<string[]>(() => {
@@ -209,9 +300,6 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     saveColumnWidths(DEFAULT_COLUMN_WIDTHS);
   };
 
-  // Paginação no cliente para manter 60fps mesmo com milhares de resultados
-  const [currentPage, setCurrentPage] = useState(1);
-
   // Monitora resultados vindos de busca espacial por polígono
   useEffect(() => {
     if (externalPolygonResult && externalPolygonResult.timestamp > 0) {
@@ -219,8 +307,10 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setTotalEncontrado(externalPolygonResult.totalEncontrado);
       setHasSearched(true);
       setIsPlotted(false);
-      setCurrentPage(1);
       setTextoBusca('');
+      setInResultFilterText('');
+      setFilterColumnKey('ALL');
+      setSortConfig(null);
       setPolygonSearchTitle(externalPolygonResult.title);
       setErrorMsg(null);
 
@@ -232,13 +322,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
         }
       }, 100);
     } else if (!externalPolygonResult && polygonSearchTitle) {
-      // Quando o resultado externo for limpo pelo pai (App.tsx), limpar os resultados internos também
       setResults([]);
       setTotalEncontrado(0);
       setHasSearched(false);
       setIsPlotted(false);
       setPolygonSearchTitle(null);
-      setCurrentPage(1);
+      setInResultFilterText('');
+      setFilterColumnKey('ALL');
+      setSortConfig(null);
     }
   }, [externalPolygonResult]);
 
@@ -274,7 +365,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     const trimmed = String(term || '').trim();
     if (!trimmed) return;
     setRecentSearches(prev => {
-      const filtered = prev.filter(item => item && typeof item === 'string' && item.toLowerCase() !== trimmed.toLowerCase());
+      const filtered = prev.filter(item => item && typeof item === 'string' && normalizeString(item) !== normalizeString(trimmed));
       const updated = [trimmed, ...filtered].slice(0, 3);
       try {
         localStorage.setItem('recent_address_searches', JSON.stringify(updated));
@@ -287,10 +378,10 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     const trimmed = String(term || '').trim();
     if (!trimmed) return;
     setSavedSearches(prev => {
-      const exists = prev.some(item => item && typeof item === 'string' && item.toLowerCase() === trimmed.toLowerCase());
+      const exists = prev.some(item => item && typeof item === 'string' && normalizeString(item) === normalizeString(trimmed));
       let updated: string[];
       if (exists) {
-        updated = prev.filter(item => item && typeof item === 'string' && item.toLowerCase() !== trimmed.toLowerCase());
+        updated = prev.filter(item => item && typeof item === 'string' && normalizeString(item) !== normalizeString(trimmed));
       } else {
         updated = [trimmed, ...prev];
       }
@@ -304,7 +395,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   const removeSavedSearch = useCallback((term: string) => {
     const cleanTerm = String(term || '').toLowerCase().trim();
     setSavedSearches(prev => {
-      const updated = prev.filter(item => item && typeof item === 'string' && item.toLowerCase().trim() !== cleanTerm);
+      const updated = prev.filter(item => item && typeof item === 'string' && normalizeString(item) !== normalizeString(cleanTerm));
       try {
         localStorage.setItem('saved_address_searches', JSON.stringify(updated));
       } catch (e) {}
@@ -402,7 +493,9 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setTotalEncontrado(res.totalEncontrado);
       setHasSearched(true);
       setIsPlotted(false);
-      setCurrentPage(1);
+      setInResultFilterText('');
+      setFilterColumnKey('ALL');
+      setSortConfig(null);
 
       logActivity('ENDERECO', `Pesquisou por "${queryText}" (${municipio}) - ${res.totalEncontrado} resultados`, 'user');
     } catch (err: any) {
@@ -422,9 +515,11 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     setTotalEncontrado(0);
     setHasSearched(false);
     setIsPlotted(false);
-    setCurrentPage(1);
     setPolygonSearchTitle(null);
     setErrorMsg(null);
+    setInResultFilterText('');
+    setFilterColumnKey('ALL');
+    setSortConfig(null);
     if (onClearPlot) {
       onClearPlot();
     }
@@ -433,20 +528,67 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     }
   };
 
-  const handlePlotCurrentPage = () => {
-    if (onPlotAllAddresses && paginatedResults.length > 0) {
-      onPlotAllAddresses(paginatedResults);
-      setIsPlotted(true);
+  // Filtragem e ordenação dos resultados diretamente no cliente
+  const processedResults = useMemo(() => {
+    let list = results;
+
+    // 1. Filtragem interna nos resultados por coluna específica ou todas (sem distinção de acentos)
+    const filterText = normalizeString(inResultFilterText);
+    if (filterText) {
+      if (filterColumnKey === 'ALL') {
+        list = list.filter(row => {
+          return Object.entries(row).some(([_, v]) => {
+            if (v === null || v === undefined) return false;
+            return normalizeString(String(v)).includes(filterText);
+          });
+        });
+      } else {
+        list = list.filter(row => {
+          const val = row[filterColumnKey];
+          if (val === null || val === undefined) return false;
+          return normalizeString(String(val)).includes(filterText);
+        });
+      }
     }
-  };
+
+    // 2. Ordenação por coluna clicada
+    if (sortConfig) {
+      const { key, direction } = sortConfig;
+      const factor = direction === 'asc' ? 1 : -1;
+      list = [...list].sort((a, b) => {
+        const valA = a[key];
+        const valB = b[key];
+
+        if (valA === null || valA === undefined) return 1;
+        if (valB === null || valB === undefined) return -1;
+
+        const strA = String(valA).trim();
+        const strB = String(valB).trim();
+        const numA = parseFloat(strA.replace(',', '.'));
+        const numB = parseFloat(strB.replace(',', '.'));
+
+        const isAValidNum = !isNaN(numA) && /^-?\d+(\.\d+)?$/.test(strA.replace(',', '.'));
+        const isBValidNum = !isNaN(numB) && /^-?\d+(\.\d+)?$/.test(strB.replace(',', '.'));
+
+        if (isAValidNum && isBValidNum && !['codigo_unico', 'codigo_setor'].includes(key)) {
+          return (numA - numB) * factor;
+        }
+
+        return strA.localeCompare(strB, 'pt-BR', { numeric: true, sensitivity: 'base' }) * factor;
+      });
+    }
+
+    return list;
+  }, [results, inResultFilterText, filterColumnKey, sortConfig]);
 
   const exportToCSV = useCallback(() => {
-    if (!results || results.length === 0) return;
+    const dataToExport = processedResults.length > 0 ? processedResults : results;
+    if (!dataToExport || dataToExport.length === 0) return;
 
-    const visibleCols = tableColumns.filter(c => !allowedColumns || allowedColumns[c.key] !== false);
+    const visibleCols = visibleTableColumns;
     const headers = visibleCols.map(c => `"${c.label.replace(/"/g, '""')}"`).join(',');
     
-    const rows = results.map(row => {
+    const rows = dataToExport.map(row => {
       return visibleCols.map(col => {
         const val = row[col.key];
         if (val === null || val === undefined) return '""';
@@ -465,21 +607,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    logActivity('EXPORTACAO', `Exportou ${results.length} endereços CNEFE (${municipio}) para planilha CSV`, 'user');
-  }, [results, municipio, allowedColumns]);
-
-  // Itens paginados para renderização leve no DOM
-  const totalPages = Math.ceil(results.length / ITEMS_PER_PAGE);
-  const paginatedResults = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return results.slice(start, start + ITEMS_PER_PAGE);
-  }, [results, currentPage]);
+    logActivity('EXPORTACAO', `Exportou ${dataToExport.length} endereços CNEFE (${municipio}) para planilha CSV`, 'user');
+  }, [processedResults, results, municipio, visibleTableColumns]);
 
   const filteredMunicipios = useMemo(() => {
-    const q = String(municipioBusca || '').toLowerCase().trim();
+    const q = normalizeString(municipioBusca);
     const list = Array.isArray(municipiosList) ? municipiosList.filter(m => m && typeof m === 'string') : [];
     if (!q) return list;
-    return list.filter(m => String(m).toLowerCase().includes(q));
+    return list.filter(m => normalizeString(m).includes(q));
   }, [municipiosList, municipioBusca]);
 
   return (
@@ -635,17 +770,17 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     type="button"
                     onClick={() => toggleSaveSearch(textoBusca)}
                     className={`p-1.5 transition-colors cursor-pointer rounded-xl ${
-                      savedSearches.some(s => s && typeof s === 'string' && s.toLowerCase() === textoBusca.trim().toLowerCase())
+                      savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
                         ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50'
                         : 'text-slate-400 hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/10'
                     }`}
                     title={
-                      savedSearches.some(s => s && typeof s === 'string' && s.toLowerCase() === textoBusca.trim().toLowerCase())
+                      savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
                         ? "Remover das pesquisas salvas"
                         : "Salvar esta pesquisa nos favoritos"
                     }
                   >
-                    <Star className={`w-4 h-4 ${savedSearches.some(s => s && typeof s === 'string' && s.toLowerCase() === textoBusca.trim().toLowerCase()) ? 'fill-amber-500' : ''}`} />
+                    <Star className={`w-4 h-4 ${savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca)) ? 'fill-amber-500' : ''}`} />
                   </button>
                   <button
                     type="button"
@@ -805,7 +940,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
         {/* Tabela de Resultados do Dashboard (Estilo Apple Glass) */}
         {hasSearched && (
           <div className="border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-lg bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl">
-            {/* Barra KPI e Ações Rápidas */}
+            {/* Barra KPI e Ações Principais */}
             <div className="bg-slate-50/90 dark:bg-[#2c2c2e]/90 backdrop-blur-md px-5 py-3.5 flex flex-wrap justify-between items-center gap-3 border-b border-black/10 dark:border-white/10">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-black px-3.5 py-1.5 rounded-xl border border-[#007AFF]/20 flex items-center gap-1.5 shadow-2xs">
@@ -838,12 +973,12 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   {onPlotAllAddresses && !isPlotted && (
                     <button 
                       onClick={() => {
-                        onPlotAllAddresses(results);
+                        onPlotAllAddresses(processedResults);
                         setIsPlotted(true);
                       }}
                       className="text-xs font-bold bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-500/25 transition-all cursor-pointer"
                     >
-                      <Map size={14} /> Plotar Todos no Mapa ({results.length})
+                      <Map size={14} /> Plotar no Mapa ({processedResults.length})
                     </button>
                   )}
                   {onClearPlot && isPlotted && (
@@ -863,159 +998,325 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     className="text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-[#FF3B30] dark:text-[#FF453A] px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
                     title="Limpar pesquisa e remover resultados"
                   >
-                    <Trash2 size={13} /> Limpar Pesquisa
-                  </button>
-                  <button 
-                    onClick={handleResetColumnWidths}
-                    className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title="Restaurar larguras padrão de todas as colunas"
-                  >
-                    <RotateCcw size={13} /> Restaurar Colunas
+                    <Trash2 size={13} /> Limpar
                   </button>
                   <button 
                     onClick={exportToCSV}
                     className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
                   >
-                    <Download size={14} /> Exportar CSV (Excel)
+                    <Download size={14} /> Exportar CSV
                   </button>
                 </div>
               )}
             </div>
+
+            {/* Sub-barra: Filtro em Coluna Específica + Configuração de Colunas Visíveis */}
+            {results.length > 0 && (
+              <div className="bg-slate-100/60 dark:bg-[#252528]/80 px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 dark:border-white/10">
+                {/* Pesquisa dentro do resultado por coluna específica */}
+                <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-2xl">
+                  <div className="relative shrink-0">
+                    <select
+                      value={filterColumnKey}
+                      onChange={(e) => setFilterColumnKey(e.target.value)}
+                      className="text-xs font-bold bg-white dark:bg-[#3a3a3c] hover:bg-slate-50 dark:hover:bg-[#444446] border border-black/10 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] cursor-pointer shadow-2xs transition-colors"
+                      title="Selecione a coluna para pesquisar dentro do resultado"
+                    >
+                      <option value="ALL">🔍 Todas as Colunas</option>
+                      {tableColumns
+                        .filter(c => !allowedColumns || allowedColumns[c.key] !== false)
+                        .map(col => (
+                          <option key={col.key} value={col.key}>
+                            {col.label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={inResultFilterText}
+                      onChange={(e) => setInResultFilterText(e.target.value)}
+                      placeholder={
+                        filterColumnKey === 'ALL'
+                          ? 'Pesquisar em qualquer coluna dos resultados...'
+                          : `Filtrar por "${tableColumns.find(c => c.key === filterColumnKey)?.label || 'coluna'}"...`
+                      }
+                      className="w-full bg-white dark:bg-[#3a3a3c] hover:bg-slate-50 dark:hover:bg-[#444446] border border-black/10 dark:border-white/10 rounded-xl pl-8 pr-8 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] shadow-2xs transition-all"
+                    />
+                    <Search size={13} className="absolute left-2.5 top-2 text-slate-400" />
+                    {inResultFilterText && (
+                      <button
+                        type="button"
+                        onClick={() => setInResultFilterText('')}
+                        className="absolute right-2 top-1.5 p-0.5 text-slate-400 hover:text-rose-500 rounded-md cursor-pointer"
+                        title="Limpar filtro nos resultados"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {inResultFilterText && (
+                    <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#64D2FF] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 px-2 py-0.5 rounded-lg shrink-0">
+                      {processedResults.length} de {results.length}
+                    </span>
+                  )}
+                </div>
+
+                {/* Botões de Ação de Colunas */}
+                <div className="flex items-center gap-2 relative" ref={columnsModalRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsColumnsModalOpen(prev => !prev)}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 border ${
+                      isColumnsModalOpen
+                        ? 'bg-[#007AFF] text-white border-[#007AFF]'
+                        : 'bg-white dark:bg-[#3a3a3c] border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                    }`}
+                    title="Configurar quais colunas exibir ou ocultar"
+                  >
+                    <SlidersHorizontal size={13} />
+                    <span>Colunas ({visibleTableColumns.length}/{tableColumns.length})</span>
+                    <ChevronDown size={13} className={`transition-transform duration-200 ${isColumnsModalOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <button 
+                    onClick={handleResetColumnWidths}
+                    className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title="Restaurar larguras padrão de todas as colunas"
+                  >
+                    <RotateCcw size={12} />
+                    <span className="hidden sm:inline">Larguras</span>
+                  </button>
+
+                  {/* Popover de Seleção de Colunas */}
+                  {isColumnsModalOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-3 z-50 flex flex-col gap-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/10">
+                        <div className="flex items-center gap-1.5">
+                          <SlidersHorizontal size={14} className="text-[#007AFF]" />
+                          <span className="text-xs font-black text-slate-800 dark:text-white">Configurar Colunas</span>
+                        </div>
+                        <button
+                          onClick={() => setIsColumnsModalOpen(false)}
+                          className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg cursor-pointer"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+
+                      {/* Busca rápida de colunas */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={columnSearchText}
+                          onChange={(e) => setColumnSearchText(e.target.value)}
+                          placeholder="Filtrar colunas..."
+                          className="w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF]"
+                        />
+                        <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
+                      </div>
+
+                      {/* Ações rápidas */}
+                      <div className="flex items-center justify-between text-[11px] font-bold text-[#007AFF] px-1">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllColumns}
+                          className="hover:underline cursor-pointer"
+                        >
+                          Marcar Todas ({tableColumns.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetColumns}
+                          className="text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                        >
+                          Padrão
+                        </button>
+                      </div>
+
+                      {/* Lista de colunas com checkboxes */}
+                      <div className="overflow-y-auto max-h-60 custom-scrollbar flex flex-col gap-0.5 pr-1">
+                        {filteredModalColumns.map(col => {
+                          const isChecked = userVisibleKeys.includes(col.key);
+                          return (
+                            <label
+                              key={col.key}
+                              className="flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl cursor-pointer text-xs select-none transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleColumnVisibility(col.key)}
+                                className="w-4 h-4 rounded text-[#007AFF] focus:ring-[#007AFF] border-slate-300 dark:border-slate-600 dark:bg-slate-700 cursor-pointer"
+                              />
+                              <span className={`font-medium truncate ${isChecked ? 'text-slate-800 dark:text-slate-100 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>
+                                {col.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             
             {results.length > 0 ? (
               <>
-                <div className={`overflow-x-auto overflow-y-auto custom-scrollbar ${
-                  embedded 
-                    ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-180px)] min-h-[160px]' 
-                    : 'max-h-[540px]'
-                }`}>
-                  <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
-                    <thead className="bg-slate-100/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none border-b border-black/10 dark:border-white/10">
-                      <tr>
-                        <th className="px-3 py-3 font-extrabold w-14 min-w-[56px] max-w-[56px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 z-20 bg-slate-100 dark:bg-[#2c2c2e] shadow-r">
-                          Ação
-                        </th>
-                        {visibleTableColumns.map(col => {
-                          const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                          const isResizingThis = resizingColKey === col.key;
-                          return (
-                            <th 
-                              key={col.key} 
-                              style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                              className="relative px-3.5 py-3 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th"
-                            >
-                              <div className="truncate pr-2.5 font-black select-none text-slate-700 dark:text-slate-200" title={`${col.label} (Arraste a borda para redimensionar)`}>
-                                {col.label}
-                              </div>
-                              
-                              {/* Alça de redimensionamento estilo Excel */}
-                              <div
-                                onMouseDown={(e) => handleStartResize(col.key, e)}
-                                onDoubleClick={() => {
-                                  const defW = DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                                  setColumnWidths(prev => {
-                                    const updated = { ...prev, [col.key]: defW };
-                                    saveColumnWidths(updated);
-                                    return updated;
-                                  });
-                                }}
-                                title="Arraste para ajustar a largura (duplo clique para restaurar)"
-                                className={`absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex items-center justify-center transition-colors z-20 select-none ${
-                                  isResizingThis ? 'bg-[#007AFF]/20' : 'group-hover/th:bg-black/5 dark:group-hover/th:bg-white/10'
-                                }`}
-                              >
-                                <div className={`w-[2px] h-3/5 rounded-full transition-colors ${
-                                  isResizingThis ? 'bg-[#007AFF] scale-y-125' : 'bg-slate-300 dark:bg-slate-600 group-hover/th:bg-[#007AFF]'
-                                }`} />
-                              </div>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black/5 dark:divide-white/5">
-                      {paginatedResults.map((row, i) => (
-                        <tr 
-                          key={row.codigo_unico || i} 
-                          onClick={() => onPlotAddress(row)}
-                          className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
-                        >
-                          <td className="px-3 py-2 text-center sticky left-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10] shadow-r border-r border-black/5 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
-                            <button 
-                              onClick={() => onPlotAddress(row)}
-                              className="bg-[#007AFF]/10 hover:bg-[#007AFF] dark:bg-[#007AFF]/20 dark:hover:bg-[#007AFF] text-[#007AFF] hover:text-white dark:text-[#64D2FF] dark:hover:text-white p-2 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-90"
-                              title="Navegar e destacar no mapa"
-                            >
-                              <MapPin size={14} />
-                            </button>
-                          </td>
+                {processedResults.length > 0 ? (
+                  <div className={`overflow-x-auto overflow-y-auto custom-scrollbar ${
+                    embedded 
+                      ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
+                      : 'max-h-[580px]'
+                  }`}>
+                    <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
+                      <thead className="bg-slate-100/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none border-b border-black/10 dark:border-white/10">
+                        <tr>
+                          <th className="px-3 py-3 font-extrabold w-12 min-w-[48px] max-w-[48px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 z-20 bg-slate-100 dark:bg-[#2c2c2e] shadow-r text-slate-500 dark:text-slate-400">
+                            #
+                          </th>
                           {visibleTableColumns.map(col => {
                             const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                            const val = row[col.key];
-                            if (val === null || val === undefined) {
+                            const isResizingThis = resizingColKey === col.key;
+                            const isSorted = sortConfig?.key === col.key;
+                            return (
+                              <th 
+                                key={col.key} 
+                                style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+                                className="relative px-3.5 py-2.5 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleSort(col.key)}
+                                  className="flex items-center justify-between gap-1.5 w-full text-left truncate pr-3 select-none text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] transition-colors cursor-pointer group-hover/th:text-[#007AFF]"
+                                  title={`${col.label} (Clique para ordenar por esta coluna; arraste a borda para redimensionar)`}
+                                >
+                                  <span className="truncate font-black">{col.label}</span>
+                                  <span className="shrink-0">
+                                    {isSorted ? (
+                                      sortConfig?.direction === 'asc' ? (
+                                        <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                      ) : (
+                                        <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                      )
+                                    ) : (
+                                      <ArrowUpDown size={12} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
+                                    )}
+                                  </span>
+                                </button>
+                                
+                                {/* Alça de redimensionamento estilo Excel */}
+                                <div
+                                  onMouseDown={(e) => handleStartResize(col.key, e)}
+                                  onDoubleClick={() => {
+                                    const defW = DEFAULT_COLUMN_WIDTHS[col.key] || 180;
+                                    setColumnWidths(prev => {
+                                      const updated = { ...prev, [col.key]: defW };
+                                      saveColumnWidths(updated);
+                                      return updated;
+                                    });
+                                  }}
+                                  title="Arraste para ajustar a largura (duplo clique para restaurar)"
+                                  className={`absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex items-center justify-center transition-colors z-20 select-none ${
+                                    isResizingThis ? 'bg-[#007AFF]/20' : 'group-hover/th:bg-black/5 dark:group-hover/th:bg-white/10'
+                                  }`}
+                                >
+                                  <div className={`w-[2px] h-3/5 rounded-full transition-colors ${
+                                    isResizingThis ? 'bg-[#007AFF] scale-y-125' : 'bg-slate-300 dark:bg-slate-600 group-hover/th:bg-[#007AFF]'
+                                  }`} />
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5 dark:divide-white/5">
+                        {processedResults.map((row, i) => (
+                          <tr 
+                            key={row.codigo_unico || i} 
+                            onClick={() => onPlotAddress(row)}
+                            className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
+                            title="Clique para navegar e destacar este endereço no mapa"
+                          >
+                            <td className="px-3 py-2.5 text-center text-slate-400 dark:text-slate-500 font-bold sticky left-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10] shadow-r border-r border-black/5 dark:border-white/10 select-none text-[11px]">
+                              {i + 1}
+                            </td>
+                            {visibleTableColumns.map(col => {
+                              const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
+                              const val = row[col.key];
+                              if (val === null || val === undefined) {
+                                return (
+                                  <td 
+                                    key={col.key} 
+                                    style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+                                    className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate"
+                                  >
+                                    <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>
+                                  </td>
+                                );
+                              }
+                              const valStr = String(val);
+                              const isTextCol = ['municipio', 'endereco', 'bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural', 'estabelecimento'].includes(col.key);
+                              let displayVal = isTextCol ? toTitleCase(valStr) : valStr;
+
+                              // Formatar Latitude e Longitude com exatamente 6 dígitos após a vírgula/ponto
+                              if ((col.key === 'latitude' || col.key === 'longitude') && val != null) {
+                                const numVal = parseFloat(String(val).replace(',', '.'));
+                                if (!isNaN(numVal)) {
+                                  displayVal = numVal.toFixed(6);
+                                }
+                              }
+
                               return (
                                 <td 
                                   key={col.key} 
                                   style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                  className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate"
+                                  className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate" 
+                                  title={displayVal}
                                 >
-                                  <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>
+                                  {displayVal}
                                 </td>
                               );
-                            }
-                            const valStr = String(val);
-                            const isTextCol = ['municipio', 'endereco', 'bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural', 'estabelecimento'].includes(col.key);
-                            let displayVal = isTextCol ? toTitleCase(valStr) : valStr;
-
-                            // Formatar Latitude e Longitude com exatamente 6 dígitos após a vírgula/ponto
-                            if ((col.key === 'latitude' || col.key === 'longitude') && val != null) {
-                              const numVal = parseFloat(String(val).replace(',', '.'));
-                              if (!isNaN(numVal)) {
-                                displayVal = numVal.toFixed(6);
-                              }
-                            }
-
-                            return (
-                              <td 
-                                key={col.key} 
-                                style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate" 
-                                title={displayVal}
-                              >
-                                {displayVal}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Paginação Estilo Apple */}
-                {totalPages > 1 && (
-                  <div className="px-5 py-3.5 bg-slate-50/90 dark:bg-[#2c2c2e]/90 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">
-                      Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong> ({results.length} carregados)
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                        className="px-3 py-1.5 bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 rounded-xl text-slate-700 dark:text-slate-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                      >
-                        <ChevronLeft size={14} /> Anterior
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                        className="px-3 py-1.5 bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 rounded-xl text-slate-700 dark:text-slate-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                      >
-                        Próxima <ChevronRight size={14} />
-                      </button>
-                    </div>
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
+                    <Search size={30} className="text-slate-300 dark:text-slate-600" />
+                    <p className="font-bold text-sm text-slate-600 dark:text-slate-300">Nenhum resultado corresponde ao filtro atual</p>
+                    <p className="text-xs text-slate-400">Verifique a grafia ou selecione outra coluna para pesquisar.</p>
+                    <button
+                      onClick={() => { setInResultFilterText(''); setFilterColumnKey('ALL'); }}
+                      className="mt-2 text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 px-3.5 py-1.5 rounded-xl cursor-pointer"
+                    >
+                      Limpar Filtro nos Resultados
+                    </button>
                   </div>
                 )}
+
+                {/* Rodapé Informativo: Total Contínuo e Dica de Uso */}
+                <div className="px-5 py-3 bg-slate-50/90 dark:bg-[#2c2c2e]/90 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      Exibindo <strong>{processedResults.length.toLocaleString('pt-BR')}</strong> de <strong>{results.length.toLocaleString('pt-BR')}</strong> endereços carregados
+                    </span>
+                    {sortConfig && (
+                      <span className="text-[#007AFF] dark:text-[#64D2FF] font-semibold bg-[#007AFF]/10 dark:bg-[#007AFF]/20 px-2 py-0.5 rounded-md text-[11px]">
+                        Ordenado por {tableColumns.find(c => c.key === sortConfig.key)?.label || sortConfig.key} ({sortConfig.direction === 'asc' ? '↑ crescente' : '↓ decrescente'})
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                    💡 Clique em qualquer linha para navegar e destacar no mapa
+                  </span>
+                </div>
               </>
             ) : (
               <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">

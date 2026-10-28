@@ -151,7 +151,7 @@ const getAppleMapsPoiIconSvg = (name: string, isSelected: boolean = false) => {
   // Ícone padrão de Localidade / Povoado / Marco Cívico Apple Maps:
   return `
     <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 3L2 8v2h20V8L12 3zm-7 7v8h3v-8H5zm5 0v8h4v-8h-4zm6 0v8h3v-8h-3zM2 19v2h20v-2H2z" />
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
     </svg>
   `;
 };
@@ -196,8 +196,8 @@ const createAppleMapsLocalidadeIcon = (
                    A 17 17 0 1 1 39 19.5 
                    C 39 30, 23.8 38.5, 22 43.5 Z" 
                 fill="url(#appleRedGradSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" 
-                stroke="#2a0808" 
-                stroke-width="2" 
+                stroke="#ffffff" 
+                stroke-width="2.5" 
                 stroke-linejoin="round"
                 filter="url(#applePinShadowSel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})"
               />
@@ -233,7 +233,7 @@ const createAppleMapsLocalidadeIcon = (
                 <stop offset="100%" stop-color="#c92a2a" />
               </linearGradient>
             </defs>
-            <circle cx="11" cy="11" r="9.5" fill="url(#appleRedGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" stroke="#2a0808" stroke-width="1.6" />
+            <circle cx="11" cy="11" r="9.5" fill="url(#appleRedGradUnsel_${safeName.replace(/[^a-zA-Z0-9]/g, '_')})" stroke="#ffffff" stroke-width="2" />
           </svg>
           <div class="apple-badge-icon">
             ${iconSvg}

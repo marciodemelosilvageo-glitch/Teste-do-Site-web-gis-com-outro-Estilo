@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
+import { normalizeString } from './utils';
 
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
@@ -127,15 +128,15 @@ export async function listarMunicipios(): Promise<string[]> {
 function sortResultsByRelevance(results: any[], queryText: string, targetNumber?: string): any[] {
   if (!results || results.length <= 1) return results;
 
-  const cleanQuery = queryText.toLowerCase().trim();
-  const cleanTargetNum = targetNumber ? targetNumber.toLowerCase().trim() : '';
+  const cleanQuery = normalizeString(queryText);
+  const cleanTargetNum = targetNumber ? normalizeString(targetNumber) : '';
   const targetNumInt = cleanTargetNum && /^\d+$/.test(cleanTargetNum) ? parseInt(cleanTargetNum, 10) : null;
 
   return [...results].sort((a, b) => {
-    const numA = String(a.numero_logradouro || '').trim().toLowerCase();
-    const numB = String(b.numero_logradouro || '').trim().toLowerCase();
-    const endA = String(a.endereco || '').trim().toLowerCase();
-    const endB = String(b.endereco || '').trim().toLowerCase();
+    const numA = normalizeString(a.numero_logradouro);
+    const numB = normalizeString(b.numero_logradouro);
+    const endA = normalizeString(a.endereco);
+    const endB = normalizeString(b.endereco);
 
     // 1. Se foi pesquisado um número específico (ex: "3625")
     if (cleanTargetNum) {
@@ -194,7 +195,8 @@ export async function buscarEnderecos(
     const whereClauses: string[] = [];
     
     if (municipio && municipio !== 'Todos') {
-      whereClauses.push(`municipio = '${escapeSqlLiteral(municipio)}'`);
+      const escMun = escapeSqlLiteral(normalizeString(municipio));
+      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
     }
 
     const trimmedInput = (textoBusca || '').trim();
@@ -205,14 +207,14 @@ export async function buscarEnderecos(
       const partes = trimmedInput.split(',').map(p => p.trim()).filter(p => p !== '');
 
       if (partes.length > 1) {
-        const parteRua = partes[0].toLowerCase();
+        const parteRua = partes[0];
 
         // Colunas de busca geral
         const concatStrGeral = colunasBusca.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
         const searchExprGeral = `strip_accents(lower(${concatStrGeral}))`;
 
-        // Parte 1 (Rua): busca geral
-        const termosRua = parteRua.split(/\s+/).filter(t => t.length > 0);
+        // Parte 1 (Rua): busca geral sem acentos
+        const termosRua = normalizeString(parteRua).split(/\s+/).filter(t => t.length > 0);
         termosRua.forEach(termo => {
           const t = escapeSqlLikePattern(termo);
           whereClauses.push(`${searchExprGeral} LIKE '%${t}%'`);
@@ -220,8 +222,8 @@ export async function buscarEnderecos(
 
         // Processa as demais partes (separadas por vírgula)
         for (let i = 1; i < partes.length; i++) {
-          const parte = partes[i].toLowerCase();
-          const termosSec = parte.split(/\s+/).filter(t => t.length > 0);
+          const parte = partes[i];
+          const termosSec = normalizeString(parte).split(/\s+/).filter(t => t.length > 0);
           if (termosSec.length === 0) continue;
 
           const primeiroTermo = termosSec[0];
@@ -249,8 +251,8 @@ export async function buscarEnderecos(
           }
         }
       } else {
-        // Busca simples: verifica se o último termo é um número de porta (ex: "Rua Radialista Benedito de Assis 3625")
-        const termoNormalizado = trimmedInput.replace(/,/g, ' ').toLowerCase();
+        // Busca simples: normaliza removendo acentos e convertendo para minúsculas
+        const termoNormalizado = normalizeString(trimmedInput.replace(/,/g, ' '));
         const termos = termoNormalizado.split(/\s+/).filter(t => t.length > 0);
         
         const ultimoTermo = termos[termos.length - 1];
@@ -431,13 +433,13 @@ export async function buscarEnderecosPorLocalidade(
     const whereClauses: string[] = [];
 
     if (cleanMun && cleanMun !== 'Todos') {
-      const escMun = escapeSqlLiteral(cleanMun);
-      whereClauses.push(`strip_accents(lower(municipio)) = strip_accents(lower('${escMun}'))`);
+      const escMun = escapeSqlLiteral(normalizeString(cleanMun));
+      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
     }
 
     if (cleanLoc) {
-      const escLoc = escapeSqlLikePattern(cleanLoc.toLowerCase());
-      // Pesquisa direta e prioritária na coluna "localidade" conforme solicitado
+      const escLoc = escapeSqlLikePattern(normalizeString(cleanLoc));
+      // Pesquisa direta e prioritária na coluna "localidade" conforme solicitado (sem acentos)
       whereClauses.push(`strip_accents(lower(COALESCE(CAST("localidade" AS VARCHAR), ''))) LIKE '%${escLoc}%'`);
     }
 
@@ -461,11 +463,11 @@ export async function buscarEnderecosPorLocalidade(
     // Fallback inteligente: se a coluna localidade não estiver preenchida nas linhas do CNEFE
     // daquela região mas o logradouro, bairro ou complemento contiverem o nome da localidade:
     if (rawResults.length === 0 && cleanLoc) {
-      const escLoc = escapeSqlLikePattern(cleanLoc.toLowerCase());
+      const escLoc = escapeSqlLikePattern(normalizeString(cleanLoc));
       const fallbackClauses: string[] = [];
       if (cleanMun && cleanMun !== 'Todos') {
-        const escMun = escapeSqlLiteral(cleanMun);
-        fallbackClauses.push(`strip_accents(lower(municipio)) = strip_accents(lower('${escMun}'))`);
+        const escMun = escapeSqlLiteral(normalizeString(cleanMun));
+        fallbackClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
       }
       fallbackClauses.push(`(
         strip_accents(lower(COALESCE(CAST("endereco" AS VARCHAR), ''))) LIKE '%${escLoc}%' OR

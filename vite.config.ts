@@ -19,6 +19,8 @@ export default defineConfig(() => {
             'vendor-react': ['react', 'react-dom'],
             'vendor-leaflet': ['leaflet'],
             'vendor-motion': ['motion'],
+            'vendor-turf': ['@turf/boolean-point-in-polygon', '@turf/helpers'],
+            'vendor-duckdb': ['@duckdb/duckdb-wasm'],
           },
         },
       },

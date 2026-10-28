@@ -249,15 +249,16 @@ export const initAdminService = async (forceRefresh = false) => {
       const defaultMaster: RegisteredUser = {
         id: 'master-supremo-001',
         name: 'Master',
-        username: 'macim',
-        password: '1234',
+        username: sanitizeUsername((import.meta as any).env?.VITE_INITIAL_MASTER_USER || ''),
+        password: ((import.meta as any).env?.VITE_INITIAL_MASTER_PASS || '').trim(),
         isActive: true,
         role: 'master',
         createdAt: new Date().toISOString(),
         hasCustomPermissions: true
       };
-      await syncRegisteredUsersToSupabase([defaultMaster]);
-      localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify([defaultMaster]));
+      const initialList = (defaultMaster.username && defaultMaster.password) ? [defaultMaster] : [];
+      await syncRegisteredUsersToSupabase(initialList);
+      localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(initialList));
       hasChanged = true;
     }
 
