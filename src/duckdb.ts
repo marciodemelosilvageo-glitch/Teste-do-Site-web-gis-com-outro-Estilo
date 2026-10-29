@@ -348,7 +348,7 @@ export function getPolygonBoundingBox(geometry: any): [number, number, number, n
 
 export async function buscarEnderecosPorPoligono(
   featureOrGeometry: any,
-  limit: number = 3000
+  limit: number = 5000
 ): Promise<{ results: any[]; totalEncontrado: number }> {
   let conn: duckdb.AsyncDuckDBConnection | null = null;
   try {
@@ -428,7 +428,7 @@ export async function buscarEnderecosPorLocalidade(
 
     const cleanMun = (municipio || '').trim();
     const cleanLoc = (localidade || '').trim();
-    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 3000));
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 5000));
 
     const whereClauses: string[] = [];
 
@@ -545,7 +545,15 @@ export async function buscarEnderecosPorEspecie(
         FROM enderecos
         ${whereSql}
       )
-      ORDER BY "municipio" ASC, "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC
+      ORDER BY 
+        CASE 
+          WHEN strip_accents(lower(trim(municipio))) = 'teresina' THEN 0 
+          WHEN strip_accents(lower(trim(municipio))) LIKE '%teresina%' THEN 1
+          ELSE 2 
+        END ASC,
+        "municipio" ASC, 
+        "endereco" ASC, 
+        TRY_CAST("numero_logradouro" AS BIGINT) ASC
       LIMIT ${safeLimit};
     `;
 

@@ -1934,26 +1934,51 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     searchMarkersRef.current = [];
 
     if (searchCoordinates && searchCoordinates.length > 0) {
-      // Ícone com pin pulsante usando Tailwind
-      const searchIcon = L.divIcon({
-        className: 'custom-search-marker',
+      // Ícone temático de Saúde (Hospitais / UBS / Clínicas) - sem efeito piscante
+      const healthPinIcon = L.divIcon({
+        className: 'custom-search-marker-pin',
         html: `
-          <div class="relative flex items-center justify-center">
-            <div class="absolute w-8 h-8 bg-red-500/30 rounded-full animate-ping"></div>
-            <div class="w-5 h-5 bg-red-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-              <div class="w-2 h-2 bg-white dark:bg-slate-900 rounded-full"></div>
-            </div>
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s ease-out;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#DC2626" stroke="#FFFFFF" stroke-width="1.5"/>
+              <path d="M11 6.5H15V10.5H19V14.5H15V18.5H11V14.5H7V10.5H11V6.5Z" fill="#FFFFFF"/>
+            </svg>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        iconSize: [26, 32],
+        iconAnchor: [13, 32],
+        popupAnchor: [0, -30]
+      });
+
+      // Ícone padrão de Localização / Endereço (Estilo Apple Maps) - sem efeito piscante
+      const defaultPinIcon = L.divIcon({
+        className: 'custom-search-marker-pin',
+        html: `
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s ease-out;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#007AFF" stroke="#FFFFFF" stroke-width="1.5"/>
+              <circle cx="13" cy="12.5" r="4.5" fill="#FFFFFF"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [26, 32],
+        iconAnchor: [13, 32],
+        popupAnchor: [0, -30]
       });
 
       searchCoordinates.forEach((coord) => {
-        const { lat, lng, details, isCoordSearch } = coord;
+        const { lat, lng, details, isCoordSearch, label } = coord;
         
+        // Identificar se o ponto é estabelecimento de saúde ou hospital
+        const isSaude = (details || []).some(d => {
+          const low = d.toLowerCase();
+          return low.includes('saúde') || low.includes('saude') || low.includes('hospital') || low.includes('ubs') || low.includes('clínica') || low.includes('clinica') || low.includes('maternidade') || low.includes('pronto socorro');
+        }) || (label || '').toLowerCase().includes('hospital') || (label || '').toLowerCase().includes('saude');
+
+        const chosenIcon = isSaude ? healthPinIcon : defaultPinIcon;
+
         // Adicionar marcador
-        const marker = L.marker([lat, lng], { icon: searchIcon }).addTo(map);
+        const marker = L.marker([lat, lng], { icon: chosenIcon }).addTo(map);
         
         let detailsHtml = '';
         if (details && details.length > 0) {

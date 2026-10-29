@@ -697,7 +697,7 @@ export default function App() {
     try {
       showToast('🏥 Buscando estabelecimentos de saúde (hospitais, clínicas e UBS) no CNEFE...');
 
-      const res = await buscarEnderecosPorEspecie('Estabelecimento de saúde', undefined, 3000);
+      const res = await buscarEnderecosPorEspecie('Estabelecimento de saúde', undefined, 5000);
 
       if (!res.results || res.results.length === 0) {
         showToast('Nenhum estabelecimento de saúde localizado no CNEFE.');
@@ -716,7 +716,7 @@ export default function App() {
       setIsCnefeBottomBarExpanded(true);
 
       // Plotar no mapa os primeiros resultados para visualização imediata
-      handlePlotAllAddresses(res.results.slice(0, 500));
+      handlePlotAllAddresses(res.results.slice(0, 1000));
 
       logActivity(
         'ENDERECO',
@@ -1616,6 +1616,7 @@ export default function App() {
     add('Localidade', row.localidade || row.LOCALIDADE);
     add('Núcleo Urbano', row.nucleo_urbano || row.NUCLEO_URBANO || row['Nucleo Urbano']);
     add('Favelas ou Comunidades Urbana', row.favela_comunidade || row.FAVELA_COMUNIDADE || row['Favelas ou Comunidades Urbana']);
+    add('Espécie', row.especie || row.ESPECIE || row['Espécie de endereço']);
     add('Identificação do Estabelecimento', row.estabelecimento || row.ESTABELECIMENTO || row['Identificação do estabelecimento']);
     add('Agromerado', row.agromerado || row.AGROMERADO || row['Agromerado']);
     add('Comunidades Rurais de Teresina', row.comunidade_rural || row.COMUNIDADE_RURAL || row['Comunidades Rurais de Teresina']);
