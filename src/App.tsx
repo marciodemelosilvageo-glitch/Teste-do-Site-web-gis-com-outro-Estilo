@@ -24,6 +24,7 @@ import { IbgeSearchPanel, ExternalPolygonSearchResult } from './components/IbgeS
 import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
+import Globe from './components/Globe';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
@@ -1689,20 +1690,47 @@ export default function App() {
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-[430px] bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl rounded-[32px] p-7 sm:p-8 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_50px_-12px_rgba(0,0,0,0.7)] border border-black/[0.06] dark:border-white/[0.12] ring-1 ring-white/60 dark:ring-white/[0.05] flex flex-col items-center text-center space-y-6"
+          className="w-full max-w-[460px] bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl rounded-[32px] p-7 sm:p-8 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_50px_-12px_rgba(0,0,0,0.7)] border border-black/[0.06] dark:border-white/[0.12] ring-1 ring-white/60 dark:ring-white/[0.05] flex flex-col items-center text-center space-y-6"
         >
-          {/* Logo Principal (Sem texto duplicado "WebGis", apenas a logo oficial com proporção elegante) */}
+          {/* Logo Principal + Globo 3D Interativo */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.15, duration: 0.5 }}
-            className="flex flex-col items-center"
+            className="flex flex-col items-center w-full"
           >
-            <img 
-              src={CURRENT_APP_LOGO} 
-              alt="Logo" 
-              className="h-16 sm:h-20 w-auto max-w-[270px] object-contain drop-shadow-md hover:scale-[1.02] transition-transform duration-300" 
-            />
+            <div className="flex items-center justify-center gap-3 sm:gap-4 w-full">
+              {/* Globo 3D Interativo posicionado ao lado da logo */}
+              <div 
+                className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 relative rounded-2xl overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+                title="Globo Terrestre Interativo 3D • Arraste para rotacionar"
+              >
+                <Globe
+                  speed={1.8}
+                  scale={9.5}
+                  dots={{
+                    color: isDarkMode ? "#38bdf8" : "#007AFF",
+                    size: 5,
+                    density: 8,
+                    allDots: false
+                  }}
+                  outlineColor={isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,122,255,0.45)"}
+                  graticuleColor={isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,122,255,0.15)"}
+                  oceanColor="transparent"
+                  showGrid={true}
+                  showOutline={true}
+                  stopOnHover={false}
+                />
+              </div>
+
+              {/* Logo Oficial SSP-PI */}
+              <img 
+                src={CURRENT_APP_LOGO} 
+                alt="Logo" 
+                className="h-14 sm:h-18 w-auto max-w-[210px] sm:max-w-[240px] object-contain drop-shadow-md hover:scale-[1.02] transition-transform duration-300 pointer-events-none" 
+              />
+            </div>
+
             <div className="mt-3.5 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.06] text-xs font-medium tracking-wide">
               <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF] animate-pulse" />
               <span>Sistema de Informações Geográficas</span>
