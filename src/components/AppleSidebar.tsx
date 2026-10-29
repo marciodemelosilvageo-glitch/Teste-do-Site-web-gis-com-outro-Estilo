@@ -293,13 +293,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     }
   }, [activeDetailFeature]);
 
-  // Se a feição for desmarcada (nada selecionado) e a aba aberta for 'details', fechar a aba
-  useEffect(() => {
-    if (!activeDetailFeature && activeTab === 'details') {
-      setActiveTab(null);
-      setOpenedFromSearch(false);
-    }
-  }, [activeDetailFeature, activeTab, setActiveTab]);
+  // Não fecha a aba 'details' automaticamente para permitir visualização permanente do estado explicativo
 
   // Extração estruturada de informações amigáveis e descritivas (Nomes, Demografia, Área, Situação e Tipo)
   const structuredDetails = useMemo(() => {
@@ -677,72 +671,68 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
           </div>
 
-          {/* 3. Detalhes (Apenas quando feição selecionada) */}
-          {hasFeature && (
-            <div className="relative group w-full flex items-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenedFromSearch(false);
-                  setActiveTab(activeTab === 'details' ? null : 'details');
-                }}
-                className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                  isCollapsed 
-                    ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                    : 'px-3 py-2.5 text-sm'
-                } ${
-                  activeTab === 'details'
-                    ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
-                    : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
-                }`}
-                title={isCollapsed ? "Detalhes da Feição" : undefined}
-              >
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                  activeTab === 'details' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-amber-500/10 text-[#FF9500]'
-                }`}>
-                  <MapPin className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
-                </div>
-                {!isCollapsed && (
-                  <>
-                    <span className="truncate">Detalhes</span>
+          {/* 3. Detalhes (Permanente na barra lateral) */}
+          <div className="relative group w-full flex items-center">
+            <button
+              type="button"
+              onClick={() => {
+                setOpenedFromSearch(false);
+                setActiveTab(activeTab === 'details' ? null : 'details');
+              }}
+              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                isCollapsed 
+                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                  : 'px-3 py-2.5 text-sm'
+              } ${
+                activeTab === 'details'
+                  ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+              }`}
+              title={isCollapsed ? "Detalhes da Feição" : undefined}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'details' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-amber-500/10 text-[#FF9500]'
+              }`}>
+                <MapPin className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+              </div>
+              {!isCollapsed && (
+                <>
+                  <span className="truncate">Detalhes</span>
+                  {hasFeature && (
                     <span className="ml-auto w-2 h-2 rounded-full bg-[#FF9500] animate-ping" />
-                  </>
-                )}
-              </button>
+                  )}
+                </>
+              )}
+            </button>
+          </div>
 
-
-            </div>
-          )}
-
-          {/* 4. Exportar (Apenas quando feição selecionada) */}
-          {hasFeature && (
-            <div className="relative group w-full flex items-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenedFromSearch(false);
-                  setActiveTab(activeTab === 'export' ? null : 'export');
-                }}
-                className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                  isCollapsed 
-                    ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                    : 'px-3 py-2.5 text-sm'
-                } ${
-                  activeTab === 'export'
-                    ? 'bg-[#AF52DE] text-white shadow-lg shadow-purple-500/25'
-                    : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
-                }`}
-                title={isCollapsed ? "Exportar Feições" : undefined}
-              >
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                  activeTab === 'export' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-purple-500/10 text-[#AF52DE]'
-                }`}>
-                  <Download className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
-                </div>
-                {!isCollapsed && <span className="truncate">Exportar</span>}
-              </button>
-            </div>
-          )}
+          {/* 4. Exportar (Permanente na barra lateral) */}
+          <div className="relative group w-full flex items-center">
+            <button
+              type="button"
+              onClick={() => {
+                setOpenedFromSearch(false);
+                setActiveTab(activeTab === 'export' ? null : 'export');
+              }}
+              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                isCollapsed 
+                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                  : 'px-3 py-2.5 text-sm'
+              } ${
+                activeTab === 'export'
+                  ? 'bg-[#AF52DE] text-white shadow-lg shadow-purple-500/25'
+                  : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+              }`}
+              title={isCollapsed ? "Exportar Dados" : undefined}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'export' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-purple-500/10 text-[#AF52DE]'
+              }`}>
+                <Download className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+              </div>
+              {!isCollapsed && <span className="truncate">Exportar</span>}
+            </button>
+          </div>
         </div>
 
         {/* Rodapé do Estágio 1 */}
@@ -837,7 +827,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       {/* ============================================================== */}
       {/* ESTÁGIO 2: PAINEL DA FERRAMENTA SELECIONADA (SEGUNDO ESTÁGIO)  */}
       {/* ============================================================== */}
-      {activeTab && (activeTab !== 'details' || activeDetailFeature) && (
+      {activeTab && (
         <div
           className="absolute left-full top-0 bottom-0 h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden z-40 animate-fadeIn"
         >
@@ -879,7 +869,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-4">
             {/* ABA: DETALHES DA FEIÇÃO / PLACE CARD (Screenshot 3 do Apple Maps) */}
         {/* ============================================================== */}
-        {activeTab === 'details' && activeDetailFeature && (
+        {activeTab === 'details' && (
+          activeDetailFeature ? (
           <div className="space-y-4 animate-fadeIn">
             {/* Header do Cartão do Local */}
             <div className="flex items-start justify-between gap-3">
@@ -1192,6 +1183,27 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             </div>
             )}
           </div>
+          ) : (
+            <div className="space-y-4 py-8 text-center animate-fadeIn px-2">
+              <div className="w-14 h-14 rounded-3xl bg-amber-500/10 text-[#FF9500] flex items-center justify-center mx-auto mb-3 shadow-inner">
+                <MapPin className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                Nenhuma feição selecionada
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[280px] mx-auto leading-relaxed font-medium">
+                Clique em qualquer elemento no mapa (bairros, municípios, setores, favelas ou localidades) para inspecionar seus atributos, limites e dados territoriais.
+              </p>
+              <div className="p-3.5 bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 rounded-2xl text-left space-y-1.5 mt-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Dica de Navegação
+                </span>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-snug">
+                  Você também pode usar a ferramenta <strong>Buscar</strong> para localizar um endereço, bairro ou município específico e focar diretamente no local.
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         {/* ============================================================== */}

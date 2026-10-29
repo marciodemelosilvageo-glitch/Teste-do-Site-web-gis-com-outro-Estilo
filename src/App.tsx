@@ -379,7 +379,7 @@ export default function App() {
         setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
       }
     } else {
-      setSidebarTab(prev => (prev === 'details' ? null : prev));
+      // Mantem a aba selecionada sem fechar bruscamente
     }
   }, [selectedFeatures]);
 
