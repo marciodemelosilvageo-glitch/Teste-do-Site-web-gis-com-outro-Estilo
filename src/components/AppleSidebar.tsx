@@ -712,34 +712,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
             </div>
           )}
-
-          {/* 4. Guia e Ajuda */}
-          <div className="relative group w-full flex items-center">
-            <button
-              type="button"
-              onClick={() => setActiveTab(activeTab === 'help' ? null : 'help')}
-              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                  : 'px-3 py-2.5 text-sm'
-              } ${
-                activeTab === 'help'
-                  ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
-                  : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
-              }`}
-              title={isCollapsed ? "Guia e Ajuda" : undefined}
-            >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                activeTab === 'help' 
-                  ? (isCollapsed ? '' : 'bg-white/20 text-white') 
-                  : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 group-hover:text-[#007AFF]'
-              }`}>
-                <HelpCircle className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
-              </div>
-              {!isCollapsed && <span className="truncate">Ajuda e Guia</span>}
-            </button>
-          </div>
-
         </div>
 
         {/* Rodapé do Estágio 1 */}
@@ -790,7 +762,15 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <span className="truncate">WebGIS</span>
+              <a 
+                href="https://www.linkedin.com/in/m%C3%A1rcio-de-melo-silva-299297382/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate hover:text-slate-600 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer"
+                title="Desenvolvido por Márcio de Melo Silva (LinkedIn)"
+              >
+                WebGIS
+              </a>
               <button 
                 type="button"
                 onClick={() => setActiveTab(activeTab === 'help' ? null : 'help')}
