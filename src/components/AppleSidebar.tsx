@@ -54,6 +54,7 @@ import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
 import { ExportDashboard } from './ExportDashboard';
+import { HospitalSidebarPanel } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
@@ -93,6 +94,10 @@ interface AppleSidebarProps {
   onSearchPolygonAddresses: (feat: SelectedFeature) => void;
   onSearchLocalidadeAddresses?: (localidade: string, municipio: string) => void;
   onSearchHospitais?: () => void;
+  onSearchHospitaisByMunicipio?: (municipio: string) => void;
+  onSearchHospitaisByRadius?: (raioMetros: number) => void;
+  cnefeMunicipios?: string[];
+  isHospitalSearching?: boolean;
   
   // Camadas
   activeLayers: string[];
@@ -174,6 +179,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onSearchPolygonAddresses,
   onSearchLocalidadeAddresses,
   onSearchHospitais,
+  onSearchHospitaisByMunicipio,
+  onSearchHospitaisByRadius,
+  cnefeMunicipios,
+  isHospitalSearching,
   activeLayers,
   setActiveLayers,
   allowedLayerNames,
@@ -208,6 +217,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
   // Controlar se a feição exibida em detalhes foi aberta a partir de um clique no resultado da busca lateral
   const [openedFromSearch, setOpenedFromSearch] = useState<boolean>(false);
+  const [isHospitalSearchActive, setIsHospitalSearchActive] = useState<boolean>(false);
   const lastSearchClickTimeRef = useRef<number>(0);
 
   // Feição ativa detalhada (última selecionada)
@@ -836,7 +846,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           {/* Cabeçalho do Segundo Estágio (Título + Botão X redondo de fechar) */}
           <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
             <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              {activeTab === 'search' && 'Buscar'}
+              {activeTab === 'search' && (isHospitalSearchActive ? 'Hospitais & Saúde' : 'Buscar')}
               {activeTab === 'dashboard' && 'Raio-X Territorial e Domiciliar'}
               {activeTab === 'details' && 'Detalhes da Feição'}
               {activeTab === 'export' && (
@@ -857,6 +867,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               type="button"
               onClick={() => {
                 setOpenedFromSearch(false);
+                setIsHospitalSearchActive(false);
                 setActiveTab(null);
               }}
               className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer active:scale-90"
@@ -1212,6 +1223,15 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {/* ABA: BUSCAR (Screenshot 4 do Apple Maps) */}
         {/* ============================================================== */}
         {activeTab === 'search' && (
+          isHospitalSearchActive ? (
+            <HospitalSidebarPanel
+              onBack={() => setIsHospitalSearchActive(false)}
+              onSearchByMunicipio={(mun) => onSearchHospitaisByMunicipio?.(mun)}
+              onSearchByRadius={(raio) => onSearchHospitaisByRadius?.(raio)}
+              availableMunicipios={cnefeMunicipios}
+              isLoading={isHospitalSearching}
+            />
+          ) : (
           <div className="space-y-4 animate-fadeIn">
             {/* Campo de Entrada de Busca Apple */}
             <div className="space-y-2">
@@ -1269,11 +1289,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         type="button"
                         onClick={() => {
                           if (cat.id === 'hospitais') {
-                            if (onSearchHospitais) {
-                              onSearchHospitais();
-                            } else {
-                              onOpenCnefeBottomBar?.();
-                            }
+                            setIsHospitalSearchActive(true);
                           } else {
                             setSearchQuery(cat.query);
                             onSearch(cat.query);
@@ -1405,6 +1421,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               </div>
             )}
           </div>
+          )
         )}
 
         {/* ============================================================== */}

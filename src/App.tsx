@@ -25,7 +25,6 @@ import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
 import Globe from './components/Globe';
-import { HospitalSearchModal } from './components/HospitalSearchModal';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
@@ -358,7 +357,6 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
-  const [isHospitalSearchModalOpen, setIsHospitalSearchModalOpen] = useState(false);
   const [isHospitalSearching, setIsHospitalSearching] = useState(false);
   const [cnefeMunicipios, setCnefeMunicipios] = useState<string[]>([]);
 
@@ -707,16 +705,12 @@ export default function App() {
     }
   };
 
-  // Abre o modal de opções para pesquisa de Hospitais (Por Município ou Raio GPS)
-  const handleOpenHospitalSearchModal = () => {
-    setIsHospitalSearchModalOpen(true);
-  };
+
 
   // Executa busca de Hospitais filtrando por Município
   const handleExecuteHospitalSearchByMunicipio = async (municipio: string) => {
     try {
       setIsHospitalSearching(true);
-      setIsHospitalSearchModalOpen(false);
 
       const isTodos = !municipio || municipio === 'Todos';
       const munLabel = isTodos ? 'em todo o Estado' : `em ${municipio}`;
@@ -772,7 +766,6 @@ export default function App() {
   const handleExecuteHospitalSearchByRadius = (raioMetros: number) => {
     try {
       setIsHospitalSearching(true);
-      setIsHospitalSearchModalOpen(false);
 
       if (!('geolocation' in navigator)) {
         showToast('Geolocalização não é suportada por este dispositivo.');
@@ -2551,7 +2544,10 @@ export default function App() {
             }}
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
-            onSearchHospitais={handleOpenHospitalSearchModal}
+            onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
+            onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
+            cnefeMunicipios={cnefeMunicipios}
+            isHospitalSearching={isHospitalSearching}
             onOpenCnefeBottomBar={() => {
               setIsCnefeBottomBarOpen(true);
               setIsCnefeBottomBarExpanded(true);
@@ -2945,16 +2941,6 @@ export default function App() {
           />
         </Suspense>
       )}
-
-      {/* MODAL DE BUSCA INTERATIVA DE HOSPITAIS (Por Município ou Raio GPS) */}
-      <HospitalSearchModal
-        isOpen={isHospitalSearchModalOpen}
-        onClose={() => setIsHospitalSearchModalOpen(false)}
-        onSearchByMunicipio={handleExecuteHospitalSearchByMunicipio}
-        onSearchByRadius={handleExecuteHospitalSearchByRadius}
-        availableMunicipios={cnefeMunicipios}
-        isLoading={isHospitalSearching}
-      />
 
       {/* NOTIFICAÇÃO TOAST TEMPORÁRIA (SEMPRE NO TOPO DE QUALQUER MODAL / PAINEL) */}
       <AnimatePresence>
