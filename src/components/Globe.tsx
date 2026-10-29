@@ -102,6 +102,10 @@ function parseColorToRgba(input: string): Rgba {
     return { r: 0, g: 0, b: 0, a: 1 };
 }
 
+function rgbaToColor(rgba: Rgba): Color {
+    return new Color(rgba.r, rgba.g, rgba.b);
+}
+
 function mapLinear(
     value: number,
     inMin: number,
@@ -313,7 +317,7 @@ export default function Globe({
 
         const oceanGeometry = new SphereGeometry(globeRadius, 64, 64);
         const oceanColorObj = resolvedOceanColor && resolvedOceanColor !== "transparent"
-            ? new Color(resolvedOceanColor)
+            ? rgbaToColor(oceanRgba)
             : new Color(0, 0, 0);
         const oceanMaterial = new MeshBasicMaterial({
             color: oceanColorObj,
@@ -346,7 +350,7 @@ export default function Globe({
             }
             if (outlinePoints.length >= 2) {
                 outlinePoints.push(outlinePoints[0].clone());
-                const outlineColorObj = new Color(resolvedOutlineColor);
+                const outlineColorObj = rgbaToColor(outlineRgba);
                 const outlineMaterial = new MeshBasicMaterial({
                     color: outlineColorObj,
                     transparent: outlineRgba.a < 1,
@@ -370,9 +374,7 @@ export default function Globe({
 
         const graticuleGroup = new Group();
         if (showGrid && resolvedGraticuleColor && graticuleRgba.a > 0) {
-            const graticuleColorObj = resolvedGraticuleColor
-                ? new Color(resolvedGraticuleColor)
-                : new Color(1, 1, 1);
+            const graticuleColorObj = rgbaToColor(graticuleRgba);
             const graticuleMaterial = new MeshBasicMaterial({
                 color: graticuleColorObj,
                 transparent: graticuleRgba.a < 1 || graticuleRgba.a === 0,
@@ -479,7 +481,7 @@ export default function Globe({
                     );
                 }
                 if (showOutline && outlineColor && outlineRgba.a > 0) {
-                    const outlineColorObj = new Color(resolvedOutlineColor);
+                    const outlineColorObj = rgbaToColor(outlineRgba);
                     const outlineMaterial = new MeshBasicMaterial({
                         color: outlineColorObj,
                         transparent: outlineRgba.a < 1,
@@ -694,9 +696,7 @@ export default function Globe({
                             4,
                             4
                         );
-                        const dotColorObj = resolvedDotColor
-                            ? new Color(resolvedDotColor)
-                            : new Color(0.6, 0.6, 0.6);
+                        const dotColorObj = rgbaToColor(dotRgba);
                         const dotMaterial = new MeshBasicMaterial({
                             color: dotColorObj,
                             transparent: dotRgba.a < 1 || dotRgba.a === 0,
@@ -742,11 +742,11 @@ export default function Globe({
             if (markerConfig.markers && markerConfig.markers.length > 0) {
                 const markerSize = 0.01 * markerRadiusMultiplier;
                 const markerGeometry = new SphereGeometry(markerSize, 16, 16);
-                const markerColorObj = resolvedMarkerColor
-                    ? new Color(resolvedMarkerColor)
-                    : new Color(1, 1, 1);
+                const markerColorObj = rgbaToColor(markerRgba);
                 const markerMaterial = new MeshBasicMaterial({
                     color: markerColorObj,
+                    transparent: markerRgba.a < 1,
+                    opacity: markerRgba.a,
                 });
                 markerConfig.markers.forEach((marker) => {
                     if (
