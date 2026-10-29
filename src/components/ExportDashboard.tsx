@@ -1,5 +1,15 @@
 import React, { useCallback } from 'react';
-import { Download, FileSpreadsheet, Globe, FileCode, CheckCircle2, Info } from 'lucide-react';
+import { 
+  Download, 
+  FileSpreadsheet, 
+  Globe, 
+  FileCode, 
+  CheckCircle2, 
+  Info, 
+  ChevronLeft,
+  Sparkles,
+  ArrowRight
+} from 'lucide-react';
 import { SelectedFeature } from '../types';
 import { 
   getIdentifier, 
@@ -12,20 +22,20 @@ import { logActivity } from '../services/adminService';
 interface ExportDashboardProps {
   selectedFeatures: SelectedFeature[];
   showToast: (msg: string) => void;
+  onBackToDetails?: () => void;
+  onClose?: () => void;
 }
 
 export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   selectedFeatures,
-  showToast
+  showToast,
+  onBackToDetails,
 }) => {
-  if (!selectedFeatures || selectedFeatures.length === 0) {
-    return null;
-  }
-
-  const count = selectedFeatures.length;
+  const count = selectedFeatures?.length || 0;
 
   const handleExportCSV = useCallback(() => {
-    const id = count > 0 ? getIdentifier(selectedFeatures[0].properties) : 'selecao';
+    if (count === 0) return;
+    const id = getIdentifier(selectedFeatures[0].properties) || 'selecao';
     const rawFeatures = selectedFeatures.map(f => f.layer);
     exportSelectionToCSV(`selecao_${sanitizeFilename(String(id))}.csv`, rawFeatures);
     logActivity('EXPORTACAO', `Exportou ${count} feição(ões) para planilha Excel (CSV)`, 'user', `Identificador: ${id}`);
@@ -33,7 +43,8 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   }, [selectedFeatures, count, showToast]);
 
   const handleExportKML = useCallback(() => {
-    const id = count > 0 ? getIdentifier(selectedFeatures[0].properties) : 'selecao';
+    if (count === 0) return;
+    const id = getIdentifier(selectedFeatures[0].properties) || 'selecao';
     const rawFeatures = selectedFeatures.map(f => f.layer);
     exportSelectionToKML(`selecao_${sanitizeFilename(String(id))}.kml`, rawFeatures);
     logActivity('EXPORTACAO', `Exportou ${count} feição(ões) para arquivo Google Earth (KML)`, 'user', `Identificador: ${id}`);
@@ -41,7 +52,8 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   }, [selectedFeatures, count, showToast]);
 
   const handleExportGeoJSON = useCallback(() => {
-    const id = count > 0 ? getIdentifier(selectedFeatures[0].properties) : 'selecao';
+    if (count === 0) return;
+    const id = getIdentifier(selectedFeatures[0].properties) || 'selecao';
     const featureCollection = {
       type: "FeatureCollection",
       features: selectedFeatures.map(f => {
@@ -68,66 +80,116 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     showToast('Exportando arquivo GeoJSON vetorial...');
   }, [selectedFeatures, count, showToast]);
 
+  // Se nenhuma feição foi selecionada
+  if (count === 0) {
+    return (
+      <div className="space-y-4 py-8 text-center animate-fadeIn px-2">
+        <div className="w-14 h-14 rounded-3xl bg-[#AF52DE]/10 text-[#AF52DE] flex items-center justify-center mx-auto mb-3 shadow-inner">
+          <Download className="w-7 h-7" />
+        </div>
+        <h3 className="text-base font-black text-slate-900 dark:text-white">
+          Nenhuma feição selecionada
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+          Selecione qualquer elemento no mapa (bairros, municípios, setores ou localidades) para exportar seus dados analíticos.
+        </p>
+      </div>
+    );
+  }
+
   // Obter nomes únicos das camadas das feições selecionadas
-  const layerNames = Array.from(new Set(selectedFeatures.map(f => f.sourceName)));
+  const layerNames = Array.from(new Set(selectedFeatures.map(f => f.sourceName).filter(Boolean)));
+  const primaryFeatureName = selectedFeatures[0]?.name || selectedFeatures[0]?.properties?.Nome || selectedFeatures[0]?.properties?.NM_MUN || 'Feição Selecionada';
 
   return (
-    <section 
-      id="export-dashboard-container" 
-      aria-label="Central de Exportação de Dados"
-      className="w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 transition-all"
-    >
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-        <div>
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400">
+    <div className="space-y-3.5 pb-6 animate-fadeIn">
+      {/* Botão de retorno rápido para Detalhes se tiver origem na feição */}
+      {onBackToDetails && (
+        <button
+          type="button"
+          onClick={onBackToDetails}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#007AFF] hover:underline cursor-pointer group mb-0.5"
+        >
+          <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+          <span>Voltar aos detalhes</span>
+        </button>
+      )}
+
+      {/* Card Resumo Apple Glass */}
+      <div className="p-4 rounded-3xl bg-gradient-to-br from-[#AF52DE]/15 via-[#007AFF]/5 to-transparent border border-[#AF52DE]/20 shadow-xs space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#AF52DE] to-[#BF5AF2] text-white flex items-center justify-center shadow-md shadow-purple-500/25 shrink-0">
               <Download className="w-5 h-5" />
-            </span>
-            <span>Central de Exportação de Dados</span>
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Exporte as feições territoriais selecionadas em múltiplos formatos geoespaciais e tabulares.
-          </p>
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-black text-sm text-slate-900 dark:text-white truncate">
+                Central de Exportação
+              </h3>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                {primaryFeatureName}
+              </p>
+            </div>
+          </div>
+
+          <span className="bg-[#AF52DE]/15 text-[#AF52DE] dark:text-[#D17BFF] border border-[#AF52DE]/25 font-black px-2.5 py-1 rounded-full text-[11px] shrink-0 flex items-center gap-1 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{count} {count === 1 ? 'item' : 'itens'}</span>
+          </span>
         </div>
 
-        {/* Badges de Feições e Camadas */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300 text-xs font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
-            <CheckCircle2 className="w-3.5 h-3.5 text-red-600" />
-            {count} {count === 1 ? 'Feição Pronta' : 'Feições Prontas'}
-          </span>
-          {layerNames.map(layer => (
-            <span key={layer} className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 truncate max-w-[180px]">
-              {layer}
+        {layerNames.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-black/5 dark:border-white/10">
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Camadas:
             </span>
-          ))}
-        </div>
+            {layerNames.map(layer => (
+              <span 
+                key={layer} 
+                className="bg-white/80 dark:bg-white/10 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-black/5 dark:border-white/10 truncate max-w-[160px]"
+                title={layer}
+              >
+                {layer}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Grade de Botões de Exportação */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 my-4">
+      {/* Título da Seção */}
+      <div className="px-1 pt-1">
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          Escolha o formato de download
+        </span>
+      </div>
+
+      {/* Grade Vertical de Formatos de Exportação */}
+      <div className="space-y-2.5">
         {/* Opção 1: Planilha Excel CSV */}
         <button
           type="button"
           onClick={handleExportCSV}
-          className="p-4 bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl transition-all text-left flex flex-col justify-between group cursor-pointer shadow-xs hover:shadow-md"
+          className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-emerald-500/[0.08] dark:hover:bg-emerald-500/[0.12] border border-black/5 dark:border-white/10 hover:border-emerald-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black group-hover:scale-105 transition-transform">
-              <FileSpreadsheet className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-extrabold bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Excel / CSV
-            </span>
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-green-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
+            <FileSpreadsheet className="w-5 h-5" />
           </div>
-          <div>
-            <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-              Planilha Excel (CSV)
-            </h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              Tabela formatada com UTF-8 BOM para abrir sem erros de acentuação no Excel ou LibreOffice.
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                Planilha Excel (CSV)
+              </h4>
+              <span className="text-[9px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                .CSV
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
+              Tabela formatada com UTF-8 BOM para abrir sem erros de acentuação no Excel, LibreOffice e Sheets.
             </p>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 pt-1.5 opacity-90 group-hover:opacity-100">
+              <span>Baixar arquivo CSV</span>
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+            </div>
           </div>
         </button>
 
@@ -135,23 +197,27 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
         <button
           type="button"
           onClick={handleExportKML}
-          className="p-4 bg-red-50/70 hover:bg-red-100/80 dark:bg-red-950/30 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-800/60 rounded-2xl transition-all text-left flex flex-col justify-between group cursor-pointer shadow-xs hover:shadow-md"
+          className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-orange-500/[0.08] dark:hover:bg-orange-500/[0.12] border border-black/5 dark:border-white/10 hover:border-orange-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center font-black group-hover:scale-105 transition-transform">
-              <Globe className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-extrabold bg-red-200/70 dark:bg-red-900 text-red-800 dark:text-red-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Google Earth
-            </span>
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-red-500 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0 group-hover:scale-105 transition-transform">
+            <Globe className="w-5 h-5" />
           </div>
-          <div>
-            <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 group-hover:text-red-700 dark:group-hover:text-red-400 transition-colors">
-              Google Earth (KML)
-            </h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              Geometrias completas dos polígonos e pontos para visualização 3D no Google Earth e QGIS.
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-orange-700 dark:group-hover:text-orange-400 transition-colors">
+                Google Earth (KML)
+              </h4>
+              <span className="text-[9px] font-black bg-orange-500/15 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                .KML
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
+              Geometrias completas dos polígonos e pontos com visualização tridimensional no Google Earth e QGIS.
             </p>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 pt-1.5 opacity-90 group-hover:opacity-100">
+              <span>Baixar arquivo KML</span>
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+            </div>
           </div>
         </button>
 
@@ -159,34 +225,38 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
         <button
           type="button"
           onClick={handleExportGeoJSON}
-          className="p-4 bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 rounded-2xl transition-all text-left flex flex-col justify-between group cursor-pointer shadow-xs hover:shadow-md"
+          className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-blue-500/[0.08] dark:hover:bg-blue-500/[0.12] border border-black/5 dark:border-white/10 hover:border-blue-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black group-hover:scale-105 transition-transform">
-              <FileCode className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-extrabold bg-blue-200/70 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              GIS Vetorial
-            </span>
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
+            <FileCode className="w-5 h-5" />
           </div>
-          <div>
-            <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
-              GeoJSON Vetorial
-            </h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              Formato aberto padrão web com estrutura vetorial para importação direta em softwares SIG.
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
+                GeoJSON Vetorial
+              </h4>
+              <span className="text-[9px] font-black bg-blue-500/15 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                .GEOJSON
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
+              Formato aberto padrão web com estrutura vetorial pura para ArcGIS, QGIS, Leaflet e Mapbox.
             </p>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 pt-1.5 opacity-90 group-hover:opacity-100">
+              <span>Baixar arquivo GeoJSON</span>
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+            </div>
           </div>
         </button>
       </div>
 
-      {/* Nota Informativa */}
-      <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl p-3 text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2.5">
-        <Info className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-        <div className="leading-relaxed text-[11px]">
-          Os arquivos gerados contêm todas as propriedades analíticas das feições ativas no momento da seleção.
-        </div>
+      {/* Nota Informativa Apple Glass */}
+      <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 flex items-start gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+        <Info className="w-4 h-4 text-[#AF52DE] shrink-0 mt-0.5" />
+        <span>
+          Os arquivos exportados contêm todas as coordenadas geométricas e colunas analíticas autorizadas para o seu nível de acesso.
+        </span>
       </div>
-    </section>
+    </div>
   );
 };

@@ -32,7 +32,6 @@ import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade } from './duck
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const AdminPanelModal = lazy(() => import('./components/AdminPanelModal').then(m => ({ default: m.AdminPanelModal })));
-const ExportDashboard = lazy(() => import('./components/ExportDashboard').then(m => ({ default: m.ExportDashboard })));
 const UserProfileModal = lazy(() => import('./components/UserProfileModal').then(m => ({ default: m.UserProfileModal })));
 import { 
   UserRole, 
@@ -358,7 +357,6 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
-  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
   const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
   const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
@@ -2428,7 +2426,7 @@ export default function App() {
             onExitSimulation={handleExitSimulation}
             onOpenSimulationChoice={() => setIsSimulationChoiceModalOpen(true)}
             onOpenFullTableModal={() => setIsFullTableModalOpen(true)}
-            onOpenExportModal={() => setIsExportModalOpen(true)}
+            onOpenExportModal={() => setSidebarTab('export')}
           />
         )}
         
@@ -2565,36 +2563,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE EXPORTAÇÃO */}
-      {isExportModalOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <div className="flex items-center gap-2.5">
-                <Download className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                  Exportar Feições ({selectedFeatures.length} itens)
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsExportModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-200 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <Suspense fallback={<div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-500" /></div>}>
-                <ExportDashboard
-                  selectedFeatures={selectedFeatures}
-                  showToast={showToast}
-                />
-              </Suspense>
-            </div>
-          </div>
-        </div>
-      )}
+{/* Modal de exportação agora está integrado diretamente na barra lateral */}
 
       {/* MODAL DO PAINEL DO ADMINISTRADOR / GERENTE (Carregado apenas quando acionado) */}
       {isAdminModalOpen && (

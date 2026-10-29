@@ -53,9 +53,10 @@ import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../type
 import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
+import { ExportDashboard } from './ExportDashboard';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 
-export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | null;
+export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
 
 interface AppleSidebarProps {
   isCollapsed: boolean;
@@ -712,6 +713,36 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
             </div>
           )}
+
+          {/* 4. Exportar (Apenas quando feição selecionada) */}
+          {hasFeature && (
+            <div className="relative group w-full flex items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenedFromSearch(false);
+                  setActiveTab(activeTab === 'export' ? null : 'export');
+                }}
+                className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                  isCollapsed 
+                    ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                    : 'px-3 py-2.5 text-sm'
+                } ${
+                  activeTab === 'export'
+                    ? 'bg-[#AF52DE] text-white shadow-lg shadow-purple-500/25'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                }`}
+                title={isCollapsed ? "Exportar Feições" : undefined}
+              >
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                  activeTab === 'export' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-purple-500/10 text-[#AF52DE]'
+                }`}>
+                  <Download className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+                </div>
+                {!isCollapsed && <span className="truncate">Exportar</span>}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Rodapé do Estágio 1 */}
@@ -816,6 +847,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               {activeTab === 'search' && 'Buscar'}
               {activeTab === 'dashboard' && 'Raio-X Territorial e Domiciliar'}
               {activeTab === 'details' && 'Detalhes da Feição'}
+              {activeTab === 'export' && (
+                <>
+                  <Download className="w-5 h-5 text-[#AF52DE]" />
+                  <span>Exportar Feições</span>
+                </>
+              )}
               {activeTab === 'help' && (
                 <>
                   <HelpCircle className="w-5 h-5 text-[#007AFF]" />
@@ -922,7 +959,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   {/* Botão Exportar */}
                   <button
                     type="button"
-                    onClick={onOpenExportModal}
+                    onClick={() => setActiveTab('export')}
                     className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
                   >
                     <Download className="w-4 h-4 text-[#AF52DE]" />
@@ -970,7 +1007,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 {/* Botão Exportar */}
                 <button
                   type="button"
-                  onClick={onOpenExportModal}
+                  onClick={() => setActiveTab('export')}
                   className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
                 >
                   <Download className="w-5 h-5 text-[#AF52DE]" />
@@ -1339,6 +1376,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* ABA: EXPORTAR FEIÇÕES (DOCKADO DIRETAMENTE NA BARRA LATERAL)    */}
+        {/* ============================================================== */}
+        {activeTab === 'export' && (
+          <ExportDashboard
+            selectedFeatures={selectedFeatures}
+            showToast={showToast}
+            onBackToDetails={hasFeature ? () => setActiveTab('details') : undefined}
+          />
         )}
 
         {/* ============================================================== */}
