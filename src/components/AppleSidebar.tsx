@@ -1007,17 +1007,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     </span>
                   </div>
 
-                  {localidadeMetadata?.id && (
-                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">ID da Localidade</span>
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                        #{localidadeMetadata.id}
-                      </span>
-                    </div>
-                  )}
-
                   {localidadeMetadata?.aglomerado && (
-                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 col-span-2">
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Aglomerado</span>
                       <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block" title={localidadeMetadata.aglomerado}>
                         {localidadeMetadata.aglomerado}
@@ -1128,11 +1119,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               </div>
             )}
 
-            {/* Detalhes e Atributos da Feição */}
-            <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Detalhes & Propriedades
-              </h3>
+            {/* Detalhes e Atributos da Feição (ocultado para Localidades, pois repete os dados já exibidos acima) */}
+            {!isLocalidade && (
+              <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Detalhes & Propriedades
+                </h3>
 
               {detailProperties.length > 0 ? (
                 <div className="divide-y divide-black/5 dark:divide-white/10 text-xs">
@@ -1161,6 +1153,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 </p>
               )}
             </div>
+            )}
           </div>
         )}
 
