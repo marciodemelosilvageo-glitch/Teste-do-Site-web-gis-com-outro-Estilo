@@ -30,6 +30,7 @@ export interface ExternalPolygonSearchResult {
   title: string;
   sourceLayerName?: string;
   timestamp: number;
+  searchTerm?: string;
 }
 
 interface IbgeSearchPanelProps {
@@ -314,7 +315,10 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setTotalEncontrado(externalPolygonResult.totalEncontrado);
       setHasSearched(true);
       setIsPlotted(false);
-      setTextoBusca('');
+      setTextoBusca(externalPolygonResult.searchTerm || '');
+      if (externalPolygonResult.searchTerm) {
+        setModoAvancado(true);
+      }
       setColumnFilters({});
       setActiveSearchCol(null);
       setSortConfig(null);

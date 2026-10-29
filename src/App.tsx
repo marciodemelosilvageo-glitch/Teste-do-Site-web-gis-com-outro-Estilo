@@ -28,7 +28,7 @@ import Globe from './components/Globe';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
-import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade } from './duckdb';
+import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie } from './duckdb';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const AdminPanelModal = lazy(() => import('./components/AdminPanelModal').then(m => ({ default: m.AdminPanelModal })));
@@ -689,6 +689,53 @@ export default function App() {
     } catch (err) {
       console.error('Erro ao buscar endereços da localidade no CNEFE:', err);
       showToast('Erro ao consultar endereços da localidade no CNEFE.');
+    }
+  };
+
+  // Busca direta e otimizada de Hospitais e Estabelecimentos de Saúde no CNEFE
+  const handleSearchHospitais = async () => {
+    try {
+      showToast('🏥 Buscando estabelecimentos de saúde (hospitais, clínicas e UBS) no CNEFE...');
+
+      const res = await buscarEnderecosPorEspecie('Estabelecimento de saúde', undefined, 3000);
+
+      if (!res.results || res.results.length === 0) {
+        showToast('Nenhum estabelecimento de saúde localizado no CNEFE.');
+        return;
+      }
+
+      setCnefeExternalResult({
+        results: res.results,
+        totalEncontrado: res.totalEncontrado,
+        title: 'Hospitais e Estabelecimentos de Saúde (CNEFE)',
+        sourceLayerName: 'Estabelecimentos de Saúde',
+        timestamp: Date.now(),
+        searchTerm: 'Estabelecimento de saúde'
+      });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
+
+      // Plotar no mapa os primeiros resultados para visualização imediata
+      handlePlotAllAddresses(res.results.slice(0, 500));
+
+      logActivity(
+        'ENDERECO',
+        'Busca CNEFE: Estabelecimentos de Saúde (Hospitais)',
+        userRole,
+        `${res.totalEncontrado} estabelecimentos encontrados no CNEFE`
+      );
+
+      showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde e hospitais encontrados no CNEFE!`);
+
+      setTimeout(() => {
+        const el = document.getElementById('ibge-search-panel');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } catch (err) {
+      console.error('Erro ao buscar hospitais no CNEFE:', err);
+      showToast('Erro ao consultar estabelecimentos de saúde no CNEFE.');
     }
   };
 
@@ -2388,6 +2435,7 @@ export default function App() {
             }}
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
+            onSearchHospitais={handleSearchHospitais}
             onOpenCnefeBottomBar={() => {
               setIsCnefeBottomBarOpen(true);
               setIsCnefeBottomBarExpanded(true);

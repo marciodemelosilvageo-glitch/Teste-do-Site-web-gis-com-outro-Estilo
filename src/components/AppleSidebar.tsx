@@ -92,6 +92,7 @@ interface AppleSidebarProps {
   onToggleMultiSelect: () => void;
   onSearchPolygonAddresses: (feat: SelectedFeature) => void;
   onSearchLocalidadeAddresses?: (localidade: string, municipio: string) => void;
+  onSearchHospitais?: () => void;
   
   // Camadas
   activeLayers: string[];
@@ -172,6 +173,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onToggleMultiSelect,
   onSearchPolygonAddresses,
   onSearchLocalidadeAddresses,
+  onSearchHospitais,
   activeLayers,
   setActiveLayers,
   allowedLayerNames,
@@ -1266,17 +1268,32 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         key={cat.id}
                         type="button"
                         onClick={() => {
-                          setSearchQuery(cat.query);
-                          onSearch(cat.query);
+                          if (cat.id === 'hospitais') {
+                            if (onSearchHospitais) {
+                              onSearchHospitais();
+                            } else {
+                              onOpenCnefeBottomBar?.();
+                            }
+                          } else {
+                            setSearchQuery(cat.query);
+                            onSearch(cat.query);
+                          }
                         }}
-                        className="w-full px-3.5 py-2.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-3.5 text-left border border-black/5 dark:border-white/5"
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-between text-left border border-black/5 dark:border-white/5 group"
                       >
-                        <div className={`w-8 h-8 rounded-full ${cat.color} text-white flex items-center justify-center shrink-0 shadow-sm`}>
-                          <Icon className="w-4 h-4" />
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-full ${cat.color} text-white flex items-center justify-center shrink-0 shadow-sm`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                            {cat.name}
+                          </span>
                         </div>
-                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                          {cat.name}
-                        </span>
+                        {cat.id === 'hospitais' && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 shrink-0">
+                            CNEFE Saúde
+                          </span>
+                        )}
                       </button>
                     );
                   })}

@@ -501,3 +501,66 @@ export async function buscarEnderecosPorLocalidade(
   }
 }
 
+/**
+ * Busca direta e otimizada de endereços no CNEFE filtrando especificamente
+ * pela coluna "especie" (Espécie de endereço), como "Estabelecimento de saúde" (Hospitais, etc).
+ */
+export async function buscarEnderecosPorEspecie(
+  especieTerm: string = 'Estabelecimento de saúde',
+  municipio?: string,
+  limit: number = 3000
+): Promise<{ results: any[]; totalEncontrado: number }> {
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    const cleanMun = (municipio || '').trim();
+    const cleanEspecie = (especieTerm || '').trim();
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 3000));
+
+    const whereClauses: string[] = [];
+
+    if (cleanMun && cleanMun !== 'Todos') {
+      const escMun = escapeSqlLiteral(normalizeString(cleanMun));
+      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+    }
+
+    if (cleanEspecie) {
+      const escEspecie = escapeSqlLikePattern(normalizeString(cleanEspecie));
+      // Filtra na coluna "especie" (Espécie de endereço) por "Estabelecimento de saúde",
+      // com suporte a termos relacionados a saúde/hospital
+      whereClauses.push(`(
+        strip_accents(lower(COALESCE(CAST("especie" AS VARCHAR), ''))) LIKE '%${escEspecie}%'
+        OR strip_accents(lower(COALESCE(CAST("especie" AS VARCHAR), ''))) LIKE '%saude%'
+        OR strip_accents(lower(COALESCE(CAST("estabelecimento" AS VARCHAR), ''))) LIKE '%hospital%'
+      )`);
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT * FROM (
+        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
+        FROM enderecos
+        ${whereSql}
+      )
+      ORDER BY "municipio" ASC, "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC
+      LIMIT ${safeLimit};
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    const rawResults = rows.map(r => r.toJSON());
+    const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+
+    return { results: rawResults, totalEncontrado };
+  } catch (e) {
+    console.error("Erro na busca de endereços por espécie no DuckDB:", e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
