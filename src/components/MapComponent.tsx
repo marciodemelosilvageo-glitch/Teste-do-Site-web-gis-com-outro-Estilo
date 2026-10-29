@@ -420,6 +420,7 @@ interface MapComponentProps {
   isBottomBarOpen?: boolean;
   isBottomBarExpanded?: boolean;
   isBottomBarMaximized?: boolean;
+  isStage2Open?: boolean;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -449,7 +450,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   onLoadFavoriteLayers,
   isBottomBarOpen = true,
   isBottomBarExpanded = false,
-  isBottomBarMaximized = false
+  isBottomBarMaximized = false,
+  isStage2Open = false
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -776,7 +778,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   // Abrir Balão Callout Lateral com Linha Conectora a partir da BORDA do Polígono até o CANTO do Popup
-  const openPolygonCallout = useCallback((layer: L.Layer, htmlContent: string, clickLatLng?: L.LatLng, fitPolygon: boolean = true) => {
+  const openPolygonCallout = useCallback((layer: L.Layer, htmlContent: string, clickLatLng?: L.LatLng, fitPolygon: boolean = false) => {
     if (!mapRef.current) return;
     const map = mapRef.current;
 
@@ -2252,7 +2254,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         ].includes(sourceName);
 
         if (isArea && (layer as any)._popupContentHtml) {
-          openPolygonCallout(layer, (layer as any)._popupContentHtml, undefined, true);
+          openPolygonCallout(layer, (layer as any)._popupContentHtml, undefined, false);
         }
 
         onSelectionChange([{
@@ -2513,7 +2515,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
               // Para feições poligonais, enquadra o polígono e abre o Balão Callout Lateral com linha conectora a partir da borda
               if (isPolygon || isAreaLayer) {
-                openPolygonCallout(layer, popupContentHtml, ev.latlng, true);
+                openPolygonCallout(layer, popupContentHtml, ev.latlng, false);
               }
 
               const isCtrl = ev.originalEvent ? (ev.originalEvent.ctrlKey || ev.originalEvent.metaKey) : false;
@@ -3061,7 +3063,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {/* BARRA FLUTUANTE DE MEDIÇÃO ATIVA NO MAPA (APPLE MAPS GLASS PILL) */}
         {!isPrintMode && activeMeasureInfo && (
           <div 
-            className="absolute top-16 left-3 sm:left-4 z-[999] bg-white/85 dark:bg-[#1c1c1e]/85 backdrop-blur-2xl px-3.5 py-2.5 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] border border-black/5 dark:border-white/10 flex flex-wrap items-center gap-3 animate-fadeIn text-xs max-w-[95vw] sm:max-w-md"
+            className="absolute top-16 z-[999] bg-white/85 dark:bg-[#1c1c1e]/85 backdrop-blur-2xl px-3.5 py-2.5 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] border border-black/5 dark:border-white/10 flex flex-wrap items-center gap-3 animate-fadeIn text-xs max-w-[95vw] sm:max-w-md transition-all duration-300 ease-out"
+            style={{ left: isStage2Open ? 'calc(390px + 16px)' : '16px' }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3167,8 +3170,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
         {!isPrintMode ? (
           <div 
-            className="absolute left-3 z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
+            className="absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
             style={{
+              left: isStage2Open ? 'calc(390px + 14px)' : '14px',
               bottom: !isBottomBarOpen 
                 ? '16px' 
                 : isBottomBarExpanded 

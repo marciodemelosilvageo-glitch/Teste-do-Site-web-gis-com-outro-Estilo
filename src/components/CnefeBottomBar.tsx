@@ -31,6 +31,7 @@ export interface CnefeBottomBarProps {
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
   hasPlottedMarkers?: boolean;
+  isStage2Open?: boolean;
 }
 
 export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
@@ -46,6 +47,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
   externalPolygonResult,
   allowedColumns,
   hasPlottedMarkers = false,
+  isStage2Open = false,
 }) => {
   if (isOpen === false) return null;
 
@@ -169,13 +171,15 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
               height: customHeight ? `${customHeight}px` : (isMaximized ? '82vh' : '46vh'),
               maxHeight: '92vh',
               minHeight: '180px',
+              left: isStage2Open && typeof window !== 'undefined' && window.innerWidth >= 768 ? '390px' : '0px'
             }
           : {
               height: '46px',
+              left: isStage2Open && typeof window !== 'undefined' && window.innerWidth >= 768 ? '390px' : '0px'
             }
       }
       className={`absolute bottom-0 left-0 right-0 z-[1100] pointer-events-auto flex flex-col bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] rounded-t-2xl sm:rounded-t-3xl overflow-hidden ${
-        isDragging ? 'transition-none select-none' : 'transition-[height] duration-300 ease-out'
+        isDragging ? 'transition-none select-none' : 'transition-[height,left] duration-300 ease-out'
       }`}
     >
       {/* ============================================================== */}

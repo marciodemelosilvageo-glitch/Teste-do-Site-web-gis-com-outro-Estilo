@@ -2397,6 +2397,7 @@ export default function App() {
         <div className="flex-1 w-full h-full relative overflow-hidden">
           <MapComponent 
             isPrintMode={isPrintMode}
+            isStage2Open={!!sidebarTab}
             isMultiSelectMode={isMultiSelectMode}
             onToggleMultiSelect={() => {
               setIsMultiSelectMode(!isMultiSelectMode);
@@ -2464,6 +2465,7 @@ export default function App() {
           {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
           <CnefeBottomBar
             isOpen={isCnefeBottomBarOpen}
+            isStage2Open={!!sidebarTab}
             isExpanded={isCnefeBottomBarExpanded}
             onOpen={() => setIsCnefeBottomBarOpen(true)}
             onClose={() => setIsCnefeBottomBarOpen(false)}

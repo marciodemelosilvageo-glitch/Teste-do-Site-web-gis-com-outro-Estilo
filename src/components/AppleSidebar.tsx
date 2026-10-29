@@ -556,7 +556,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   return (
     <aside 
       aria-label="Barra de Ferramentas Estilo Apple Maps"
-      className="relative z-30 h-full flex shrink-0 select-none font-sans"
+      className="relative z-[1050] h-full flex shrink-0 select-none font-sans"
     >
       {/* ============================================================== */}
       {/* ESTÁGIO 1: BARRA / RAIL DE NAVEGAÇÃO LATERAL (APPLE SIDEBAR)   */}
@@ -822,7 +822,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       {/* ============================================================== */}
       {activeTab && (activeTab !== 'details' || activeDetailFeature) && (
         <div
-          className="h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden shrink-0 animate-fadeIn"
+          className="absolute left-full top-0 bottom-0 h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden z-40 animate-fadeIn"
         >
           {/* Cabeçalho do Segundo Estágio (Título + Botão X redondo de fechar) */}
           <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
