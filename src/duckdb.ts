@@ -1,7 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
-import { normalizeString, parseAddressForSort } from './utils';
+import { normalizeString, parseAddressForSort, haversineDistanceMeters, formatDistance } from './utils';
 
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
@@ -565,6 +565,97 @@ export async function buscarEnderecosPorEspecie(
     return { results: rawResults, totalEncontrado };
   } catch (e) {
     console.error("Erro na busca de endereços por espécie no DuckDB:", e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
+
+/**
+ * Busca endereços (como Hospitais / Estabelecimentos de Saúde) em um raio geométrico
+ * a partir de uma coordenada central (latitude, longitude) em metros.
+ */
+export async function buscarEnderecosPorRaio(
+  centerLat: number,
+  centerLng: number,
+  raioMetros: number,
+  especieTerm: string = 'Estabelecimento de saúde',
+  limit: number = 3000
+): Promise<{ results: any[]; totalEncontrado: number }> {
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    const safeRaio = Math.max(50, Math.min(200000, Number(raioMetros) || 1000));
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 3000));
+    const cleanEspecie = (especieTerm || '').trim();
+
+    // Bounding Box para aceleração de consulta no DuckDB (graus aprox.)
+    const deltaLat = (safeRaio / 111000) * 1.2;
+    const cosLat = Math.max(0.1, Math.cos((centerLat * Math.PI) / 180));
+    const deltaLng = (safeRaio / (111000 * cosLat)) * 1.2;
+
+    const minLat = centerLat - deltaLat;
+    const maxLat = centerLat + deltaLat;
+    const minLng = centerLng - deltaLng;
+    const maxLng = centerLng + deltaLng;
+
+    const whereClauses: string[] = [
+      `TRY_CAST("latitude" AS DOUBLE) BETWEEN ${minLat} AND ${maxLat}`,
+      `TRY_CAST("longitude" AS DOUBLE) BETWEEN ${minLng} AND ${maxLng}`
+    ];
+
+    if (cleanEspecie) {
+      const escEspecie = escapeSqlLikePattern(normalizeString(cleanEspecie));
+      whereClauses.push(`(
+        strip_accents(lower(COALESCE(CAST("especie" AS VARCHAR), ''))) LIKE '%${escEspecie}%'
+        OR strip_accents(lower(COALESCE(CAST("especie" AS VARCHAR), ''))) LIKE '%saude%'
+        OR strip_accents(lower(COALESCE(CAST("estabelecimento" AS VARCHAR), ''))) LIKE '%hospital%'
+      )`);
+    }
+
+    const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+
+    const sql = `
+      SELECT *
+      FROM enderecos
+      ${whereSql}
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    const rawResults = rows.map(r => r.toJSON());
+
+    // Filtrar com precisão exata usando Haversine e calcular a distância
+    const filteredWithDistance = rawResults
+      .map(row => {
+        const lat = parseFloat(row.latitude);
+        const lng = parseFloat(row.longitude);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        const dist = haversineDistanceMeters(centerLat, centerLng, lat, lng);
+        if (dist > safeRaio) return null;
+        return {
+          ...row,
+          distancia_metros: Math.round(dist),
+          distancia_texto: formatDistance(dist)
+        };
+      })
+      .filter(Boolean) as any[];
+
+    // Ordenar do mais próximo para o mais distante
+    filteredWithDistance.sort((a, b) => a.distancia_metros - b.distancia_metros);
+
+    const paginated = filteredWithDistance.slice(0, safeLimit);
+
+    return {
+      results: paginated,
+      totalEncontrado: filteredWithDistance.length
+    };
+  } catch (e) {
+    console.error("Erro na busca de endereços por raio no DuckDB:", e);
     throw e;
   } finally {
     if (conn) {

@@ -25,10 +25,11 @@ import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
 import Globe from './components/Globe';
+import { HospitalSearchModal } from './components/HospitalSearchModal';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
-import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie } from './duckdb';
+import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const AdminPanelModal = lazy(() => import('./components/AdminPanelModal').then(m => ({ default: m.AdminPanelModal })));
@@ -357,6 +358,20 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
+  const [isHospitalSearchModalOpen, setIsHospitalSearchModalOpen] = useState(false);
+  const [isHospitalSearching, setIsHospitalSearching] = useState(false);
+  const [cnefeMunicipios, setCnefeMunicipios] = useState<string[]>([]);
+
+  // Carregar lista de municípios do CNEFE para o modal de busca
+  useEffect(() => {
+    listarMunicipios().then(muns => {
+      if (muns && muns.length > 0) {
+        setCnefeMunicipios(muns);
+      }
+    }).catch(err => {
+      console.warn('Não foi possível carregar municípios antecipadamente:', err);
+    });
+  }, []);
   const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
   const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
   const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
@@ -692,50 +707,150 @@ export default function App() {
     }
   };
 
-  // Busca direta e otimizada de Hospitais e Estabelecimentos de Saúde no CNEFE
-  const handleSearchHospitais = async () => {
-    try {
-      showToast('🏥 Buscando estabelecimentos de saúde (hospitais, clínicas e UBS) no CNEFE...');
+  // Abre o modal de opções para pesquisa de Hospitais (Por Município ou Raio GPS)
+  const handleOpenHospitalSearchModal = () => {
+    setIsHospitalSearchModalOpen(true);
+  };
 
-      const res = await buscarEnderecosPorEspecie('Estabelecimento de saúde', undefined, 5000);
+  // Executa busca de Hospitais filtrando por Município
+  const handleExecuteHospitalSearchByMunicipio = async (municipio: string) => {
+    try {
+      setIsHospitalSearching(true);
+      setIsHospitalSearchModalOpen(false);
+
+      const isTodos = !municipio || municipio === 'Todos';
+      const munLabel = isTodos ? 'em todo o Estado' : `em ${municipio}`;
+      showToast(`🏥 Consultando estabelecimentos de saúde ${munLabel} no CNEFE...`);
+
+      const res = await buscarEnderecosPorEspecie(
+        'Estabelecimento de saúde',
+        isTodos ? undefined : municipio,
+        5000
+      );
 
       if (!res.results || res.results.length === 0) {
-        showToast('Nenhum estabelecimento de saúde localizado no CNEFE.');
+        showToast(`Nenhum estabelecimento de saúde localizado ${munLabel}.`);
         return;
       }
+
+      // Não plota no mapa de imediato, conforme solicitado
+      setSearchCoordinates(null);
 
       setCnefeExternalResult({
         results: res.results,
         totalEncontrado: res.totalEncontrado,
-        title: 'Hospitais e Estabelecimentos de Saúde (CNEFE)',
+        title: `Hospitais e Estabelecimentos de Saúde (${isTodos ? 'Piauí' : municipio})`,
         sourceLayerName: 'Estabelecimentos de Saúde',
         timestamp: Date.now(),
         searchTerm: 'Estabelecimento de saúde'
       });
-      // Limpar marcadores anteriores do mapa para não plotar automaticamente
-      setSearchCoordinates(null);
-
       setIsCnefeBottomBarOpen(true);
       setIsCnefeBottomBarExpanded(true);
 
       logActivity(
         'ENDERECO',
-        'Busca CNEFE: Estabelecimentos de Saúde (Hospitais)',
+        `Busca CNEFE: Saúde por Município (${municipio})`,
         userRole,
-        `${res.totalEncontrado} estabelecimentos encontrados no CNEFE`
+        `${res.totalEncontrado} estabelecimentos encontrados`
       );
 
-      showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde carregados na Busca Avançada!`);
+      showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde carregados na Busca Avançada (${isTodos ? 'Piauí' : municipio})!`);
 
       setTimeout(() => {
         const el = document.getElementById('ibge-search-panel');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 150);
     } catch (err) {
-      console.error('Erro ao buscar hospitais no CNEFE:', err);
+      console.error('Erro ao buscar hospitais por município no CNEFE:', err);
       showToast('Erro ao consultar estabelecimentos de saúde no CNEFE.');
+    } finally {
+      setIsHospitalSearching(false);
+    }
+  };
+
+  // Executa busca de Hospitais por Raio GPS ao redor da localização do usuário
+  const handleExecuteHospitalSearchByRadius = (raioMetros: number) => {
+    try {
+      setIsHospitalSearching(true);
+      setIsHospitalSearchModalOpen(false);
+
+      if (!('geolocation' in navigator)) {
+        showToast('Geolocalização não é suportada por este dispositivo.');
+        setIsHospitalSearching(false);
+        return;
+      }
+
+      const raioKm = (raioMetros / 1000).toLocaleString('pt-BR');
+      showToast(`📍 Obtendo localização GPS para buscar em raio de ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`}...`);
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            showToast(`🏥 Buscando hospitais em raio de ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`} no CNEFE...`);
+
+            const res = await buscarEnderecosPorRaio(
+              latitude,
+              longitude,
+              raioMetros,
+              'Estabelecimento de saúde',
+              3000
+            );
+
+            if (!res.results || res.results.length === 0) {
+              showToast(`Nenhum estabelecimento de saúde encontrado a até ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`}.`);
+              return;
+            }
+
+            // Não plota no mapa de imediato, conforme solicitado
+            setSearchCoordinates(null);
+
+            setCnefeExternalResult({
+              results: res.results,
+              totalEncontrado: res.totalEncontrado,
+              title: `Hospitais em raio de ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`} da sua localização`,
+              sourceLayerName: 'Estabelecimentos de Saúde (Raio GPS)',
+              timestamp: Date.now(),
+              searchTerm: 'Estabelecimento de saúde'
+            });
+            setIsCnefeBottomBarOpen(true);
+            setIsCnefeBottomBarExpanded(true);
+
+            logActivity(
+              'ENDERECO',
+              `Busca CNEFE: Saúde por Raio (${raioMetros}m)`,
+              userRole,
+              `${res.totalEncontrado} estabelecimentos encontrados`
+            );
+
+            showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde encontrados a até ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`}!`);
+
+            setTimeout(() => {
+              const el = document.getElementById('ibge-search-panel');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+          } catch (innerErr) {
+            console.error('Erro na pesquisa por raio no CNEFE:', innerErr);
+            showToast('Erro ao consultar estabelecimentos de saúde por raio.');
+          } finally {
+            setIsHospitalSearching(false);
+          }
+        },
+        (geoErr) => {
+          setIsHospitalSearching(false);
+          console.warn('Erro ao obter GPS:', geoErr);
+          if (geoErr.code === 1) {
+            showToast('Permissão de GPS negada. Por favor, permita a localização no seu navegador.');
+          } else {
+            showToast('Não foi possível obter a sua localização GPS atual.');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    } catch (err) {
+      setIsHospitalSearching(false);
+      console.error('Erro ao processar localização para a busca:', err);
+      showToast('Erro ao iniciar localização.');
     }
   };
 
@@ -2436,7 +2551,7 @@ export default function App() {
             }}
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
-            onSearchHospitais={handleSearchHospitais}
+            onSearchHospitais={handleOpenHospitalSearchModal}
             onOpenCnefeBottomBar={() => {
               setIsCnefeBottomBarOpen(true);
               setIsCnefeBottomBarExpanded(true);
@@ -2830,6 +2945,16 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      {/* MODAL DE BUSCA INTERATIVA DE HOSPITAIS (Por Município ou Raio GPS) */}
+      <HospitalSearchModal
+        isOpen={isHospitalSearchModalOpen}
+        onClose={() => setIsHospitalSearchModalOpen(false)}
+        onSearchByMunicipio={handleExecuteHospitalSearchByMunicipio}
+        onSearchByRadius={handleExecuteHospitalSearchByRadius}
+        availableMunicipios={cnefeMunicipios}
+        isLoading={isHospitalSearching}
+      />
 
       {/* NOTIFICAÇÃO TOAST TEMPORÁRIA (SEMPRE NO TOPO DE QUALQUER MODAL / PAINEL) */}
       <AnimatePresence>
