@@ -712,11 +712,11 @@ export default function App() {
         timestamp: Date.now(),
         searchTerm: 'Estabelecimento de saúde'
       });
+      // Limpar marcadores anteriores do mapa para não plotar automaticamente
+      setSearchCoordinates(null);
+
       setIsCnefeBottomBarOpen(true);
       setIsCnefeBottomBarExpanded(true);
-
-      // Plotar no mapa os primeiros resultados para visualização imediata
-      handlePlotAllAddresses(res.results.slice(0, 1000));
 
       logActivity(
         'ENDERECO',
@@ -725,7 +725,7 @@ export default function App() {
         `${res.totalEncontrado} estabelecimentos encontrados no CNEFE`
       );
 
-      showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde e hospitais encontrados no CNEFE!`);
+      showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde carregados na Busca Avançada!`);
 
       setTimeout(() => {
         const el = document.getElementById('ibge-search-panel');
