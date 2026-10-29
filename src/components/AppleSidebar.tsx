@@ -54,6 +54,7 @@ import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
+import Globe from './Globe';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | null;
 
@@ -574,27 +575,53 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       >
         {/* Topo / Header da Barra de Navegação */}
         {!isCollapsed ? (
-          <div className="flex items-center justify-between pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
-            <div 
-              className="flex items-center cursor-pointer select-none group"
-              onDoubleClick={onOpenAdminPanel}
-              title="WebGis SSP-PI • Clique duplo para login de Administrador"
-            >
-              <img 
-                src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
-                alt="Logo"
-                className="h-9 sm:h-10 w-auto max-w-[135px] object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
-                }}
-              />
+          <div className="flex items-center justify-between gap-1 pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {/* Globo 3D Interativo no lado esquerdo da logo */}
+              <div 
+                className="w-9 h-9 relative rounded-xl overflow-hidden shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+                title="Globo Terrestre Interativo 3D"
+              >
+                <Globe
+                  speed={1.8}
+                  scale={9.5}
+                  dots={{
+                    color: isDarkMode ? "#38bdf8" : "#007AFF",
+                    size: 5,
+                    density: 8,
+                    allDots: false
+                  }}
+                  outlineColor={isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,122,255,0.45)"}
+                  graticuleColor={isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,122,255,0.15)"}
+                  oceanColor="transparent"
+                  showGrid={true}
+                  showOutline={true}
+                  stopOnHover={false}
+                />
+              </div>
+
+              {/* Logo deslocada para a direita */}
+              <div 
+                className="flex items-center cursor-pointer select-none group min-w-0"
+                onDoubleClick={onOpenAdminPanel}
+                title="WebGis SSP-PI • Clique duplo para login de Administrador"
+              >
+                <img 
+                  src="https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png" 
+                  alt="Logo"
+                  className="h-8 sm:h-9 w-auto max-w-[105px] sm:max-w-[115px] object-contain transition-transform group-hover:scale-105 pointer-events-none drop-shadow-xs"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/image-removebg-preview.png';
+                  }}
+                />
+              </div>
             </div>
 
-            {/* Botão de Minimizar para ícones (como na Imagem 1 -> Imagem 3) */}
+            {/* Botão de Minimizar para ícones */}
             <button
               type="button"
               onClick={onToggleCollapse}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer shrink-0"
               title="Minimizar barra lateral para ícones"
               aria-label="Minimizar barra lateral"
             >
@@ -603,7 +630,30 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
-            {/* Botão de Expandir para texto (como na Imagem 3 -> Imagem 1) */}
+            {/* Globo 3D Interativo acima do botão de expandir */}
+            <div 
+              className="w-11 h-11 relative rounded-2xl overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+              title="Globo Terrestre Interativo 3D"
+            >
+              <Globe
+                speed={1.8}
+                scale={9.5}
+                dots={{
+                  color: isDarkMode ? "#38bdf8" : "#007AFF",
+                  size: 5,
+                  density: 8,
+                  allDots: false
+                }}
+                outlineColor={isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,122,255,0.45)"}
+                graticuleColor={isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,122,255,0.15)"}
+                oceanColor="transparent"
+                showGrid={true}
+                showOutline={true}
+                stopOnHover={false}
+              />
+            </div>
+
+            {/* Botão de Expandir para texto (deslocado um pouco para baixo) */}
             <button
               type="button"
               onClick={onToggleCollapse}
