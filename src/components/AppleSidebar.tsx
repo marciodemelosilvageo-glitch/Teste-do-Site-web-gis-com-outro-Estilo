@@ -55,7 +55,7 @@ import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCod
 import { Dashboard } from './Dashboard';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 
-export type SidebarTab = 'search' | 'details' | 'dashboard' | null;
+export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | null;
 
 interface AppleSidebarProps {
   isCollapsed: boolean;
@@ -562,7 +562,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       {/* ESTÁGIO 1: BARRA / RAIL DE NAVEGAÇÃO LATERAL (APPLE SIDEBAR)   */}
       {/* ============================================================== */}
       <nav
-        className={`h-full flex flex-col transition-all duration-300 ease-out bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-xl overflow-hidden shrink-0 ${
+        className={`h-full flex flex-col transition-all duration-300 ease-out bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-xl overflow-hidden overflow-x-hidden select-none shrink-0 ${
           isCollapsed ? 'w-[68px] items-center py-3.5 px-2' : 'w-[205px] sm:w-[215px] p-3'
         }`}
       >
@@ -611,7 +611,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         )}
 
         {/* Lista de Ferramentas (Estágio 1 - Imagem 1 e Imagem 3) */}
-        <div className="flex flex-col gap-2 w-full flex-1 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-col gap-2 w-full flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
           {/* 1. Buscar */}
           <div className="relative group w-full flex items-center">
             <button
@@ -638,13 +638,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               {!isCollapsed && <span className="truncate">Buscar</span>}
             </button>
 
-            {/* Tooltip Apple Maps estilo balão flutuante (Imagem 3) */}
-            {isCollapsed && (
-              <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
-                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
-                <span>Buscar</span>
-              </div>
-            )}
+
           </div>
 
           {/* 2. Raio-X */}
@@ -673,13 +667,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               {!isCollapsed && <span className="truncate">Raio-X</span>}
             </button>
 
-            {/* Tooltip */}
-            {isCollapsed && (
-              <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
-                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
-                <span>Raio-X Territorial e Domiciliar</span>
-              </div>
-            )}
+
           </div>
 
           {/* 3. Detalhes (Apenas quando feição selecionada) */}
@@ -715,15 +703,36 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 )}
               </button>
 
-              {/* Tooltip */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800/95 dark:bg-slate-700/95 text-white text-xs font-bold rounded-xl shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap flex items-center">
-                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800/95 dark:border-r-slate-700/95" />
-                  <span>Detalhes</span>
-                </div>
-              )}
+
             </div>
           )}
+
+          {/* 4. Guia e Ajuda */}
+          <div className="relative group w-full flex items-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab(activeTab === 'help' ? null : 'help')}
+              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
+                isCollapsed 
+                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
+                  : 'px-3 py-2.5 text-sm'
+              } ${
+                activeTab === 'help'
+                  ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+              }`}
+              title={isCollapsed ? "Guia e Ajuda" : undefined}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'help' 
+                  ? (isCollapsed ? '' : 'bg-white/20 text-white') 
+                  : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 group-hover:text-[#007AFF]'
+              }`}>
+                <HelpCircle className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+              </div>
+              {!isCollapsed && <span className="truncate">Ajuda e Guia</span>}
+            </button>
+          </div>
 
         </div>
 
@@ -778,7 +787,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               <span className="truncate">WebGIS</span>
               <button 
                 type="button"
-                onClick={onOpenHelp}
+                onClick={() => setActiveTab(activeTab === 'help' ? null : 'help')}
                 className="text-[#007AFF] hover:underline font-bold cursor-pointer"
               >
                 Ajuda ↗
@@ -817,10 +826,16 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         >
           {/* Cabeçalho do Segundo Estágio (Título + Botão X redondo de fechar) */}
           <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
-            <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               {activeTab === 'search' && 'Buscar'}
               {activeTab === 'dashboard' && 'Raio-X Territorial e Domiciliar'}
               {activeTab === 'details' && 'Detalhes da Feição'}
+              {activeTab === 'help' && (
+                <>
+                  <HelpCircle className="w-5 h-5 text-[#007AFF]" />
+                  <span>Guia de Uso & Ajuda</span>
+                </>
+              )}
             </h2>
 
             <button
@@ -1353,6 +1368,188 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {activeTab === 'dashboard' && (
           <div className="animate-fadeIn">
             <Dashboard selectedFeatures={selectedFeatures} />
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* ABA: GUIA DE USO E AJUDA (DOCKADO DIRETAMENTE NA BARRA LATERAL) */}
+        {/* ============================================================== */}
+        {activeTab === 'help' && (
+          <div className="animate-fadeIn space-y-3.5 pb-6">
+            {/* Header / Apresentação do Guia */}
+            <div className="p-4 rounded-3xl bg-gradient-to-br from-[#007AFF]/10 via-[#5856D6]/5 to-transparent border border-[#007AFF]/20 shadow-xs">
+              <div className="flex items-center gap-2.5 mb-1.5">
+                <div className="w-8 h-8 rounded-xl bg-[#007AFF] text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                  Central de Ajuda WebGIS
+                </h3>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                Consulte as instruções rápidas de navegação, seleção de áreas, análise CNEFE e atalhos de produtividade sem sair do mapa.
+              </p>
+            </div>
+
+            {/* 1. NAVEGAÇÃO E CAMADAS */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+                <span>1. Navegação & Camadas</span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                Controle camadas oficiais (Municípios, Bairros, Setores, Favelas/Comunidades e Localidades).
+              </p>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#007AFF] font-bold">•</span>
+                  <span><strong>Painel de Camadas:</strong> No canto superior direito, ligue/desligue mapas e ajuste opacidade, preenchimento e bordas.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#007AFF] font-bold">•</span>
+                  <span><strong>Mapas de Fundo:</strong> Alterne entre <em>Apple Maps</em> (Claro/Escuro), <em>Google Satélite/Híbrido</em>, <em>OSM</em> e <em>Esri</em>.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#007AFF] font-bold">•</span>
+                  <span><strong>Ações Rápidas:</strong> Use <em>"Ligar Tudo"</em> ou <em>"Desligar Tudo"</em> no topo do mapa para controle instantâneo.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* 2. SELEÇÃO DE ÁREAS E RAIO-X */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-[#34C759]/15 text-[#34C759] flex items-center justify-center shrink-0">
+                  <Users className="w-3.5 h-3.5" />
+                </div>
+                <span>2. Seleção de Áreas & Raio-X Territorial</span>
+              </div>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#34C759] font-bold">•</span>
+                  <span><strong>Clique Simples:</strong> Clique em qualquer região do mapa para gerar o <em>Raio-X Territorial</em> com População, Domicílios e Taxa de Vacância.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#34C759] font-bold">•</span>
+                  <span><strong>Multiseleção:</strong> Ative o botão <em>"Multiseleção: ON"</em> acima do mapa (ou segure <kbd className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 font-mono text-[10px]">Ctrl</kbd>) para somar estatísticas de múltiplos bairros ou setores ao mesmo tempo.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* 3. BUSCA DE ENDEREÇOS E CNEFE IBGE */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-[#AF52DE]/15 text-[#AF52DE] flex items-center justify-center shrink-0">
+                  <Search className="w-3.5 h-3.5" />
+                </div>
+                <span>3. Busca Avançada de Endereços (CNEFE)</span>
+              </div>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#AF52DE] font-bold">•</span>
+                  <span><strong>Milhões de Endereços:</strong> Consulta ultra-rápida no banco DuckDB em todos os municípios do Piauí.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#AF52DE] font-bold">•</span>
+                  <span><strong>Sem Problema de Acentos:</strong> Pesquisas com ou sem acentos (ex: <em>"São Benedito"</em> ou <em>"sao benedito"</em>) encontram tudo com 100% de precisão.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#AF52DE] font-bold">•</span>
+                  <span><strong>Lupinha por Coluna:</strong> Clique no ícone de lupa no cabeçalho de qualquer coluna para pesquisar nela diretamente.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#AF52DE] font-bold">•</span>
+                  <span><strong>Ordenação Inteligente:</strong> Ao ordenar por Endereço, ruas de mesmo nome são agrupadas juntas em ordem numérica contínua.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* 4. MEDIÇÃO, COORDENADAS E BOTÃO DIREITO */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center shrink-0">
+                  <Compass className="w-3.5 h-3.5" />
+                </div>
+                <span>4. Coordenadas, Medição & Botão Direito</span>
+              </div>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#FF9500] font-bold">•</span>
+                  <span><strong>Busca por Coordenadas:</strong> Digite <code>-5.089, -42.801</code> na barra de busca para localizar e marcar qualquer coordenada.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#FF9500] font-bold">•</span>
+                  <span><strong>Botão Direito no Mapa:</strong> Clique com o botão direito para copiar coordenadas precisas, identificar o local ou abrir diretamente no <em>Google Street View</em>.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#FF9500] font-bold">•</span>
+                  <span><strong>Régua de Medição:</strong> Meça distâncias e áreas com cálculo geodésico no mapa.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* 5. EXPORTAÇÃO DE DADOS */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-[#30B0C7]/15 text-[#30B0C7] flex items-center justify-center shrink-0">
+                  <Download className="w-3.5 h-3.5" />
+                </div>
+                <span>5. Exportação (Excel, CSV e KML)</span>
+              </div>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#30B0C7] font-bold">•</span>
+                  <span><strong>Planilha CSV (Excel):</strong> Baixe tabelas com todos os indicadores das regiões selecionadas ou dos endereços consultados.</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-[#30B0C7] font-bold">•</span>
+                  <span><strong>KML (Google Earth / QGIS):</strong> Exporte as geometrias dos polígonos selecionados para uso em softwares GIS profissionais.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* 6. ATALHOS DE TECLADO */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-slate-500/15 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <span>6. Atalhos Rápidos de Produtividade</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Focar no campo de busca</span>
+                  <div className="flex items-center gap-1">
+                    <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">Ctrl + F</kbd>
+                    <span className="text-[10px] text-slate-400">ou</span>
+                    <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">/</kbd>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Limpar seleções / Fechar painéis</span>
+                  <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">Esc</kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Ativar / Desativar Régua de Medição</span>
+                  <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">M</kbd>
+                </div>
+              </div>
+            </div>
+
+            {/* Botão de Fechar Ajuda */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab(null)}
+                className="w-full py-2.5 px-4 rounded-2xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors cursor-pointer text-center"
+              >
+                Fechar Guia de Ajuda
+              </button>
+            </div>
           </div>
         )}
           </div>
