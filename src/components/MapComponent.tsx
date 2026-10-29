@@ -3195,7 +3195,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                 className="bg-white/85 dark:bg-[#1c1c1e]/85 hover:bg-white dark:hover:bg-[#2c2c2e] text-slate-800 dark:text-slate-100 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all flex items-center gap-2 cursor-pointer group active:scale-95"
                 title="Expandir Legenda Temática do Mapa"
               >
-                <div className="w-2 h-2 rounded-full bg-[#007AFF] animate-pulse"></div>
+                <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
                 <span className="tracking-tight">Legenda</span>
                 <span className="bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
                   {activeVisibleLayers.length}
