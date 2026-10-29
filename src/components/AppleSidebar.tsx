@@ -216,7 +216,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   // Identificar se a feição selecionada pertence à camada de Localidades
   const isLocalidade = useMemo(() => {
     if (!activeDetailFeature) return false;
-    return activeDetailFeature.sourceName === "Localidades (Piauí)";
+    const src = (activeDetailFeature.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (src.includes('localidade')) return true;
+    const props = activeDetailFeature.properties || {};
+    if (props.id_Localidades != null || props.id_localidades != null || (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN)) {
+      return true;
+    }
+    return false;
   }, [activeDetailFeature]);
 
   // Coordenadas geográficas rigorosamente formatadas

@@ -51,6 +51,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
   const [copied, setCopied] = useState(false);
 
   // Hook executado incondicionalmente no topo do componente (conforme regras do React)
+  const isOnlyLocalidades = useMemo(() => {
+    if (!selectedFeatures || selectedFeatures.length === 0) return false;
+    return selectedFeatures.every(f => {
+      const src = (f.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (src.includes('localidade')) return true;
+      const props = f.properties || {};
+      return props.id_Localidades != null || props.id_localidades != null || (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN);
+    });
+  }, [selectedFeatures]);
+
   const {
     hasData,
     title,
@@ -175,6 +185,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
       count: totalCount
     };
   }, [selectedFeatures]);
+
+    if (isOnlyLocalidades) {
+    return (
+      <div 
+        id="dashboard-container"
+        className="w-full rounded-3xl p-6 bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-sm text-center space-y-4 animate-fadeIn"
+      >
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-sm">
+          <MapPin className="w-6 h-6" />
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="text-sm font-black text-slate-900 dark:text-white">
+            Camada de Localidades
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+            A camada de Localidades é composta por pontos e coordenadas geográficas, não possuindo dados de Raio-X Territorial e Domiciliar.
+          </p>
+        </div>
+        <div className="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] text-xs text-slate-600 dark:text-slate-300 font-medium">
+          💡 Para visualizar o Raio-X demográfico (População e Domicílios), selecione uma área territorial no mapa (como Municípios, Bairros, Setores Censitários ou Favelas/Comunidades).
+        </div>
+      </div>
+    );
+  }
 
   // Se nenhuma feição estiver selecionada, renderiza o Onboarding elegante estilo Apple
   if (!hasData) {
