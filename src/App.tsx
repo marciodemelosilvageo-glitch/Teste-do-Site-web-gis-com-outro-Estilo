@@ -251,7 +251,7 @@ export default function App() {
     }
   }, [allowedLayerNames]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean }> | null>(null);
+  const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }> | null>(null);
 
   // Estados de Carregamento e Status do Mapa
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -1748,7 +1748,8 @@ export default function App() {
       lng, 
       label: addrLabel, 
       details: formatAddressDetails(row),
-      isCoordSearch: false
+      isCoordSearch: false,
+      rawAddress: row
     }]);
 
     if (mapInstance) {
@@ -1773,10 +1774,11 @@ export default function App() {
           lng,
           label: row.endereco || row.ENDERECO || 'Endereço IBGE',
           details: formatAddressDetails(row),
-          isCoordSearch: false
+          isCoordSearch: false,
+          rawAddress: row
         };
       })
-      .filter(Boolean) as Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean }>;
+      .filter(Boolean) as Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }>;
 
     if (validCoords.length === 0) {
       showToast('Nenhuma coordenada válida encontrada nos resultados.');

@@ -406,7 +406,7 @@ interface MapComponentProps {
     selectFeature: (layer: L.Layer, feature: any, sourceName: string) => void;
     removeMeasurePoint: (index: number) => void;
   }) => void;
-  searchCoordinates: Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean }> | null;
+  searchCoordinates: Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }> | null;
   onToggleMultiSelect: () => void;
   onMeasureChange?: (latlngs: L.LatLng[] | null) => void;
   measureHistory?: L.LatLng[] | null;
@@ -1244,6 +1244,35 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         if (showToastRef.current) showToastRef.current(`Longitude copiada: ${lngStr}`);
       }
     };
+    (window as any).copyPopupText = (text: string, btnEl?: HTMLElement, feedbackMsg?: string) => {
+      if (!text) return;
+      navigator.clipboard.writeText(text);
+      if (showToastRef.current && feedbackMsg) {
+        showToastRef.current(feedbackMsg);
+      }
+      if (btnEl) {
+        const oldHtml = btnEl.innerHTML;
+        btnEl.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        setTimeout(() => {
+          btnEl.innerHTML = oldHtml;
+        }, 1800);
+      }
+    };
+    (window as any).copyFullAddressPopup = (fullAddr: string, btnEl?: HTMLElement) => {
+      if (!fullAddr) return;
+      navigator.clipboard.writeText(fullAddr);
+      if (showToastRef.current) {
+        showToastRef.current('Endereço completo copiado!');
+      }
+      if (btnEl) {
+        const span = btnEl.querySelector('span');
+        if (span) {
+          const old = span.innerText;
+          span.innerText = '✓ Copiado!';
+          setTimeout(() => { span.innerText = old; }, 1800);
+        }
+      }
+    };
   }, []);
 
   // Definição dos Basemaps
@@ -1967,116 +1996,276 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       });
 
       searchCoordinates.forEach((coord) => {
-        const { lat, lng, details, isCoordSearch, label } = coord;
+        const { lat, lng, details, isCoordSearch, label, rawAddress } = coord;
         
+        // Mapear detalhes e atributos brutos do endereço
+        const detailsMap: Record<string, string> = {};
+        if (details && details.length > 0) {
+          details.forEach(d => {
+            const idx = d.indexOf(':');
+            if (idx > -1) {
+              const k = d.slice(0, idx).trim().toLowerCase();
+              const v = d.slice(idx + 1).trim();
+              detailsMap[k] = v;
+            }
+          });
+        }
+
+        const raw = rawAddress || {};
+        const estabRaw = raw.estabelecimento || raw.ESTABELECIMENTO || raw['Identificação do estabelecimento'] || detailsMap['identificação do estabelecimento'] || '';
+        const enderecoRaw = raw.endereco || raw.ENDERECO || detailsMap['endereço'] || label || '';
+        const numeroRaw = raw.numero_logradouro || raw.NUMERO_LOGRADOURO || raw['Número no logradouro'] || detailsMap['número no logradouro'] || detailsMap['número'] || '';
+        const complRaw = raw.complemento || raw.COMPLEMENTO || detailsMap['complemento'] || '';
+        const bairroRaw = raw.bairro || raw.BAIRRO || detailsMap['bairro'] || '';
+        const municipioRaw = raw.municipio || raw.MUNICIPIO || detailsMap['município'] || '';
+        const cepRaw = raw.cep || raw.CEP || detailsMap['cep'] || '';
+        const localidadeRaw = raw.localidade || raw.LOCALIDADE || detailsMap['localidade'] || '';
+        const especieRaw = raw.especie || raw.ESPECIE || raw['Espécie de endereço'] || detailsMap['espécie'] || detailsMap['espécie de endereço'] || '';
+        const distTexto = raw.distancia_texto || detailsMap['distância'] || '';
+        const codigoUnico = raw.codigo_unico || raw['Código único do endereço'] || detailsMap['código único do endereço'] || '';
+
         // Identificar se o ponto é estabelecimento de saúde ou hospital
         const isSaude = (details || []).some(d => {
           const low = d.toLowerCase();
           return low.includes('saúde') || low.includes('saude') || low.includes('hospital') || low.includes('ubs') || low.includes('clínica') || low.includes('clinica') || low.includes('maternidade') || low.includes('pronto socorro');
-        }) || (label || '').toLowerCase().includes('hospital') || (label || '').toLowerCase().includes('saude');
+        }) || (label || '').toLowerCase().includes('hospital') || (label || '').toLowerCase().includes('saude') || (especieRaw || '').toLowerCase().includes('saude') || (estabRaw || '').toLowerCase().includes('hospital');
 
         const chosenIcon = isSaude ? healthPinIcon : defaultPinIcon;
 
-        // Adicionar marcador
+        // Adicionar marcador no mapa
         const marker = L.marker([lat, lng], { icon: chosenIcon }).addTo(map);
-        
-        let detailsHtml = '';
-        if (details && details.length > 0) {
-          detailsHtml = `
-            <div class="webgis-popup-attributes-grid" style="margin-top: 4px; padding: 6px 8px;">
-              ${details.map(d => {
-                const parts = d.split(':');
-                const label = parts[0].trim();
-                const value = parts.slice(1).join(':').trim();
-                const isLocalidade = label.toLowerCase().includes('localidade');
-                
-                // Mostrar nota de 800m APENAS se for busca por coordenada / Identificar Feições
-                const show800mNote = !!isCoordSearch && isLocalidade;
-                
-                const noteHtml = show800mNote ? `
-                  <div style="font-size: 9px; font-weight: 600; color: #0284c7; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.2); padding: 4px 6px; border-radius: 6px; margin: 3px 0; display: flex; align-items: center; gap: 4px; line-height: 1.3;">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                    <span>Localidade cadastrada a até ~800m do ponto pesquisado</span>
-                  </div>
-                ` : '';
 
-                const safeVal = String(value).replace(/'/g, "\\'");
-                return `${noteHtml}
-                  <div class="webgis-popup-attribute-item">
-                    <span class="webgis-popup-attr-label">${label}</span>
-                    <div class="webgis-popup-attr-val-box">
-                      <span class="webgis-popup-attr-val">${value}</span>
-                      <button type="button" class="webgis-popup-copy-btn" onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${safeVal}'); const old=this.innerHTML; this.innerHTML='<svg width=\\'11\\' height=\\'11\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'#10b981\\' stroke-width=\\'3\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><polyline points=\\'20 6 9 17 4 12\\'></polyline></svg>'; setTimeout(() => this.innerHTML=old, 2000)" title="Copiar ${label}">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                      </button>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          `;
-        }
-        
         const latFormatted = lat.toFixed(6);
         const lngFormatted = lng.toFixed(6);
 
+        // Determinar Título Hero e Subtítulo no novo layout Apple Maps
+        const hasEstab = !!estabRaw.trim();
+        const hasEndereco = !!enderecoRaw.trim();
+
+        let heroTitle = '';
+        let heroSubtitle = '';
+
+        if (hasEstab) {
+          heroTitle = toTitleCase(estabRaw.trim());
+          const subParts: string[] = [];
+          if (hasEndereco) {
+            subParts.push(toTitleCase(enderecoRaw) + (numeroRaw ? `, ${numeroRaw}` : ''));
+          }
+          if (bairroRaw) subParts.push(toTitleCase(bairroRaw));
+          if (municipioRaw) subParts.push(toTitleCase(municipioRaw));
+          heroSubtitle = subParts.join(' • ');
+        } else if (hasEndereco) {
+          heroTitle = toTitleCase(enderecoRaw.trim()) + (numeroRaw ? `, ${numeroRaw}` : '');
+          const subParts: string[] = [];
+          if (bairroRaw) subParts.push(toTitleCase(bairroRaw));
+          if (localidadeRaw && localidadeRaw.toLowerCase() !== bairroRaw.toLowerCase()) {
+            subParts.push(toTitleCase(localidadeRaw));
+          }
+          if (municipioRaw) subParts.push(toTitleCase(municipioRaw));
+          heroSubtitle = subParts.join(' • ');
+        } else {
+          heroTitle = label || "Ponto Geográfico";
+          heroSubtitle = `${latFormatted}, ${lngFormatted}`;
+        }
+
+        const safeHeroTitle = String(heroTitle).replace(/'/g, "\\'");
+
+        // Montar texto de endereço formatado completo para cópia
+        const fullAddrParts: string[] = [];
+        if (hasEstab) fullAddrParts.push(heroTitle);
+        if (hasEndereco) fullAddrParts.push(toTitleCase(enderecoRaw) + (numeroRaw ? `, ${numeroRaw}` : ''));
+        if (complRaw) fullAddrParts.push(complRaw);
+        if (bairroRaw) fullAddrParts.push(`Bairro ${toTitleCase(bairroRaw)}`);
+        if (localidadeRaw && localidadeRaw.toLowerCase() !== bairroRaw.toLowerCase()) {
+          fullAddrParts.push(`Localidade ${toTitleCase(localidadeRaw)}`);
+        }
+        if (municipioRaw) fullAddrParts.push(`${toTitleCase(municipioRaw)} - PI`);
+        if (cepRaw) fullAddrParts.push(`CEP ${cepRaw}`);
+        const fullAddressStr = fullAddrParts.length > 0 ? fullAddrParts.join(', ') : `${heroTitle} (${latFormatted}, ${lngFormatted})`;
+        const safeFullAddress = fullAddressStr.replace(/'/g, "\\'");
+
+        // Badge de Categoria e Distância
+        let badgeHtml = '';
+        if (isSaude) {
+          badgeHtml = `
+            <div class="apple-cnefe-badge red">
+              <span class="apple-cnefe-dot red"></span>
+              <span>Saúde • CNEFE</span>
+            </div>
+          `;
+        } else if (hasEndereco || hasEstab) {
+          badgeHtml = `
+            <div class="apple-cnefe-badge blue">
+              <span class="apple-cnefe-dot blue"></span>
+              <span>Endereço CNEFE</span>
+            </div>
+          `;
+        } else {
+          badgeHtml = `
+            <div class="apple-cnefe-badge purple">
+              <span class="apple-cnefe-dot purple"></span>
+              <span>Ponto no Mapa</span>
+            </div>
+          `;
+        }
+
+        const distPillHtml = distTexto ? `
+          <div class="apple-cnefe-dist-badge" title="Distância até sua localização">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <span>${distTexto}</span>
+          </div>
+        ` : '';
+
+        // Construção elegante das linhas de atributos no card Apple
+        const renderAttr = (lbl: string, val: string, copyVal?: string) => {
+          if (!val || String(val).trim() === '' || val === '-' || val === 'null') return '';
+          const toCopy = String(copyVal || val).replace(/'/g, "\\'");
+          return `
+            <div class="apple-cnefe-attr-row">
+              <span class="apple-cnefe-attr-lbl">${lbl}</span>
+              <div class="apple-cnefe-attr-val-box">
+                <span class="apple-cnefe-attr-val">${val}</span>
+                <button type="button" class="apple-cnefe-mini-copy" onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${toCopy}', this, '${lbl} copiado!')" title="Copiar ${lbl}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+              </div>
+            </div>
+          `;
+        };
+
+        const attrRows: string[] = [];
+        if (hasEstab && hasEndereco) {
+          attrRows.push(renderAttr('Logradouro', toTitleCase(enderecoRaw)));
+          if (numeroRaw) attrRows.push(renderAttr('Número', numeroRaw));
+        } else if (!hasEstab && hasEndereco && numeroRaw) {
+          attrRows.push(renderAttr('Número', numeroRaw));
+        }
+
+        if (complRaw) attrRows.push(renderAttr('Complemento', complRaw));
+        if (bairroRaw) attrRows.push(renderAttr('Bairro', toTitleCase(bairroRaw)));
+        if (localidadeRaw && localidadeRaw.toLowerCase() !== bairroRaw.toLowerCase()) {
+          attrRows.push(renderAttr('Localidade', toTitleCase(localidadeRaw)));
+        }
+        if (municipioRaw) attrRows.push(renderAttr('Município', toTitleCase(municipioRaw)));
+        if (cepRaw) attrRows.push(renderAttr('CEP', cepRaw));
+        if (especieRaw) {
+          attrRows.push(`
+            <div class="apple-cnefe-attr-row">
+              <span class="apple-cnefe-attr-lbl">Espécie</span>
+              <div class="apple-cnefe-attr-val-box">
+                <span class="apple-cnefe-tag">${toTitleCase(especieRaw)}</span>
+              </div>
+            </div>
+          `);
+        }
+        if (codigoUnico) {
+          attrRows.push(renderAttr('Cód. CNEFE', codigoUnico));
+        }
+
+        // Se for pesquisa por coordenadas / identificar e houver nota de 800m
+        const note800mHtml = (!!isCoordSearch && localidadeRaw) ? `
+          <div class="apple-cnefe-note-box">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Localidade cadastrada a até ~800m do ponto pesquisado</span>
+          </div>
+        ` : '';
+
+        // Novo Balão Pop-up Estilo Apple Maps HIG
         marker.bindPopup(`
-          <div class="webgis-popup-container" style="min-width: 215px; max-width: 265px;">
-            <!-- Badge Cabeçalho -->
-            <div class="webgis-popup-badge-row" style="justify-content: center;">
-              <div class="webgis-popup-badge" style="background: rgba(225, 29, 72, 0.1); border-color: rgba(225, 29, 72, 0.25); color: #e11d48;">
-                <span class="webgis-popup-dot" style="background-color: #e11d48;"></span>
-                <span>Coordenada Localizada</span>
+          <div class="apple-cnefe-container">
+            <!-- Linha de Cabeçalho (Badge de Categoria e Distância) -->
+            <div class="apple-cnefe-header-row">
+              ${badgeHtml}
+              ${distPillHtml}
+            </div>
+
+            <!-- Bloco Hero (Nome Principal e Subtítulo) -->
+            <div class="apple-cnefe-hero">
+              <div class="apple-cnefe-hero-title-row">
+                <h4 class="apple-cnefe-hero-title" title="${safeHeroTitle}">${heroTitle}</h4>
+                <button type="button" class="apple-cnefe-mini-copy" onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${safeHeroTitle}', this, 'Nome copiado!')" title="Copiar nome">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+              </div>
+              ${heroSubtitle ? `<p class="apple-cnefe-hero-subtitle">${heroSubtitle}</p>` : ''}
+            </div>
+
+            ${note800mHtml}
+
+            <!-- Grade Estruturada de Atributos do Endereço -->
+            ${attrRows.length > 0 ? `
+              <div class="apple-cnefe-grid">
+                ${attrRows.join('')}
+              </div>
+            ` : ''}
+
+            <!-- Cápsula de Coordenadas Geográficas -->
+            <div class="apple-cnefe-coords-capsule">
+              <div class="apple-cnefe-coords-header">
+                <span>Coordenadas Geográficas</span>
+              </div>
+              <div class="apple-cnefe-coords-grid">
+                <button 
+                  type="button" 
+                  class="apple-cnefe-coord-pill" 
+                  onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}', this, 'Latitude copiada!')" 
+                  title="Clique para copiar Latitude (${latFormatted})"
+                >
+                  <span class="apple-cnefe-coord-tag">LAT</span>
+                  <span class="apple-cnefe-coord-val">${latFormatted}</span>
+                </button>
+
+                <button 
+                  type="button" 
+                  class="apple-cnefe-coord-pill" 
+                  onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${lngFormatted}', this, 'Longitude copiada!')" 
+                  title="Clique para copiar Longitude (${lngFormatted})"
+                >
+                  <span class="apple-cnefe-coord-tag">LNG</span>
+                  <span class="apple-cnefe-coord-val">${lngFormatted}</span>
+                </button>
+              </div>
+
+              <div class="apple-cnefe-copy-all-row">
+                <button 
+                  type="button" 
+                  class="apple-cnefe-copy-all-btn" 
+                  onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}, ${lngFormatted}', this, 'Coordenadas copiadas!')" 
+                  title="Copiar Latitude e Longitude juntas"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>Copiar Ambas (${latFormatted}, ${lngFormatted})</span>
+                </button>
               </div>
             </div>
 
-            <!-- Seção de Coordenadas -->
-            <div class="webgis-popup-attributes-grid" style="padding: 6px;">
-              <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: center; letter-spacing: 0.5px;">
-                Coordenadas (Clique p/ Copiar)
-              </div>
+            <!-- Ações Rápidas: Street View e Copiar Endereço Completo -->
+            <div class="apple-cnefe-actions-row">
+              <a 
+                href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latFormatted},${lngFormatted}" 
+                target="_blank" 
+                rel="noreferrer" 
+                class="apple-cnefe-action-btn streetview" 
+                title="Abrir no Google Street View"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+                <span>Street View</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto; opacity: 0.6;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              </a>
 
-              <div class="webgis-coord-grid">
-                <!-- Botão de Latitude -->
-                <button 
-                  type="button" 
-                  class="webgis-coord-btn"
-                  onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${latFormatted}'); const el=this.querySelector('.webgis-coord-btn-val'); const old=el.innerText; el.innerText='Copiado!'; el.style.color='#059669'; setTimeout(() => { el.innerText='${latFormatted}'; el.style.color=''; }, 1800);"
-                  title="Clique para copiar somente a Latitude (${latFormatted})"
-                >
-                  <span class="webgis-coord-btn-label">Latitude</span>
-                  <span class="webgis-coord-btn-val">${latFormatted}</span>
-                </button>
-
-                <!-- Botão de Longitude -->
-                <button 
-                  type="button" 
-                  class="webgis-coord-btn"
-                  onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${lngFormatted}'); const el=this.querySelector('.webgis-coord-btn-val'); const old=el.innerText; el.innerText='Copiado!'; el.style.color='#059669'; setTimeout(() => { el.innerText='${lngFormatted}'; el.style.color=''; }, 1800);"
-                  title="Clique para copiar somente a Longitude (${lngFormatted})"
-                >
-                  <span class="webgis-coord-btn-label">Longitude</span>
-                  <span class="webgis-coord-btn-val">${lngFormatted}</span>
-                </button>
-              </div>
-
-              <!-- Atalho para copiar ambas juntas -->
-              <div style="margin-top: 4px; text-align: center;">
-                <button
-                  type="button"
-                  onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${latFormatted}, ${lngFormatted}'); const el=this; const old=el.innerText; el.innerText='✓ Ambas Copiadas!'; el.style.color='#059669'; setTimeout(() => { el.innerText='Copiar Ambas (${latFormatted}, ${lngFormatted})'; el.style.color='#64748b'; }, 1800);"
-                  style="background: transparent; border: none; font-size: 9.5px; font-weight: 600; color: #64748b; cursor: pointer; text-decoration: underline; padding: 1px 4px;"
-                  title="Copiar Latitude e Longitude juntos"
-                >
-                  Copiar Ambas (${latFormatted}, ${lngFormatted})
-                </button>
-              </div>
+              <button 
+                type="button" 
+                class="apple-cnefe-action-btn copy-full" 
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyFullAddressPopup('${safeFullAddress}', this)" 
+                title="Copiar endereço completo formatado"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>Copiar Tudo</span>
+              </button>
             </div>
-
-            ${detailsHtml}
           </div>
         `, {
-          className: 'polygon-callout-balloon'
+          className: 'apple-cnefe-popup'
         });
         
         searchMarkersRef.current.push(marker);

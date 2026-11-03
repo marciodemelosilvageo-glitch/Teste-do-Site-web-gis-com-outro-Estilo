@@ -347,3 +347,4 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
     </div>
   );
 };
+
