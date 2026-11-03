@@ -1273,11 +1273,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         }
       }
     };
+    (window as any).removeRightClickPin = () => {
+      if (rightClickMarkerRef.current && mapRef.current) {
+        mapRef.current.removeLayer(rightClickMarkerRef.current);
+        rightClickMarkerRef.current = null;
+      }
+      if (showToastRef.current) {
+        showToastRef.current('Pino removido do mapa.');
+      }
+    };
   }, []);
 
   // Definição dos Basemaps
   const tileLayersRef = useRef<Record<string, L.TileLayer>>({});
   const searchMarkersRef = useRef<L.Marker[]>([]);
+  const rightClickMarkerRef = useRef<L.Marker | null>(null);
 
   // Estilo de seleção destacado estilo Apple Maps (Apple Blue brilhante com contorno animado)
   const selectedStyle: L.PathOptions = { 
@@ -1827,103 +1837,162 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }, 50);
     });
 
-    // Registrar o evento de Context Menu (Botão Direito) no mapa
+    // Registrar o evento de Context Menu (Botão Direito) no mapa - Fixar Pino Apple Maps
     map.on('contextmenu', (e: L.LeafletMouseEvent) => {
       const lat = e.latlng.lat;
       const lng = e.latlng.lng;
       const latFormatted = lat.toFixed(6);
       const lngFormatted = lng.toFixed(6);
 
+      // Ícone elegante de Pino no estilo Apple Maps (Vibrante Carmim / Vermelho Apple)
+      const contextPinIcon = L.divIcon({
+        className: 'custom-context-marker-pin',
+        html: `
+          <div style="width: 28px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); filter: drop-shadow(0 3px 6px rgba(0,0,0,0.45));">
+            <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" fill="#E11D48" stroke="#FFFFFF" stroke-width="1.8"/>
+              <circle cx="14" cy="13.5" r="5" fill="#FFFFFF"/>
+              <circle cx="14" cy="13.5" r="2.5" fill="#E11D48"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [28, 36],
+        iconAnchor: [14, 36],
+        popupAnchor: [0, -34]
+      });
+
+      // Remover pino anterior se já existir um
+      if (rightClickMarkerRef.current) {
+        map.removeLayer(rightClickMarkerRef.current);
+        rightClickMarkerRef.current = null;
+      }
+
+      // Adicionar novo pino na coordenada clicada com botão direito
+      const marker = L.marker([lat, lng], {
+        icon: contextPinIcon,
+        zIndexOffset: 1200
+      }).addTo(map);
+
+      rightClickMarkerRef.current = marker;
+
       const popupContent = `
-        <div class="webgis-popup-container" style="min-width: 215px; max-width: 255px;">
-          <!-- Badge Cabeçalho -->
-          <div class="webgis-popup-badge-row" style="justify-content: center;">
-            <div class="webgis-popup-badge" style="background: rgba(37, 99, 235, 0.1); border-color: rgba(37, 99, 235, 0.25); color: #2563eb;">
-              <span class="webgis-popup-dot" style="background-color: #2563eb;"></span>
-              <span>Ponto Geográfico</span>
+        <div class="apple-cnefe-container" style="min-width: 250px; max-width: 285px;">
+          <!-- Linha de Cabeçalho: Badge e Botão Remover Pino -->
+          <div class="apple-cnefe-header-row">
+            <div class="apple-cnefe-badge red">
+              <span class="apple-cnefe-dot red"></span>
+              <span>Pino no Mapa</span>
             </div>
+            <button 
+              type="button" 
+              class="apple-cnefe-dist-badge" 
+              onclick="event.preventDefault(); event.stopPropagation(); if(window.removeRightClickPin) window.removeRightClickPin();"
+              style="cursor: pointer; background: rgba(225, 29, 72, 0.1); color: #e11d48; border-color: rgba(225, 29, 72, 0.25);"
+              title="Remover este pino do mapa"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <span>Remover Pino</span>
+            </button>
           </div>
 
-          <!-- Seção de Coordenadas com Clique Individual para Copiar -->
-          <div class="webgis-popup-attributes-grid" style="padding: 6px;">
-            <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; text-align: center; letter-spacing: 0.5px;">
-              Coordenadas (Clique p/ Copiar)
-            </div>
-
-            <div class="webgis-coord-grid">
-              <!-- Botão Latitude -->
-              <button
-                type="button"
-                class="webgis-coord-btn"
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyCtxCoord('lat', '${latFormatted}', '${lngFormatted}'); const el=this.querySelector('.webgis-coord-btn-val'); if(el){ el.innerText='Copiado!'; el.style.color='#059669'; setTimeout(() => { el.innerText='${latFormatted}'; el.style.color=''; }, 1800); }"
-                title="Clique para copiar somente a Latitude (${latFormatted})"
+          <!-- Bloco Hero -->
+          <div class="apple-cnefe-hero">
+            <div class="apple-cnefe-hero-title-row">
+              <h4 class="apple-cnefe-hero-title">Ponto Geográfico Marcado</h4>
+              <button 
+                type="button" 
+                class="apple-cnefe-mini-copy" 
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}, ${lngFormatted}', this, 'Coordenadas copiadas!')" 
+                title="Copiar coordenadas"
               >
-                <span class="webgis-coord-btn-label">Latitude</span>
-                <span class="webgis-coord-btn-val">${latFormatted}</span>
-              </button>
-
-              <!-- Botão Longitude -->
-              <button
-                type="button"
-                class="webgis-coord-btn"
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyCtxCoord('lng', '${latFormatted}', '${lngFormatted}'); const el=this.querySelector('.webgis-coord-btn-val'); if(el){ el.innerText='Copiado!'; el.style.color='#059669'; setTimeout(() => { el.innerText='${lngFormatted}'; el.style.color=''; }, 1800); }"
-                title="Clique para copiar somente a Longitude (${lngFormatted})"
-              >
-                <span class="webgis-coord-btn-label">Longitude</span>
-                <span class="webgis-coord-btn-val">${lngFormatted}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </button>
             </div>
+            <p class="apple-cnefe-hero-subtitle">Clique com o botão direito para reposicionar</p>
+          </div>
 
-            <!-- Atalho Copiar Ambas -->
-            <div style="margin-top: 4px; text-align: center;">
-              <button
-                type="button"
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyCtxCoord('all', '${latFormatted}', '${lngFormatted}'); const el=this; el.innerText='✓ Ambas Copiadas!'; el.style.color='#059669'; setTimeout(() => { el.innerText='Copiar Ambas (${latFormatted}, ${lngFormatted})'; el.style.color='#64748b'; }, 1800);"
-                style="background: transparent; border: none; font-size: 9.5px; font-weight: 600; color: #64748b; cursor: pointer; text-decoration: underline; padding: 1px 4px;"
+          <!-- Cápsula de Coordenadas Geográficas -->
+          <div class="apple-cnefe-coords-capsule">
+            <div class="apple-cnefe-coords-header">
+              <span>Coordenadas Geográficas</span>
+            </div>
+            <div class="apple-cnefe-coords-grid">
+              <button 
+                type="button" 
+                class="apple-cnefe-coord-pill" 
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}', this, 'Latitude copiada!')" 
+                title="Clique para copiar Latitude (${latFormatted})"
+              >
+                <span class="apple-cnefe-coord-tag">LAT</span>
+                <span class="apple-cnefe-coord-val">${latFormatted}</span>
+              </button>
+
+              <button 
+                type="button" 
+                class="apple-cnefe-coord-pill" 
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${lngFormatted}', this, 'Longitude copiada!')" 
+                title="Clique para copiar Longitude (${lngFormatted})"
+              >
+                <span class="apple-cnefe-coord-tag">LNG</span>
+                <span class="apple-cnefe-coord-val">${lngFormatted}</span>
+              </button>
+            </div>
+
+            <div class="apple-cnefe-copy-all-row">
+              <button 
+                type="button" 
+                class="apple-cnefe-copy-all-btn" 
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}, ${lngFormatted}', this, 'Coordenadas copiadas!')" 
                 title="Copiar Latitude e Longitude juntas"
               >
-                Copiar Ambas (${latFormatted}, ${lngFormatted})
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>Copiar Ambas (${latFormatted}, ${lngFormatted})</span>
               </button>
             </div>
           </div>
 
-          <!-- Pesquisar Feições Aqui -->
-          <button
-            type="button"
-            class="webgis-popup-cnefe-btn"
-            onclick="event.preventDefault(); event.stopPropagation(); if(window.identifyFeaturesFromCtx) window.identifyFeaturesFromCtx('${latFormatted}', '${lngFormatted}');"
-            style="margin-top: 0; padding: 7px 10px; font-size: 11px;"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <span>Pesquisar Feições Aqui</span>
-          </button>
+          <!-- Ações Rápidas: Identificar Feições e Street View -->
+          <div class="apple-cnefe-actions-row">
+            <button
+              type="button"
+              class="apple-cnefe-action-btn"
+              onclick="event.preventDefault(); event.stopPropagation(); if(window.identifyFeaturesFromCtx) window.identifyFeaturesFromCtx('${latFormatted}', '${lngFormatted}');"
+              style="background: rgba(37, 99, 235, 0.08); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.2);"
+              title="Pesquisar feições e camadas nesta coordenada"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span>Identificar</span>
+            </button>
 
-          <!-- Abrir no Street View -->
-          <a
-            href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latFormatted},${lngFormatted}"
-            target="_blank"
-            rel="noreferrer"
-            class="webgis-streetview-btn"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
-            <span>Abrir no Street View</span>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto; opacity: 0.7;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-          </a>
+            <a 
+              href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latFormatted},${lngFormatted}" 
+              target="_blank" 
+              rel="noreferrer" 
+              class="apple-cnefe-action-btn streetview" 
+              title="Abrir no Google Street View"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+              <span>Street View</span>
+            </a>
+          </div>
         </div>
       `;
 
-      L.popup({
-        className: 'polygon-callout-balloon',
+      marker.bindPopup(popupContent, {
+        className: 'apple-cnefe-popup',
         closeButton: true
-      })
-        .setLatLng(e.latlng)
-        .setContent(popupContent)
-        .openOn(map);
+      });
+
+      marker.openPopup();
     });
 
     // Função de limpeza do mapa ao desmontar
     return () => {
       resizeObserver.disconnect();
+      if (rightClickMarkerRef.current && map) {
+        map.removeLayer(rightClickMarkerRef.current);
+        rightClickMarkerRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
       setMapInstance(null);

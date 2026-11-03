@@ -36,7 +36,7 @@ const DEFAULT_MUNICIPIOS_PI = [
   'José de Freitas',
   'Valença do Piauí',
   'Batalha',
-  'Luís Correia',
+  'Luis Correia',
   'Cocal',
   'Bom Jesus',
   'Corrente'
@@ -61,7 +61,7 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
     const list = availableMunicipios && availableMunicipios.length > 0
       ? availableMunicipios
       : DEFAULT_MUNICIPIOS_PI;
-    
+
     return Array.from(new Set(['Todos', 'Teresina', ...list]));
   }, [availableMunicipios]);
 
@@ -120,16 +120,14 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => setSearchMode('municipio')}
-              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 relative ${
-                searchMode === 'municipio'
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 relative ${searchMode === 'municipio'
                   ? 'bg-[#007AFF]/10 border-[#007AFF] shadow-sm text-[#007AFF] dark:text-[#0a84ff]'
                   : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/5 dark:border-white/5 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] text-slate-700 dark:text-slate-200'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between w-full">
-                <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
-                  searchMode === 'municipio' ? 'bg-[#007AFF] text-white' : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300'
-                }`}>
+                <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${searchMode === 'municipio' ? 'bg-[#007AFF] text-white' : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300'
+                  }`}>
                   <MapPin className="w-3.5 h-3.5" />
                 </div>
                 {searchMode === 'municipio' && (
@@ -150,16 +148,14 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => setSearchMode('radius')}
-              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 relative ${
-                searchMode === 'radius'
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 relative ${searchMode === 'radius'
                   ? 'bg-[#007AFF]/10 border-[#007AFF] shadow-sm text-[#007AFF] dark:text-[#0a84ff]'
                   : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/5 dark:border-white/5 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] text-slate-700 dark:text-slate-200'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between w-full">
-                <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
-                  searchMode === 'radius' ? 'bg-[#007AFF] text-white' : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300'
-                }`}>
+                <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${searchMode === 'radius' ? 'bg-[#007AFF] text-white' : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300'
+                  }`}>
                   <Navigation className="w-3.5 h-3.5" />
                 </div>
                 {searchMode === 'radius' && (
@@ -216,11 +212,10 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
                     key={mun}
                     type="button"
                     onClick={() => setSelectedMunicipio(mun)}
-                    className={`w-full px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between cursor-pointer ${
-                      isSelected
+                    className={`w-full px-3 py-1.5 rounded-xl text-xs font-semibold text-left transition-all flex items-center justify-between cursor-pointer ${isSelected
                         ? 'bg-[#007AFF] text-white shadow-sm'
                         : 'hover:bg-black/5 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200'
-                    }`}
+                      }`}
                   >
                     <span>{mun === 'Todos' ? '📍 Todo o Estado do Piauí' : mun}</span>
                     {isSelected && <Check className="w-3.5 h-3.5" />}
@@ -260,11 +255,10 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
                       setSelectedRadius(item.value);
                       setIsCustomRadius(false);
                     }}
-                    className={`px-2.5 py-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                      isSelected
+                    className={`px-2.5 py-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${isSelected
                         ? 'bg-[#007AFF] border-[#007AFF] text-white shadow-sm'
                         : 'bg-white dark:bg-black/20 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200'
-                    }`}
+                      }`}
                   >
                     <span className="text-xs font-black">{item.label}</span>
                     <span className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
@@ -278,11 +272,10 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCustomRadius(true)}
-                className={`px-2.5 py-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                  isCustomRadius
+                className={`px-2.5 py-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${isCustomRadius
                     ? 'bg-[#007AFF] border-[#007AFF] text-white shadow-sm'
                     : 'bg-white dark:bg-black/20 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200'
-                }`}
+                  }`}
               >
                 <span className="text-xs font-black">Outro Raio</span>
                 <span className={`text-[10px] ${isCustomRadius ? 'text-white/80' : 'text-slate-400'}`}>

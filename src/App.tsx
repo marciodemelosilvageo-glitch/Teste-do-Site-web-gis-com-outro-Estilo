@@ -174,8 +174,6 @@ export default function App() {
       showToast('👔 Modo de simulação ativado: Visualizando o WebGIS como Gerente');
     } else if (targetUser) {
       showToast(`👤 Modo de simulação ativado: Visualizando como @${targetUser.username}`);
-    } else {
-      showToast('👁️ Modo de simulação ativado: Visualizando como Visitante Comum');
     }
   };
 
@@ -869,7 +867,7 @@ export default function App() {
       showToast(`👑 Bem-vindo de volta, Administrador Master ${user.name}!`);
     } else if (assignedRole === 'manager') {
       showToast(`👔 Bem-vindo de volta, Gerente ${user.name}!`);
-    } else {
+    } else if (user.name && user.name !== 'Visitante') {
       showToast(`👤 Bem-vindo de volta, ${user.name}!`);
     }
   };
@@ -964,7 +962,7 @@ export default function App() {
     setPreviousUserPasswordInput('');
     setPreviousUserError(null);
     refreshPermissions();
-    showToast(displayName !== 'Visitante' ? `Bem-vindo, ${displayName}!` : 'Acesso como Visitante liberado!');
+    // Removido toast intrusivo na tela (como 'Acesso como Visitante liberado!')
   };
 
   const handleEnterAsUser = async () => {
