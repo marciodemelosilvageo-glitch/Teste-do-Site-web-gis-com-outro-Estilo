@@ -238,6 +238,28 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     return false;
   }, [activeDetailFeature]);
 
+  // Identificar se a feição selecionada é uma pesquisa de coordenada/ponto no mapa
+  const isCoordenadaSearch = useMemo(() => {
+    if (!activeDetailFeature) return false;
+    const src = (activeDetailFeature.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return (
+      activeDetailFeature.id === 'coord-search' ||
+      src === 'coordenadas' ||
+      src.includes('coordenada') ||
+      !!activeDetailFeature.properties?._details
+    );
+  }, [activeDetailFeature]);
+
+  // Lista de feições identificadas no ponto pesquisado
+  const coordDetailsList = useMemo(() => {
+    if (!activeDetailFeature) return [];
+    const raw = activeDetailFeature.properties?._details;
+    if (Array.isArray(raw)) return raw as string[];
+    if (typeof raw === 'string' && raw.trim()) return [raw];
+    return [];
+  }, [activeDetailFeature]);
+
+
   // Coordenadas geográficas rigorosamente formatadas
   const featureCoords = useMemo(() => {
     if (!activeDetailFeature) return null;
@@ -901,16 +923,18 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </button>
                 )}
                 <h2 className="text-xl font-black text-slate-900 dark:text-white truncate tracking-tight">
-                  {structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado'}
+                  {isCoordenadaSearch ? (activeDetailFeature.name || 'Coordenada Pesquisada') : (structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado')}
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                  {activeDetailFeature.sourceName} • {
-                    (activeDetailFeature.sourceName?.toLowerCase().includes('municipio') ||
-                     (structuredDetails?.nomeMunicipio && (structuredDetails.nomeOficial || activeDetailFeature.name) &&
-                      structuredDetails.nomeMunicipio.toLowerCase().trim() === (structuredDetails.nomeOficial || activeDetailFeature.name).toLowerCase().trim()))
-                      ? (structuredDetails?.nomeUf || 'Piauí')
-                      : (structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : (structuredDetails?.nomeUf || 'Piauí'))
-                  }
+                  {isCoordenadaSearch ? 'Ponto de Pesquisa no Mapa • Piauí' : (
+                    `${activeDetailFeature.sourceName} • ${
+                      (activeDetailFeature.sourceName?.toLowerCase().includes('municipio') ||
+                       (structuredDetails?.nomeMunicipio && (structuredDetails.nomeOficial || activeDetailFeature.name) &&
+                        structuredDetails.nomeMunicipio.toLowerCase().trim() === (structuredDetails.nomeOficial || activeDetailFeature.name).toLowerCase().trim()))
+                        ? (structuredDetails?.nomeUf || 'Piauí')
+                        : (structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : (structuredDetails?.nomeUf || 'Piauí'))
+                    }`
+                  )}
                 </p>
               </div>
 
@@ -971,6 +995,9 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </button>
                 </div>
               </div>
+            ) : isCoordenadaSearch ? (
+              /* Para Coordenadas pesquisadas: não exibir as ferramentas do topo (focar, raio x, exportar, cnefe), pois já existem na primeira barra lateral */
+              null
             ) : (
               /* Ações padrão para camadas poligonais / territoriais */
               <div className="grid grid-cols-4 gap-2 pt-1">
@@ -1057,6 +1084,42 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
+            ) : isCoordenadaSearch ? (
+              /* Card Exclusivo de Feições Encontradas no Ponto da Coordenada */
+              <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Feições no Local
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 border border-[#007AFF]/20">
+                    Ponto Pesquisado
+                  </span>
+                </div>
+
+                {coordDetailsList.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {coordDetailsList.map((item, idx) => {
+                      const colonIdx = item.indexOf(':');
+                      const label = colonIdx !== -1 ? item.slice(0, colonIdx).trim() : 'Feição';
+                      const val = colonIdx !== -1 ? item.slice(colonIdx + 1).trim() : item;
+                      return (
+                        <div key={idx} className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate shrink-0">
+                            {label}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate text-right">
+                            {val}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 py-1 text-center">
+                    Nenhuma camada sobreposta nesta coordenada.
+                  </p>
+                )}
               </div>
             ) : (
               /* Informações Úteis Demográficas para Feições Poligonais */
@@ -1161,7 +1224,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             )}
 
             {/* Detalhes e Atributos da Feição (ocultado para Localidades, pois repete os dados já exibidos acima) */}
-            {!isLocalidade && (
+            {!isLocalidade && !isCoordenadaSearch && (
               <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Detalhes & Propriedades

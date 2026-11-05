@@ -1373,6 +1373,8 @@ export default function App() {
           
         coordProperties["Nome"] = coordName;
         coordProperties["_details"] = details;
+        coordProperties["Latitude"] = searchLat.toFixed(6);
+        coordProperties["Longitude"] = searchLng.toFixed(6);
 
         // Adiciona um item correspondente à coordenada em si
         tempResults["Coordenadas"] = [
@@ -1553,7 +1555,11 @@ export default function App() {
       if (isCoordSearch && tempResults["Coordenadas"] && tempResults["Coordenadas"].length > 0) {
         const coordItem = tempResults["Coordenadas"][0];
         const featureId = 'coord-search';
-        const foundProps = { ...coordItem.polygonLayer.feature.properties };
+        const foundProps = { 
+          ...coordItem.polygonLayer.feature.properties,
+          Latitude: searchLat.toFixed(6),
+          Longitude: searchLng.toFixed(6)
+        };
 
         const newFeature: SelectedFeature = {
           id: featureId,
@@ -1652,7 +1658,11 @@ export default function App() {
         name: item.polygonLayer.feature.properties.Nome || "Coordenada",
         sourceName: layerName,
         layer: item.polygonLayer,
-        properties: item.polygonLayer.feature.properties
+        properties: {
+          ...item.polygonLayer.feature.properties,
+          Latitude: lat.toFixed(6),
+          Longitude: lng.toFixed(6)
+        }
       };
       
       setSelectedFeatures(prev => {
