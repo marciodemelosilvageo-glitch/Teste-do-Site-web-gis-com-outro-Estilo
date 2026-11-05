@@ -1553,25 +1553,51 @@ export default function App() {
       if (isCoordSearch && tempResults["Coordenadas"] && tempResults["Coordenadas"].length > 0) {
         const coordItem = tempResults["Coordenadas"][0];
         const featureId = 'coord-search';
+        const foundProps = { ...coordItem.polygonLayer.feature.properties };
+
         const newFeature: SelectedFeature = {
           id: featureId,
-          name: coordItem.polygonLayer.feature.properties.Nome || "Coordenada",
+          name: foundProps.Nome || `Coordenada: ${searchLat.toFixed(6)}, ${searchLng.toFixed(6)}`,
           sourceName: "Coordenadas",
           layer: coordItem.polygonLayer,
-          properties: coordItem.polygonLayer.feature.properties
+          properties: foundProps
         };
-        setSelectedFeatures(prev => {
-          const filtered = prev.filter(f => f.sourceName !== "Coordenadas");
-          return [...filtered, newFeature];
+
+        const polygonFeatures: SelectedFeature[] = [];
+        Object.entries(tempResults).forEach(([layerName, items]) => {
+          if (layerName !== "Coordenadas" && Array.isArray(items)) {
+            items.forEach((it: any) => {
+              if (it.polygonLayer?.feature?.properties) {
+                polygonFeatures.push({
+                  id: String(it.polygonLayer._leaflet_id || `feat-${layerName}-${it.value}`),
+                  name: it.value,
+                  sourceName: layerName,
+                  layer: it.polygonLayer,
+                  properties: it.polygonLayer.feature.properties
+                });
+              }
+            });
+          }
         });
+
+        // 1. Envia as informações para a barra lateral esquerda em "Detalhes da Feição"
+        setSelectedFeatures([...polygonFeatures, newFeature]);
+        setSidebarTab('details');
+        setIsSidebarCollapsed(false);
+
+        // 2. Fecha a barra de busca suspensa do topo
+        setIsSearchResultsVisible(false);
+
         if (mapInstance) {
-          mapInstance.setView([searchLat, searchLng], 14);
+          mapInstance.setView([searchLat, searchLng], Math.max(mapInstance.getZoom(), 15));
         }
+
+        // 3. No mapa, mantém apenas o pino da coordenada pesquisada
         setSearchCoordinates([{
           lat: searchLat,
           lng: searchLng,
-          label: coordItem.polygonLayer.feature.properties.Nome,
-          details: coordItem.polygonLayer.feature.properties._details,
+          label: newFeature.name,
+          details: foundProps._details,
           isCoordSearch: true
         }]);
       }
@@ -1598,6 +1624,9 @@ export default function App() {
     setTotalResultsCount(0);
     setIsSearchResultsVisible(false);
     setSearchCoordinates(null);
+    if ((window as any).removeRightClickPin) {
+      (window as any).removeRightClickPin();
+    }
     showToast('Busca redefinida.');
   };
 
@@ -1689,10 +1718,35 @@ export default function App() {
         lyr.setStyle(lyr.defaultStyle);
       }
 
-      setSelectedFeatures(selectedFeatures.filter(f => f.id !== id));
+      const remaining = selectedFeatures.filter(f => f.id !== id);
+      setSelectedFeatures(remaining);
+
+      // Se removeu a coordenada pesquisada ou a seleção ficou vazia, limpa o pino do mapa
+      if (id === 'coord-search' || remaining.length === 0) {
+        setSearchCoordinates(null);
+        if ((window as any).removeRightClickPin) {
+          (window as any).removeRightClickPin();
+        }
+      }
+
       logActivity('FEICAO', `Removeu feição "${target.name}" da seleção`, userRole);
       showToast('Feição removida da seleção.');
     }
+  };
+
+  const handleClearSelection = () => {
+    selectedFeatures.forEach(f => {
+      const lyr = f.layer as any;
+      if (lyr && typeof lyr.setStyle === 'function') {
+        lyr.setStyle(lyr.defaultStyle);
+      }
+    });
+    setSelectedFeatures([]);
+    setSearchCoordinates(null);
+    if ((window as any).removeRightClickPin) {
+      (window as any).removeRightClickPin();
+    }
+    showToast('Seleção de feições limpa.');
   };
 
   // Zoom para feição selecionada
@@ -2536,7 +2590,7 @@ export default function App() {
             selectedFeatures={selectedFeatures}
             onZoomToFeature={handleZoomToFeature}
             onRemoveFromSelection={handleRemoveFromSelection}
-            onClearSelection={() => setSelectedFeatures([])}
+            onClearSelection={handleClearSelection}
             isMultiSelectMode={isMultiSelectMode}
             onToggleMultiSelect={() => {
               setIsMultiSelectMode(!isMultiSelectMode);
@@ -2604,6 +2658,14 @@ export default function App() {
             onSelectionChange={(features) => {
               setSelectedFeatures(prev => {
                 const nextFeatures = typeof features === 'function' ? features(prev) : features;
+                if (nextFeatures.length === 0) {
+                  if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
+                    setSearchCoordinates(null);
+                  }
+                  if ((window as any).removeRightClickPin) {
+                    (window as any).removeRightClickPin();
+                  }
+                }
                 if (nextFeatures.length === 0 && prev.length === 0) return prev;
                 if (nextFeatures.length > prev.length) {
                   const newest = nextFeatures[nextFeatures.length - 1];

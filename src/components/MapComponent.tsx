@@ -1228,6 +1228,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
   useEffect(() => {
     (window as any).identifyFeaturesFromCtx = (latStr: string, lngStr: string) => {
+      // Fecha o balão do pino de botão direito imediatamente para deixar apenas o pino no mapa
+      if (rightClickMarkerRef.current) {
+        rightClickMarkerRef.current.closePopup();
+      }
       if (onSearchCoordinateRef.current) {
         onSearchCoordinateRef.current(`${latStr}, ${lngStr}`);
       }
@@ -1494,8 +1498,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           if (typeof layer.bringToFront === 'function') {
             layer.bringToFront();
           }
-          if (typeof layer.openPopup === 'function') {
-            layer.openPopup(ev.latlng || (layer.getBounds ? layer.getBounds().getCenter() : undefined));
+          // Atualiza o card flutuante superior em vez de abrir popup no meio
+          if (className === 'layer-measure-resultarea') {
+            const model = lastMeasureModelRef.current;
+            let points = model?.points;
+            if (!points && typeof layer.getLatLngs === 'function') {
+              const lls = layer.getLatLngs();
+              points = Array.isArray(lls[0]) ? lls[0] : lls;
+            }
+            if (points && points.length >= 3) {
+              setActiveMeasureInfo({
+                layer,
+                areaDisplay: model?.areaDisplay || 'Área Medida',
+                lengthDisplay: model?.lengthDisplay || '',
+                points
+              });
+            }
           }
         });
 
@@ -1530,220 +1548,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                              container.querySelector('.js-deletemarkup');
 
       if (isMeasurePopup) {
-        const model = lastMeasureModelRef.current;
-        let rawPoints = model?.points;
-        if (!rawPoints && (popup as any)._source && typeof (popup as any)._source.getLatLngs === 'function') {
-          const latlngs = (popup as any)._source.getLatLngs();
-          rawPoints = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-        }
-
-        // Listener para o botão nativo de exclusão do leaflet-measure
-        const deleteMarkupBtn = container.querySelector('.js-deletemarkup');
-        if (deleteMarkupBtn && !(deleteMarkupBtn as any)._hasCleanupListener) {
-          (deleteMarkupBtn as any)._hasCleanupListener = true;
-          deleteMarkupBtn.addEventListener('click', () => {
-            setActiveMeasureInfo(null);
-            lastMeasureModelRef.current = null;
-          });
-        }
-
-        const contentEl = (container.querySelector('.leaflet-popup-content') || container) as HTMLElement;
-        const tasksUl = contentEl.querySelector('.tasks') as HTMLElement;
-
-        // Formata os botões secundários para texto limpo e conciso estilo Apple
-        const zoomLink = contentEl.querySelector('a.js-zoomto') as HTMLElement;
-        if (zoomLink && !(zoomLink as any)._hasCleanAppleStyle) {
-          (zoomLink as any)._hasCleanAppleStyle = true;
-          zoomLink.innerHTML = '<span>⌖ Centralizar</span>';
-          zoomLink.title = 'Centralizar visualização no mapa';
-        }
-
-        const deleteLink = contentEl.querySelector('a.js-deletemarkup') as HTMLElement;
-        if (deleteLink && !(deleteLink as any)._hasCleanAppleStyle) {
-          (deleteLink as any)._hasCleanAppleStyle = true;
-          deleteLink.innerHTML = '<span>🗑 Excluir</span>';
-          deleteLink.title = 'Excluir esta medição';
-        }
-
-        // Limpa pontos duplicados de fechamento para cálculos precisos
-        const cleanPoints = (pts: any[]): any[] => {
-          if (!pts || pts.length === 0) return [];
-          const res = [...pts];
-          if (res.length > 2) {
-            const first = res[0];
-            const last = res[res.length - 1];
-            const lat1 = Number(first.lat !== undefined ? first.lat : first[0]);
-            const lng1 = Number(first.lng !== undefined ? first.lng : first[1]);
-            const lat2 = Number(last.lat !== undefined ? last.lat : last[0]);
-            const lng2 = Number(last.lng !== undefined ? last.lng : last[1]);
-            if (Math.abs(lat1 - lat2) < 0.000001 && Math.abs(lng1 - lng2) < 0.000001) {
-              res.pop();
-            }
-          }
-          return res;
-        };
-
-        const points = rawPoints ? cleanPoints(rawPoints) : null;
-
-        // Transforma os parágrafos de texto puro em Cards Apple KPIs
-        if (points && points.length >= 3 && !contentEl.querySelector('.apple-measure-popup-kpis')) {
-          const areaSqM = calculateGeodesicAreaMeters(points);
-          let perimeterM = 0;
-          for (let i = 0; i < points.length; i++) {
-            const next = points[(i + 1) % points.length];
-            perimeterM += haversineDistanceMeters(
-              Number(points[i].lat !== undefined ? points[i].lat : points[i][0]),
-              Number(points[i].lng !== undefined ? points[i].lng : points[i][1]),
-              Number(next.lat !== undefined ? next.lat : next[0]),
-              Number(next.lng !== undefined ? next.lng : next[1])
-            );
-          }
-          const areaFormatted = formatArea(areaSqM);
-          const perimFormatted = formatDistance(perimeterM);
-
-          // Oculta os parágrafos antigos de texto puro
-          const oldPs = contentEl.querySelectorAll('p');
-          oldPs.forEach((p: Element) => { (p as HTMLElement).style.display = 'none'; });
-
-          const kpisDiv = document.createElement('div');
-          kpisDiv.className = 'apple-measure-popup-kpis';
-          kpisDiv.innerHTML = `
-            <div class="apple-measure-popup-kpi-card">
-              <span class="apple-measure-kpi-label">Área Calculada</span>
-              <span class="apple-measure-kpi-val text-green">${areaFormatted.formatted}</span>
-              ${areaFormatted.secondary ? `<span class="apple-measure-kpi-sub">${areaFormatted.secondary}</span>` : ''}
-            </div>
-            <div class="apple-measure-popup-kpi-card">
-              <span class="apple-measure-kpi-label">Perímetro</span>
-              <span class="apple-measure-kpi-val">${perimFormatted}</span>
-              <span class="apple-measure-kpi-sub">${Math.round(perimeterM).toLocaleString('pt-BR')} metros</span>
-            </div>
-          `;
-
-          if (tasksUl) {
-            tasksUl.parentNode?.insertBefore(kpisDiv, tasksUl);
-          } else {
-            contentEl.appendChild(kpisDiv);
-          }
-        } else if (points && points.length === 2 && !contentEl.querySelector('.apple-measure-popup-kpis')) {
-          const lat1 = Number(points[0].lat !== undefined ? points[0].lat : points[0][0]);
-          const lng1 = Number(points[0].lng !== undefined ? points[0].lng : points[0][1]);
-          const lat2 = Number(points[1].lat !== undefined ? points[1].lat : points[1][0]);
-          const lng2 = Number(points[1].lng !== undefined ? points[1].lng : points[1][1]);
-          const distM = haversineDistanceMeters(lat1, lng1, lat2, lng2);
-
-          const oldPs = contentEl.querySelectorAll('p');
-          oldPs.forEach((p: Element) => { (p as HTMLElement).style.display = 'none'; });
-
-          const kpisDiv = document.createElement('div');
-          kpisDiv.className = 'apple-measure-popup-kpis single';
-          kpisDiv.innerHTML = `
-            <div class="apple-measure-popup-kpi-card">
-              <span class="apple-measure-kpi-label">Distância Medida</span>
-              <span class="apple-measure-kpi-val text-blue">${formatDistance(distM)}</span>
-              ${distM >= 1000 ? `<span class="apple-measure-kpi-sub">${Math.round(distM).toLocaleString('pt-BR')} metros</span>` : ''}
-            </div>
-          `;
-          if (tasksUl) {
-            tasksUl.parentNode?.insertBefore(kpisDiv, tasksUl);
-          } else {
-            contentEl.appendChild(kpisDiv);
-          }
-        }
-
-        // Verifica se a medição contém 3 ou mais pontos (área/polígono) para o botão de busca CNEFE
-        if (points && points.length >= 3 && !contentEl.querySelector('.js-cnefe-measure-btn')) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'webgis-popup-cnefe-btn js-cnefe-measure-btn';
-          btn.style.width = '100%';
-          btn.style.marginTop = '10px';
-          btn.style.marginBottom = '2px';
-          btn.style.cursor = 'pointer';
-          btn.style.padding = '10px 12px';
-          btn.style.fontSize = '12px';
-          btn.style.fontWeight = '700';
-          btn.style.display = 'flex';
-          btn.style.alignItems = 'center';
-          btn.style.justifyContent = 'center';
-          btn.style.gap = '7px';
-          btn.style.background = 'linear-gradient(135deg, #007AFF 0%, #0062cc 100%)';
-          btn.style.color = '#ffffff';
-          btn.style.border = 'none';
-          btn.style.borderRadius = '14px';
-          btn.style.boxShadow = '0 4px 14px rgba(0, 122, 255, 0.35)';
-          btn.style.transition = 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
-          btn.style.boxSizing = 'border-box';
-          btn.style.whiteSpace = 'nowrap';
-          btn.onmouseenter = () => {
-            btn.style.filter = 'brightness(1.08)';
-            btn.style.transform = 'translateY(-1px)';
-            btn.style.boxShadow = '0 6px 18px rgba(0, 122, 255, 0.45)';
-          };
-          btn.onmouseleave = () => {
-            btn.style.filter = 'none';
-            btn.style.transform = 'translateY(0)';
-            btn.style.boxShadow = '0 4px 14px rgba(0, 122, 255, 0.35)';
-          };
-          btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <span style="letter-spacing: -0.01em;">Buscar Endereços CNEFE nesta Área</span>
-          `;
-
-          btn.onclick = (evt) => {
-            evt.preventDefault();
-            evt.stopPropagation();
-
-            const rawCoords = points.map((p: any) => [
-              Number(p.lng !== undefined ? p.lng : (p[1] !== undefined ? p[1] : p[0])),
-              Number(p.lat !== undefined ? p.lat : (p[0] !== undefined ? p[0] : p[1]))
-            ]);
-
-            if (rawCoords.length >= 3) {
-              if (rawCoords[0][0] !== rawCoords[rawCoords.length - 1][0] || rawCoords[0][1] !== rawCoords[rawCoords.length - 1][1]) {
-                rawCoords.push([rawCoords[0][0], rawCoords[0][1]]);
-              }
-
-              const areaSqM = calculateGeodesicAreaMeters(points);
-              const areaFormatted = formatArea(areaSqM);
-
-              const polygonGeoJson = {
-                type: 'Feature',
-                geometry: {
-                  type: 'Polygon',
-                  coordinates: [rawCoords]
-                },
-                properties: {
-                  Nome: `Área Medida (${areaFormatted.formatted})`,
-                  sourceName: 'Medição'
-                }
-              };
-
-              if (onSearchPolygonAddressesRef.current) {
-                onSearchPolygonAddressesRef.current({
-                  feature: polygonGeoJson,
-                  title: `Área Medida (${areaFormatted.formatted})`,
-                  sourceName: 'Medição',
-                  layer: null
-                });
-              }
-            }
-          };
-
-          // Insere o botão ANTES da linha tasksUl (em vez de dentro de tasksUl)
-          if (tasksUl) {
-            tasksUl.parentNode?.insertBefore(btn, tasksUl);
-          } else {
-            contentEl.appendChild(btn);
-          }
-        }
-
-        if (typeof popup.update === 'function') {
-          popup.update();
-        }
+        // Usuário solicitou que o popup não apareça no meio do mapa ao concluir a medição,
+        // pois o card flutuante no canto superior esquerdo já mostra as mesmas informações completas.
+        map.closePopup(popup);
+        return;
       }
     });
 
@@ -1961,7 +1769,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               title="Pesquisar feições e camadas nesta coordenada"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <span>Identificar</span>
+              <span>Pesquisar Feições</span>
             </button>
 
             <a 
@@ -2032,6 +1840,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     searchMarkersRef.current = [];
 
     if (searchCoordinates && searchCoordinates.length > 0) {
+      // Remove pino anterior do botão direito se houver para não sobrepor
+      if (rightClickMarkerRef.current && map) {
+        map.removeLayer(rightClickMarkerRef.current);
+        rightClickMarkerRef.current = null;
+      }
+
       // Ícone temático de Saúde (Hospitais / UBS / Clínicas) - sem efeito piscante
       const healthPinIcon = L.divIcon({
         className: 'custom-search-marker-pin',
@@ -2340,7 +2154,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         searchMarkersRef.current.push(marker);
       });
 
-      if (searchCoordinates.length === 1) {
+      if (searchCoordinates.length === 1 && !searchCoordinates[0].isCoordSearch) {
         searchMarkersRef.current[0].openPopup();
       }
     }
@@ -2758,6 +2572,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           }
 
           // Clique na feição
+          // Botão direito na feição -> Dispara o evento de contextmenu no mapa para fixar o pino na coordenada exata
+          layer.on('contextmenu', (ev: L.LeafletMouseEvent) => {
+            if (mapRef.current) {
+              mapRef.current.fire('contextmenu', ev);
+            }
+          });
+
           layer.on('click', (ev: L.LeafletMouseEvent) => {
             try {
               // Se a ferramenta de medição estiver ativa, repassa o clique diretamente para o controle de medição
@@ -3423,9 +3244,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     }
                     if (typeof activeMeasureInfo.layer.getBounds === 'function') {
                       mapRef.current.fitBounds(activeMeasureInfo.layer.getBounds(), { padding: [30, 30], maxZoom: 17 });
-                    }
-                    if (typeof activeMeasureInfo.layer.openPopup === 'function') {
-                      activeMeasureInfo.layer.openPopup();
                     }
                   }
                 }}
