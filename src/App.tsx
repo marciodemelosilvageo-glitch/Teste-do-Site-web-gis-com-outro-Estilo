@@ -1580,10 +1580,10 @@ export default function App() {
           }
         });
 
-        // 1. Envia as informações para a barra lateral esquerda em "Detalhes da Feição"
-        setSelectedFeatures([...polygonFeatures, newFeature]);
+        // 1. Envia apenas a feição da coordenada pesquisada para "Detalhes da Feição" (sem selecionar municípios ou outros polígonos)
+        setSelectedFeatures([newFeature]);
         setSidebarTab('details');
-        setIsSidebarCollapsed(false);
+        // Mantém o estado da barra de ferramentas (se estava minimizada continua minimizada, se expandida continua expandida)
 
         // 2. Fecha a barra de busca suspensa do topo
         setIsSearchResultsVisible(false);
@@ -1721,8 +1721,11 @@ export default function App() {
       const remaining = selectedFeatures.filter(f => f.id !== id);
       setSelectedFeatures(remaining);
 
-      // Se removeu a coordenada pesquisada ou a seleção ficou vazia, limpa o pino do mapa
+      // Se removeu a coordenada pesquisada ou a seleção ficou vazia, limpa o pino do mapa e fecha detalhes
       if (id === 'coord-search' || remaining.length === 0) {
+        if (sidebarTab === 'details') {
+          setSidebarTab(null);
+        }
         setSearchCoordinates(null);
         if ((window as any).removeRightClickPin) {
           (window as any).removeRightClickPin();
@@ -1742,6 +1745,9 @@ export default function App() {
       }
     });
     setSelectedFeatures([]);
+    if (sidebarTab === 'details') {
+      setSidebarTab(null);
+    }
     setSearchCoordinates(null);
     if ((window as any).removeRightClickPin) {
       (window as any).removeRightClickPin();
@@ -2659,6 +2665,10 @@ export default function App() {
               setSelectedFeatures(prev => {
                 const nextFeatures = typeof features === 'function' ? features(prev) : features;
                 if (nextFeatures.length === 0) {
+                  // Quando desmarca a feição, fecha a barra de detalhes da feição
+                  if (sidebarTab === 'details') {
+                    setSidebarTab(null);
+                  }
                   if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
                     setSearchCoordinates(null);
                   }

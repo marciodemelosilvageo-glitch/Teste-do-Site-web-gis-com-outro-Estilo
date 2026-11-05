@@ -1658,9 +1658,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         html: `
           <div style="width: 28px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); filter: drop-shadow(0 3px 6px rgba(0,0,0,0.45));">
             <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" fill="#E11D48" stroke="#FFFFFF" stroke-width="1.8"/>
+              <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" fill="#007AFF" stroke="#FFFFFF" stroke-width="1.8"/>
               <circle cx="14" cy="13.5" r="5" fill="#FFFFFF"/>
-              <circle cx="14" cy="13.5" r="2.5" fill="#E11D48"/>
+              <circle cx="14" cy="13.5" r="2.5" fill="#007AFF"/>
             </svg>
           </div>
         `,
@@ -1685,21 +1685,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       const popupContent = `
         <div class="apple-cnefe-container" style="min-width: 250px; max-width: 285px;">
-          <!-- Linha de Cabeçalho: Badge e Botão Remover Pino -->
+          <!-- Linha de Cabeçalho: Badge Padrão e Botão Remover Neutro -->
           <div class="apple-cnefe-header-row">
-            <div class="apple-cnefe-badge red">
-              <span class="apple-cnefe-dot red"></span>
-              <span>Pino no Mapa</span>
+            <div class="apple-cnefe-badge blue">
+              <span class="apple-cnefe-dot blue"></span>
+              <span>Coordenada</span>
             </div>
             <button 
               type="button" 
               class="apple-cnefe-dist-badge" 
               onclick="event.preventDefault(); event.stopPropagation(); if(window.removeRightClickPin) window.removeRightClickPin();"
-              style="cursor: pointer; background: rgba(225, 29, 72, 0.1); color: #e11d48; border-color: rgba(225, 29, 72, 0.25);"
-              title="Remover este pino do mapa"
+              style="cursor: pointer; background: rgba(100, 116, 139, 0.08); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.2);"
+              title="Remover este ponto do mapa"
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              <span>Remover Pino</span>
+              <span>Remover</span>
             </button>
           </div>
 
@@ -1759,13 +1759,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             </div>
           </div>
 
-          <!-- Ações Rápidas: Identificar Feições e Street View -->
+          <!-- Ações Rápidas: Pesquisar Feições e Street View (Cores Padrão do Site) -->
           <div class="apple-cnefe-actions-row">
             <button
               type="button"
               class="apple-cnefe-action-btn"
               onclick="event.preventDefault(); event.stopPropagation(); if(window.identifyFeaturesFromCtx) window.identifyFeaturesFromCtx('${latFormatted}', '${lngFormatted}');"
-              style="background: rgba(37, 99, 235, 0.08); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.2);"
+              style="background: #007AFF; color: #ffffff; border: 1px solid #007AFF;"
               title="Pesquisar feições e camadas nesta coordenada"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -1777,6 +1777,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               target="_blank" 
               rel="noreferrer" 
               class="apple-cnefe-action-btn streetview" 
+              style="background: rgba(0, 122, 255, 0.08); color: #007AFF; border: 1px solid rgba(0, 122, 255, 0.2);"
               title="Abrir no Google Street View"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
@@ -2574,6 +2575,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           // Clique na feição
           // Botão direito na feição -> Dispara o evento de contextmenu no mapa para fixar o pino na coordenada exata
           layer.on('contextmenu', (ev: L.LeafletMouseEvent) => {
+            if (ev.originalEvent) {
+              L.DomEvent.stopPropagation(ev.originalEvent);
+              L.DomEvent.preventDefault(ev.originalEvent);
+            }
             if (mapRef.current) {
               mapRef.current.fire('contextmenu', ev);
             }
@@ -2581,6 +2586,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
           layer.on('click', (ev: L.LeafletMouseEvent) => {
             try {
+              // Somente cliques com botão esquerdo (botão 0). Ignora qualquer clique com botão direito ou meio
+              if (ev.originalEvent && ev.originalEvent.button !== 0) {
+                return;
+              }
               // Se a ferramenta de medição estiver ativa, repassa o clique diretamente para o controle de medição
               // permitindo marcar pontos sobre qualquer camada, polígono ou feição
               if (isMeasuringActiveRef.current) {
