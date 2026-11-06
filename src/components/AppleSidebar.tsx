@@ -238,6 +238,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     return false;
   }, [activeDetailFeature]);
 
+  // Identificar se a feição selecionada pertence à camada de Comunidades Rurais de Teresina
+  const isComunidadeRural = useMemo(() => {
+    if (!activeDetailFeature) return false;
+    const src = (activeDetailFeature.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return src.includes('comunidades rurais') || src.includes('comunidade rural');
+  }, [activeDetailFeature]);
+
   // Identificar se a feição selecionada é uma pesquisa de coordenada/ponto no mapa
   const isCoordenadaSearch = useMemo(() => {
     if (!activeDetailFeature) return false;
@@ -448,7 +455,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       items.push({ key: 'NM_SUBDIST', label: 'Zona / Subdistrito', value: d.nomeSubdistrito });
     }
     if (d.nomeComunidade && isAllowed('NM_FCU')) {
-      items.push({ key: 'NM_FCU', label: 'Favela / Comunidade', value: d.nomeComunidade });
+      items.push({ key: 'NM_FCU', label: isComunidadeRural ? 'Comunidade Rural' : 'Favela / Comunidade', value: d.nomeComunidade });
     }
     if (d.nomeNucleo && isAllowed('NM_NU')) {
       items.push({ key: 'NM_NU', label: 'Núcleo Urbano', value: d.nomeNucleo });
@@ -1000,7 +1007,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               null
             ) : (
               /* Ações padrão para camadas poligonais / territoriais */
-              <div className="grid grid-cols-4 gap-2 pt-1">
+              <div className={`grid ${isComunidadeRural ? 'grid-cols-3' : 'grid-cols-4'} gap-2 pt-1`}>
                 {/* Botão Trajetos / Focar (Azul Apple #007AFF) */}
                 <button
                   type="button"
@@ -1011,17 +1018,19 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <span>Focar</span>
                 </button>
 
-                {/* Botão Raio-X */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('dashboard')}
-                  className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-                >
-                  <Users className="w-5 h-5 text-[#34C759]" />
-                  <span>Raio-X</span>
-                </button>
+                {/* Botão Raio-X (ocultado na camada Comunidades Rurais de Teresina) */}
+                {!isComunidadeRural && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('dashboard')}
+                    className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                  >
+                    <Users className="w-5 h-5 text-[#34C759]" />
+                    <span>Raio-X</span>
+                  </button>
+                )}
 
-                {/* Botão Buscar Endereços CNEFE no Polígono */}
+                {/* Botão Buscar Endereços no Polígono (exibe 'Busca Endereços' em Comunidades Rurais) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1029,10 +1038,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     onOpenCnefeBottomBar?.();
                   }}
                   className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-                  title="Abrir Busca de Endereços Avançado desta área na barra inferior"
+                  title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
                 >
                   <Home className="w-5 h-5 text-[#FF9500]" />
-                  <span>CNEFE</span>
+                  <span className="truncate">{isComunidadeRural ? 'Busca Endereços' : 'CNEFE'}</span>
                 </button>
 
                 {/* Botão Exportar */}
@@ -1121,7 +1130,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </p>
                 )}
               </div>
-            ) : (
+            ) : !isComunidadeRural ? (
               /* Informações Úteis Demográficas para Feições Poligonais */
               <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -1162,7 +1171,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   )}
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Seção de Coordenadas Geográficas com 6 dígitos decimais exatos */}
             {featureCoords && (

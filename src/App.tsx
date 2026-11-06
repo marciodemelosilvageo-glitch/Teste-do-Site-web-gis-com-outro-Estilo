@@ -382,14 +382,15 @@ export default function App() {
   // E quando o usuário desmarcar a feição (nada selecionado), fecha o painel de detalhes.
   useEffect(() => {
     if (selectedFeatures.length > 0) {
-      const isOnlyLocalidades = selectedFeatures.every(f => {
+      const isNoDashboardLayer = selectedFeatures.every(f => {
         const src = (f.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (src.includes('localidade')) return true;
+        if (src.includes('comunidades rurais') || src.includes('comunidade rural')) return true;
         const props = f.properties || {};
         return props.id_Localidades != null || props.id_localidades != null || (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN);
       });
 
-      if (isOnlyLocalidades) {
+      if (isNoDashboardLayer) {
         setSidebarTab('details');
       } else {
         setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));

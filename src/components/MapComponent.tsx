@@ -2525,15 +2525,17 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
           let searchPolygonBtnHtml = '';
           if (isPolygon || isAreaLayer) {
+            const isComunidadesRurais = source.name === 'Comunidades Rurais de Teresina';
+            const btnLabel = isComunidadesRurais ? 'Busca Endereços' : 'Buscar Endereços CNEFE';
             searchPolygonBtnHtml = `
               <button 
                 type="button"
                 class="webgis-popup-cnefe-btn"
                 onclick="event.preventDefault(); event.stopPropagation(); if (window.searchAddressesInPolygonByLayerId) window.searchAddressesInPolygonByLayerId('${layerId}');"
-                title="Consultar e listar todos os endereços do CNEFE/IBGE contidos neste polígono"
+                title="Consultar e listar todos os endereços contidos neste polígono"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <span>Buscar Endereços CNEFE</span>
+                <span>${btnLabel}</span>
               </button>
             `;
           }
