@@ -395,7 +395,8 @@ export default function App() {
         setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
       }
     } else {
-      // Mantem a aba selecionada sem fechar bruscamente
+      // Quando o usuário desmarca a feição (nada selecionado), fecha a barra de detalhes da feição
+      setSidebarTab(prev => (prev === 'details' ? null : prev));
     }
   }, [selectedFeatures]);
 
@@ -1736,9 +1737,7 @@ export default function App() {
 
       // Se removeu a coordenada pesquisada ou a seleção ficou vazia, limpa o pino do mapa e fecha detalhes
       if (id === 'coord-search' || remaining.length === 0) {
-        if (sidebarTab === 'details') {
-          setSidebarTab(null);
-        }
+        setSidebarTab(prev => (prev === 'details' ? null : prev));
         setSearchCoordinates(null);
         if ((window as any).removeRightClickPin) {
           (window as any).removeRightClickPin();
@@ -1758,9 +1757,7 @@ export default function App() {
       }
     });
     setSelectedFeatures([]);
-    if (sidebarTab === 'details') {
-      setSidebarTab(null);
-    }
+    setSidebarTab(prev => (prev === 'details' ? null : prev));
     setSearchCoordinates(null);
     if ((window as any).removeRightClickPin) {
       (window as any).removeRightClickPin();
@@ -2679,9 +2676,7 @@ export default function App() {
                 const nextFeatures = typeof features === 'function' ? features(prev) : features;
                 if (nextFeatures.length === 0) {
                   // Quando desmarca a feição, fecha a barra de detalhes da feição
-                  if (sidebarTab === 'details') {
-                    setSidebarTab(null);
-                  }
+                  setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
                   if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
                     setSearchCoordinates(null);
                   }

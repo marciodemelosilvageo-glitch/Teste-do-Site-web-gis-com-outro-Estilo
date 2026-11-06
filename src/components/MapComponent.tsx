@@ -463,6 +463,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     selectedFeaturesRef.current = selectedFeatures;
   }, [selectedFeatures]);
 
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange;
+  }, [onSelectionChange]);
+
   const [activeMeasureInfo, setActiveMeasureInfo] = useState<{
     layer: any;
     areaDisplay?: string;
@@ -1627,7 +1632,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       const hasCoordSearch = selectedFeaturesRef.current.some(f => f.id === 'coord-search' || f.sourceName === 'Coordenadas');
       if (hasCoordSearch) return;
       clearPolygonCallout();
-      onSelectionChange([]);
+      onSelectionChangeRef.current?.([]);
     });
 
     map.on('measurestart', () => {
@@ -2358,7 +2363,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           openPolygonCallout(layer, (layer as any)._popupContentHtml, undefined, false);
         }
 
-        onSelectionChange([{
+        onSelectionChangeRef.current?.([{
           id: String((layer as any)._leaflet_id),
           name: title,
           sourceName: sourceName,
@@ -2625,7 +2630,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
               if (hasSelectedLocalidade && !isCurrentClickLocalidade) {
                 clearPolygonCallout();
-                onSelectionChange([]);
+                onSelectionChangeRef.current?.([]);
                 return;
               }
 
@@ -2637,14 +2642,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               const isCtrl = ev.originalEvent ? (ev.originalEvent.ctrlKey || ev.originalEvent.metaKey) : false;
               const multi = isCtrl || isMultiSelectModeRef.current;
 
-              onSelectionChange((prevSelected) => {
-                const alreadySelected = prevSelected.some(item => item.id === String(layer._leaflet_id));
+              onSelectionChangeRef.current?.((prevSelected) => {
+                const alreadySelected = prevSelected.some(item => 
+                  item.id === String(layer._leaflet_id) ||
+                  item.layer === layer ||
+                  (Boolean((layer as any).localidadeKey) && (item.layer as any)?.localidadeKey === (layer as any).localidadeKey)
+                );
 
                 if (multi) {
                   if (alreadySelected) {
                     // Remove da seleção múltipla
                     applySelectedStyleToLayer(layer, false);
-                    return prevSelected.filter(item => item.id !== String(layer._leaflet_id));
+                    return prevSelected.filter(item => 
+                      item.id !== String(layer._leaflet_id) &&
+                      item.layer !== layer &&
+                      (!Boolean((layer as any).localidadeKey) || (item.layer as any)?.localidadeKey !== (layer as any).localidadeKey)
+                    );
                   } else {
                     // Adiciona à seleção múltipla
                     applySelectedStyleToLayer(layer, true);
@@ -2763,7 +2776,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       const isCurrentlyVisible = prev[sourceName] !== false;
       const nextVisible = !isCurrentlyVisible;
       if (!nextVisible) {
-        onSelectionChange((prevSel) => prevSel.filter(f => f.sourceName !== sourceName));
+        onSelectionChangeRef.current?.((prevSel) => prevSel.filter(f => f.sourceName !== sourceName));
       }
       return { ...prev, [sourceName]: nextVisible };
     });
@@ -2786,7 +2799,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const removeLayerFromActive = (sourceName: string) => {
     setActiveLayers(activeLayers.filter(name => name !== sourceName));
     setExpandedDetails(prev => ({ ...prev, [sourceName]: false }));
-    onSelectionChange((prevSel) => prevSel.filter(f => f.sourceName !== sourceName));
+    onSelectionChangeRef.current?.((prevSel) => prevSel.filter(f => f.sourceName !== sourceName));
     showToast(`Camada "${sourceName}" removida das camadas ativas.`);
   };
 
@@ -2929,9 +2942,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     setExpandedDetails(defaultExpanded);
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     setBasemap(isDark ? 'appleDark' : 'apple');
-    if (onSelectionChange) {
-      onSelectionChange([]);
-    }
+    onSelectionChangeRef.current?.([]);
 
     const initialOpacities: Record<string, number> = {};
     dataSources.forEach(s => { 
@@ -3150,7 +3161,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       newVisible[name] = false;
     });
     setVisibleLayers(prev => ({ ...prev, ...newVisible }));
-    onSelectionChange([]);
+    onSelectionChangeRef.current?.([]);
   };
 
   // Expandir / Recolher todos os accordions de camadas
