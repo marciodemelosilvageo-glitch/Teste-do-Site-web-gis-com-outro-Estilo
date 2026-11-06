@@ -1623,6 +1623,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       // Clique no mapa sem feição limpa a seleção e o balão callout de polígonos
       if (e.originalEvent && (e.originalEvent as any)._simulated) return;
+      // Se a seleção atual é uma coordenada pesquisada (pino de botão direito), não limpar ao clicar no mapa
+      const hasCoordSearch = selectedFeaturesRef.current.some(f => f.id === 'coord-search' || f.sourceName === 'Coordenadas');
+      if (hasCoordSearch) return;
       clearPolygonCallout();
       onSelectionChange([]);
     });

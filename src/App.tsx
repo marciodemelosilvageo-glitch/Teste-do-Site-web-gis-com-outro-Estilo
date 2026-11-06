@@ -243,7 +243,12 @@ export default function App() {
       });
 
       setSelectedFeatures(prev => {
-        const filtered = prev.filter(feat => !feat.sourceName || allowedLayerNames.includes(feat.sourceName));
+        const filtered = prev.filter(feat => 
+          !feat.sourceName || 
+          feat.sourceName === 'Coordenadas' || 
+          feat.id === 'coord-search' || 
+          allowedLayerNames.includes(feat.sourceName)
+        );
         return filtered.length === prev.length ? prev : filtered;
       });
     }
@@ -1395,7 +1400,6 @@ export default function App() {
         ];
         countFound += 1;
 
-        showToast(`Buscando feições para a coordenada: ${searchLat.toFixed(6)}, ${searchLng.toFixed(6)}`);
       } else {
         // Algoritmo de Ranking e Similaridade Otimizado
         const lowerPriorityKeys = PRIORITY_KEYS.map(k => k.toLowerCase());
@@ -1670,7 +1674,6 @@ export default function App() {
         return [...filtered, newFeature];
       });
 
-      showToast(`Focado na coordenada: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       return;
     }
 
