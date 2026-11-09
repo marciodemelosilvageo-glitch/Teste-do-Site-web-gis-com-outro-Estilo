@@ -34,9 +34,21 @@ let landFeaturesPromise: Promise<any> | null = null;
 const getLandFeatures = async (): Promise<any> => {
     if (cachedLandFeatures) return cachedLandFeatures;
     if (!landFeaturesPromise) {
-        landFeaturesPromise = fetch(
-            "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/refs/heads/master/50m/physical/ne_50m_land.json"
-        )
+        // Carrega o GeoJSON 110m ultraleve (~237 KB) servido localmente na pasta public/
+        const localUrl = (typeof import.meta !== "undefined" && import.meta.env?.BASE_URL)
+            ? `${import.meta.env.BASE_URL.replace(/\/$/, "")}/ne_110m_land.json`
+            : "/ne_110m_land.json";
+
+        landFeaturesPromise = fetch(localUrl)
+            .then((res) => {
+                if (!res.ok) {
+                    // Fallback para CDN externo se necessário
+                    return fetch(
+                        "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/refs/heads/master/110m/physical/ne_110m_land.json"
+                    );
+                }
+                return res;
+            })
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load land data");
                 return res.json();
@@ -44,6 +56,10 @@ const getLandFeatures = async (): Promise<any> => {
             .then((data) => {
                 cachedLandFeatures = data;
                 return data;
+            })
+            .catch((err) => {
+                landFeaturesPromise = null;
+                throw err;
             });
     }
     return landFeaturesPromise;
@@ -249,10 +265,16 @@ export default function Globe({
     const [, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Suporte a preferência de menos movimento (acessibilidade / dispositivos modestos)
+    const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const dotColor = dots.color;
     const dotSize = dots.size;
     const density = dots.density;
     const allDots = dots.allDots;
+    const markerColor = markerConfig.color;
+    const markerSize = markerConfig.size;
+    const markerCount = markerConfig.markers?.length || 0;
     const gridWidth = 1;
     const smoothingN = normalizeSmoothing(smoothing);
 
@@ -262,11 +284,12 @@ export default function Globe({
     const dotSpacing = mapDensityUiToSpacing(density);
     const dotSizeMultiplier = mapDotSizeUiToMultiplier(dotSize);
     const markerRadiusMultiplier = mapMarkerDotSizeUiToMultiplier(
-        markerConfig.size
+        markerSize
     );
     const scaleMultiplier = mapScaleUiToMultiplier(scale);
 
     useEffect(() => {
+        if (prefersReducedMotion) return;
         if (!containerRef.current) return;
         const container = containerRef.current;
         const containerWidth =
@@ -287,9 +310,14 @@ export default function Globe({
         camera.position.set(0, 0, cameraDistance);
         camera.lookAt(0, 0, 0);
 
-        const renderer = new WebGLRenderer({ antialias: true, alpha: true });
+        // Desliga antialias e limita o pixelRatio a 1.5 para economizar GPU/bateria
+        const renderer = new WebGLRenderer({
+            antialias: false,
+            alpha: true,
+            powerPreference: "low-power"
+        });
         renderer.setSize(containerWidth, containerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.outputColorSpace = SRGBColorSpace;
         const canvas = renderer.domElement;
         canvas.style.position = "absolute";
@@ -471,6 +499,7 @@ export default function Globe({
         let markerMeshes: Mesh[] = [];
 
         const loadWorldData = async () => {
+            const tStart = performance.now();
             try {
                 setIsLoading(true);
                 const landFeatures = await getLandFeatures();
@@ -585,8 +614,9 @@ export default function Globe({
                     });
                 }
 
-                const bitmapWidth = 2048;
-                const bitmapHeight = 1024;
+                // Amostragem proporcional ao tamanho real do elemento (64-80px), reduzindo 97% dos pixels
+                const bitmapWidth = 360;
+                const bitmapHeight = 180;
                 const offscreenCanvas = document.createElement("canvas");
                 offscreenCanvas.width = bitmapWidth;
                 offscreenCanvas.height = bitmapHeight;
@@ -627,8 +657,8 @@ export default function Globe({
                 };
 
                 if (fill === "solid") {
-                    const texW = 1024;
-                    const texH = 512;
+                    const texW = 360;
+                    const texH = 180;
                     const fillCanvas = document.createElement("canvas");
                     fillCanvas.width = texW;
                     fillCanvas.height = texH;
@@ -730,6 +760,10 @@ export default function Globe({
                 canvas.style.opacity = "1";
                 canvas.style.visibility = "visible";
                 setIsLoading(false);
+                const tElapsed = performance.now() - tStart;
+                if (typeof console !== "undefined" && console.debug) {
+                    console.debug(`[Globe 3D] Inicialização e amostragem concluídas em ${tElapsed.toFixed(1)}ms`);
+                }
             } catch (err) {
                 setError("Failed to load land map data");
                 setIsLoading(false);
@@ -799,7 +833,15 @@ export default function Globe({
         globeGroup.add(continentOutlineGroup);
         markerMeshes.forEach((mesh) => globeGroup.add(mesh));
 
+        let isVisible = true;
+        let isPageVisible = typeof document !== "undefined" ? !document.hidden : true;
+
         const animate = () => {
+            if (!isVisible || !isPageVisible) {
+                animationFrameId = null;
+                return;
+            }
+
             let needsRender = false;
             const threshold = 0.01;
             if (
@@ -863,13 +905,37 @@ export default function Globe({
         };
 
         const startAnimation = () => {
-            if (animationFrameId === null) {
+            if (animationFrameId === null && isVisible && isPageVisible) {
                 animationFrameId = requestAnimationFrame(animate);
             }
         };
         if (rotationSpeed !== 0) {
             startAnimation();
         }
+
+        // Pausa renderização quando aba não estiver visível
+        const handleVisibilityChange = () => {
+            isPageVisible = !document.hidden;
+            if (isPageVisible && isVisible) {
+                startAnimation();
+            } else if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        // Pausa renderização quando o elemento estiver fora do viewport
+        const intersectionObserver = new IntersectionObserver(([entry]) => {
+            isVisible = entry.isIntersecting;
+            if (isVisible && isPageVisible) {
+                startAnimation();
+            } else if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }, { threshold: 0.05 });
+        intersectionObserver.observe(container);
 
         const handleMouseDown = (event: MouseEvent) => {
             isDragging = true;
@@ -936,16 +1002,38 @@ export default function Globe({
         return () => {
             if (animationFrameId !== null)
                 cancelAnimationFrame(animationFrameId);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            intersectionObserver.disconnect();
             canvas.removeEventListener("mousedown", handleMouseDown);
             canvas.removeEventListener("mousemove", handleMouseMove);
             resizeObserver.disconnect();
+
+            // Liberação (dispose) completa de geometrias, materiais e texturas
+            scene.traverse((obj: any) => {
+                if (obj.geometry) {
+                    obj.geometry.dispose();
+                }
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach((m: any) => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (obj.material.map) obj.material.map.dispose();
+                        obj.material.dispose();
+                    }
+                }
+            });
+
             renderer.dispose();
-            container.removeChild(canvas);
+            if (canvas.parentNode) {
+                canvas.parentNode.removeChild(canvas);
+            }
         };
     }, [
         speed,
         smoothing,
-        dots,
         fill,
         fillColor,
         allDots,
@@ -954,7 +1042,6 @@ export default function Globe({
         dotColor,
         scale,
         stopOnHover,
-        markerConfig,
         direction,
         initialLatitude,
         initialLongitude,
@@ -966,11 +1053,9 @@ export default function Globe({
         outlineWidth,
         dragSpeed,
         detail,
-        rotationSpeed,
-        dotSpacing,
-        dotSizeMultiplier,
-        markerRadiusMultiplier,
-        scaleMultiplier,
+        markerColor,
+        markerSize,
+        markerCount,
     ]);
 
     const containerStyle: CSSProperties = {
@@ -982,6 +1067,21 @@ export default function Globe({
         alignItems: "center",
         justifyContent: "center",
     };
+
+    if (prefersReducedMotion) {
+        return (
+            <div className={className} style={containerStyle} aria-label="Globo terrestre estático">
+                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm" fill="none">
+                    <circle cx="50" cy="50" r="46" stroke={outlineColor || "#007AFF"} strokeWidth="2" opacity="0.6" />
+                    <ellipse cx="50" cy="50" rx="46" ry="18" stroke={graticuleColor || "rgba(0,122,255,0.2)"} strokeWidth="1" />
+                    <ellipse cx="50" cy="50" rx="18" ry="46" stroke={graticuleColor || "rgba(0,122,255,0.2)"} strokeWidth="1" />
+                    <line x1="4" y1="50" x2="96" y2="50" stroke={graticuleColor || "rgba(0,122,255,0.2)"} strokeWidth="1" />
+                    <line x1="50" y1="4" x2="50" y2="96" stroke={graticuleColor || "rgba(0,122,255,0.2)"} strokeWidth="1" />
+                    <circle cx="50" cy="50" r="5" fill={dotColor || "#007AFF"} />
+                </svg>
+            </div>
+        );
+    }
 
     if (error) {
         return (

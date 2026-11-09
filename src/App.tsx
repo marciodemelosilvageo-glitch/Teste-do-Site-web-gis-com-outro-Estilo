@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense, memo } from 'react';
 import { 
   Search, 
   X, 
@@ -24,13 +24,13 @@ import { IbgeSearchPanel, ExternalPolygonSearchResult } from './components/IbgeS
 import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
-import Globe from './components/Globe';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
+const Globe = lazy(() => import('./components/Globe'));
 const AdminPanelModal = lazy(() => import('./components/AdminPanelModal').then(m => ({ default: m.AdminPanelModal })));
 const UserProfileModal = lazy(() => import('./components/UserProfileModal').then(m => ({ default: m.UserProfileModal })));
 import { 
@@ -69,6 +69,88 @@ export const SYSTEM_LOGOS = {
 
 // Logo ativa no cabeçalho e na tela de entrada do aplicativo
 const CURRENT_APP_LOGO = SYSTEM_LOGOS.gerencia;
+
+interface HeroGlobeProps {
+  isDarkMode: boolean;
+}
+
+// Componente memoizado do globo 3D: só é recriado se o tema claro/escuro mudar.
+// Inicializa o Three.js após a pintura da tela inicial via requestIdleCallback.
+const HeroGlobe = React.memo(({ isDarkMode }: HeroGlobeProps) => {
+  const [shouldMount, setShouldMount] = useState(false);
+
+  useEffect(() => {
+    let idleHandle: number | null = null;
+    let timerHandle: any = null;
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleHandle = (window as any).requestIdleCallback(
+        () => setShouldMount(true),
+        { timeout: 600 }
+      );
+    } else {
+      timerHandle = setTimeout(() => setShouldMount(true), 80);
+    }
+
+    return () => {
+      if (idleHandle !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        (window as any).cancelIdleCallback(idleHandle);
+      }
+      if (timerHandle !== null) {
+        clearTimeout(timerHandle);
+      }
+    };
+  }, []);
+
+  const dotsConfig = useMemo(() => ({
+    color: isDarkMode ? "#38bdf8" : "#007AFF",
+    size: 5,
+    density: 8,
+    allDots: false
+  }), [isDarkMode]);
+
+  const outlineColor = useMemo(
+    () => (isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,122,255,0.45)"),
+    [isDarkMode]
+  );
+
+  const graticuleColor = useMemo(
+    () => (isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,122,255,0.15)"),
+    [isDarkMode]
+  );
+
+  return (
+    <div 
+      className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 relative rounded-2xl overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+      title="Globo Terrestre Interativo 3D • Arraste para rotacionar"
+    >
+      <Suspense fallback={
+        <div className="w-full h-full rounded-2xl bg-blue-500/5 dark:bg-sky-400/5 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full border border-dashed border-[#007AFF]/30 dark:border-sky-400/30 animate-spin" />
+        </div>
+      }>
+        {shouldMount ? (
+          <Globe
+            speed={1.8}
+            scale={9.5}
+            dots={dotsConfig}
+            outlineColor={outlineColor}
+            graticuleColor={graticuleColor}
+            oceanColor="transparent"
+            showGrid={true}
+            showOutline={true}
+            stopOnHover={false}
+          />
+        ) : (
+          <div className="w-full h-full rounded-2xl bg-blue-500/5 dark:bg-sky-400/5 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full border border-dashed border-[#007AFF]/30 dark:border-sky-400/30 animate-spin" />
+          </div>
+        )}
+      </Suspense>
+    </div>
+  );
+});
+HeroGlobe.displayName = 'HeroGlobe';
 
 export default function App() {
   const [hasEntered, setHasEntered] = useState<boolean>(() => {
@@ -2027,28 +2109,8 @@ export default function App() {
             className="flex flex-col items-center w-full"
           >
             <div className="flex items-center justify-center gap-3 sm:gap-4 w-full">
-              {/* Globo 3D Interativo posicionado ao lado da logo */}
-              <div 
-                className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 relative rounded-2xl overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
-                title="Globo Terrestre Interativo 3D • Arraste para rotacionar"
-              >
-                <Globe
-                  speed={1.8}
-                  scale={9.5}
-                  dots={{
-                    color: isDarkMode ? "#38bdf8" : "#007AFF",
-                    size: 5,
-                    density: 8,
-                    allDots: false
-                  }}
-                  outlineColor={isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,122,255,0.45)"}
-                  graticuleColor={isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,122,255,0.15)"}
-                  oceanColor="transparent"
-                  showGrid={true}
-                  showOutline={true}
-                  stopOnHover={false}
-                />
-              </div>
+              {/* Globo 3D Interativo posicionado ao lado da logo (otimizado com lazy, idle callback e memo) */}
+              <HeroGlobe isDarkMode={isDarkMode} />
 
               {/* Logo Oficial SSP-PI */}
               <img 
