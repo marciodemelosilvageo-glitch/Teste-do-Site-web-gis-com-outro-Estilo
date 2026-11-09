@@ -86,6 +86,43 @@ const computeSpatialMinZooms = (features: any[]): Map<any, number> => {
   return minZoomMap;
 };
 
+// Cálculo inteligente de amostragem espacial para coordenadas plotadas (CNEFE / Busca por Tipo / Hospitais)
+// Distribui os pontos espacialmente para evitar sobreposição e travamento do mapa
+const computeSpatialMinZoomsForCoords = (coords: Array<{ lat: number; lng: number }>): number[] => {
+  if (coords.length <= 15) {
+    return coords.map(() => 7);
+  }
+
+  const gridOccupied: Record<number, Set<string>> = {
+    8: new Set(),
+    9: new Set(),
+    10: new Set(),
+    11: new Set(),
+    12: new Set(),
+    13: new Set(),
+    14: new Set(),
+  };
+
+  return coords.map(coord => {
+    const lat = Number(coord.lat);
+    const lng = Number(coord.lng);
+    if (isNaN(lat) || isNaN(lng)) return 14;
+
+    for (let z = 8; z <= 14; z++) {
+      const cellSize = 0.50 / Math.pow(2, z - 8);
+      const gridX = Math.floor(lng / cellSize);
+      const gridY = Math.floor(lat / cellSize);
+      const key = `${gridX},${gridY}`;
+
+      if (!gridOccupied[z].has(key)) {
+        gridOccupied[z].add(key);
+        return z;
+      }
+    }
+    return 15;
+  });
+};
+
 const getAppleMapsPoiIconSvg = (name: string, isSelected: boolean = false) => {
   const n = (name || '').toLowerCase();
   const fill = '#ffffff'; // Branco puro com alto contraste sobre o pino vermelho Apple
@@ -1296,6 +1333,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   // Definição dos Basemaps
   const tileLayersRef = useRef<Record<string, L.TileLayer>>({});
   const searchMarkersRef = useRef<L.Marker[]>([]);
+  const allSearchMarkersRef = useRef<any[]>([]);
+  const searchLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const rightClickMarkerRef = useRef<L.Marker | null>(null);
 
   // Estilo de seleção destacado estilo Apple Maps (Apple Blue brilhante com contorno animado)
@@ -1429,6 +1468,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
     mapRef.current = map;
     setMapInstance(map);
+
+    // LayerGroup dedicado para marcadores de busca/plotagem CNEFE com viewport otimizado
+    const searchLayerGroup = L.layerGroup().addTo(map);
+    searchLayerGroupRef.current = searchLayerGroup;
 
     // Add measuring tool
     if (typeof window !== 'undefined') {
@@ -1810,6 +1853,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         map.removeLayer(rightClickMarkerRef.current);
         rightClickMarkerRef.current = null;
       }
+      if (searchLayerGroupRef.current) {
+        searchLayerGroupRef.current.clearLayers();
+        if (map.hasLayer(searchLayerGroupRef.current)) {
+          map.removeLayer(searchLayerGroupRef.current);
+        }
+        searchLayerGroupRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
       setMapInstance(null);
@@ -1835,17 +1885,98 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [basemap]);
 
-  // Monitorar busca por coordenada para exibir marcador temporário destacado
+  // Função para renderizar progressivamente apenas os pontos de busca/CNEFE visíveis no viewport
+  // Mantém 60 FPS mesmo com milhares de pontos plotados (ex: hospitais de um município inteiro)
+  const updatePlottedViewport = useCallback(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    if (!searchLayerGroupRef.current) {
+      searchLayerGroupRef.current = L.layerGroup().addTo(map);
+    }
+    const layer = searchLayerGroupRef.current;
+    if (!map.hasLayer(layer)) {
+      layer.addTo(map);
+    }
+
+    const allMarkers = allSearchMarkersRef.current;
+    if (!allMarkers || allMarkers.length === 0) {
+      layer.clearLayers();
+      return;
+    }
+
+    // Se houver apenas 1 ponto marcado (ex: busca individual ou clique em endereço único)
+    if (allMarkers.length === 1) {
+      if (!layer.hasLayer(allMarkers[0])) {
+        layer.clearLayers();
+        layer.addLayer(allMarkers[0]);
+      }
+      return;
+    }
+
+    const currentZoom = map.getZoom();
+
+    // Se o zoom for muito distante (< 7), oculta pontos para não poluir o mapa estadual
+    if (currentZoom < 7) {
+      layer.clearLayers();
+      return;
+    }
+
+    const bounds = map.getBounds().pad(0.1);
+
+    // Limites de densidade progressiva por nível de zoom
+    const maxVisibleInViewport = 
+      currentZoom >= 15 ? 400 :
+      currentZoom >= 14 ? 200 :
+      currentZoom >= 13 ? 120 :
+      currentZoom >= 11 ? 60 :
+      currentZoom >= 10 ? 30 :
+      currentZoom >= 9 ? 16 : 8;
+
+    const nextVisible = new Set<any>();
+    let count = 0;
+
+    for (let i = 0; i < allMarkers.length; i++) {
+      const marker = allMarkers[i];
+      const latLng = (marker as any).featureLatLng;
+
+      if (latLng && bounds.contains(latLng)) {
+        const passesZoom = currentZoom >= ((marker as any).minZoom ?? 8);
+        const isPopupOpen = marker.isPopupOpen && marker.isPopupOpen();
+
+        if (passesZoom || isPopupOpen) {
+          nextVisible.add(marker);
+          count++;
+          if (count >= maxVisibleInViewport) break;
+        }
+      }
+    }
+
+    // Adiciona apenas os novos que devem ficar visíveis e ainda não estão
+    nextVisible.forEach(marker => {
+      if (!layer.hasLayer(marker)) {
+        layer.addLayer(marker);
+      }
+    });
+
+    // Remove apenas os que saíram do viewport (mantendo os que estão com popup aberto)
+    layer.eachLayer((marker: any) => {
+      if (!nextVisible.has(marker) && !(marker.isPopupOpen && marker.isPopupOpen())) {
+        layer.removeLayer(marker);
+      }
+    });
+  }, []);
+
+  // Monitorar busca por coordenada para exibir marcadores temporários com controle de viewport
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
 
     // Remover marcadores antigos se existirem
-    searchMarkersRef.current.forEach(marker => {
-      if (map.hasLayer(marker)) {
-        map.removeLayer(marker);
-      }
-    });
+    if (searchLayerGroupRef.current) {
+      searchLayerGroupRef.current.clearLayers();
+    }
+    allSearchMarkersRef.current = [];
     searchMarkersRef.current = [];
 
     if (searchCoordinates && searchCoordinates.length > 0) {
@@ -1855,12 +1986,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         rightClickMarkerRef.current = null;
       }
 
-      // Ícone temático de Saúde (Hospitais / UBS / Clínicas) - sem efeito piscante
+      // Ícone temático de Saúde (Hospitais / UBS / Clínicas) - 100% estático sem animações
       const healthPinIcon = L.divIcon({
         className: 'custom-search-marker-pin',
         html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s ease-out;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#DC2626" stroke="#FFFFFF" stroke-width="1.5"/>
               <path d="M11 6.5H15V10.5H19V14.5H15V18.5H11V14.5H7V10.5H11V6.5Z" fill="#FFFFFF"/>
             </svg>
@@ -1871,12 +2002,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         popupAnchor: [0, -30]
       });
 
-      // Ícone padrão de Localização / Endereço (Estilo Apple Maps) - sem efeito piscante
+      // Ícone padrão de Localização / Endereço (Estilo Apple Maps) - 100% estático sem animações
       const defaultPinIcon = L.divIcon({
         className: 'custom-search-marker-pin',
         html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s ease-out;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#007AFF" stroke="#FFFFFF" stroke-width="1.5"/>
               <circle cx="13" cy="12.5" r="4.5" fill="#FFFFFF"/>
             </svg>
@@ -1887,7 +2018,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         popupAnchor: [0, -30]
       });
 
-      searchCoordinates.forEach((coord) => {
+      const minZooms = computeSpatialMinZoomsForCoords(searchCoordinates);
+      const newMarkers: any[] = [];
+
+      searchCoordinates.forEach((coord, index) => {
         const { lat, lng, details, isCoordSearch, label, rawAddress } = coord;
         
         // Mapear detalhes e atributos brutos do endereço
@@ -1924,8 +2058,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         const chosenIcon = isSaude ? healthPinIcon : defaultPinIcon;
 
-        // Adicionar marcador no mapa
-        const marker = L.marker([lat, lng], { icon: chosenIcon }).addTo(map);
+        // Criar marcador para renderização progressiva por viewport
+        const marker = L.marker([lat, lng], { icon: chosenIcon });
+        (marker as any).featureLatLng = L.latLng(lat, lng);
+        (marker as any).minZoom = searchCoordinates.length === 1 ? 1 : minZooms[index];
 
         const latFormatted = lat.toFixed(6);
         const lngFormatted = lng.toFixed(6);
@@ -2160,14 +2296,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           className: 'apple-cnefe-popup'
         });
         
-        searchMarkersRef.current.push(marker);
+        newMarkers.push(marker);
       });
 
-      if (searchCoordinates.length === 1 && !searchCoordinates[0].isCoordSearch) {
-        searchMarkersRef.current[0].openPopup();
+      allSearchMarkersRef.current = newMarkers;
+      searchMarkersRef.current = newMarkers;
+
+      updatePlottedViewport();
+
+      if (searchCoordinates.length === 1 && !searchCoordinates[0].isCoordSearch && newMarkers.length > 0) {
+        newMarkers[0].openPopup();
       }
+    } else {
+      updatePlottedViewport();
     }
-  }, [searchCoordinates]);
+  }, [searchCoordinates, updatePlottedViewport]);
 
   // Função para aplicar ordem visual de sobreposição das camadas no mapa Leaflet
   const applyMapLayerOrder = (order: string[]) => {
@@ -2238,6 +2381,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         applyMapLayerOrder(activeLayers.filter(name => (allowedLayerNames ? allowedLayerNames.includes(name) : true) && visibleLayers[name] !== false));
         updateLegendViewport();
+        updatePlottedViewport();
       } finally {
         setIsLoading(false);
       }
@@ -2257,6 +2401,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           updateLocalidadesViewport(locLayer, map, selectedFeaturesRef.current, customColor);
         }
         updateLegendViewport();
+        updatePlottedViewport();
       }, 100);
     };
 
@@ -2267,7 +2412,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       map.off('zoomend', syncMapLayers);
       map.off('moveend', handleDebouncedMapMove);
     };
-  }, [activeLayers, visibleLayers, allowedLayerNames, updateLegendViewport]);
+  }, [activeLayers, visibleLayers, allowedLayerNames, updateLegendViewport, updatePlottedViewport]);
 
   const prevAllowedRef = useRef<string[] | undefined>(allowedLayerNames);
 
