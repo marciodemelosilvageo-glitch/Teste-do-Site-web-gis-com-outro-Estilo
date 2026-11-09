@@ -251,8 +251,11 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     const src = (activeDetailFeature.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     return (
       activeDetailFeature.id === 'coord-search' ||
+      activeDetailFeature.id?.startsWith('plot-') ||
       src === 'coordenadas' ||
       src.includes('coordenada') ||
+      src.includes('enderecos plotados') ||
+      src.includes('endereco') ||
       !!activeDetailFeature.properties?._details
     );
   }, [activeDetailFeature]);
@@ -933,7 +936,11 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   {isCoordenadaSearch ? (activeDetailFeature.name || 'Coordenada Pesquisada') : (structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado')}
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                  {isCoordenadaSearch ? 'Ponto de Pesquisa no Mapa • Piauí' : (
+                  {isCoordenadaSearch ? (
+                    activeDetailFeature.sourceName && activeDetailFeature.sourceName !== 'Coordenadas'
+                      ? `${activeDetailFeature.sourceName} • Piauí`
+                      : 'Ponto de Pesquisa no Mapa • Piauí'
+                  ) : (
                     `${activeDetailFeature.sourceName} • ${
                       (activeDetailFeature.sourceName?.toLowerCase().includes('municipio') ||
                        (structuredDetails?.nomeMunicipio && (structuredDetails.nomeOficial || activeDetailFeature.name) &&
@@ -1095,14 +1102,18 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 </div>
               </div>
             ) : isCoordenadaSearch ? (
-              /* Card Exclusivo de Feições Encontradas no Ponto da Coordenada */
+              /* Card Exclusivo de Feições Encontradas no Ponto da Coordenada / Endereço Plotado */
               <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Feições no Local
+                    {activeDetailFeature.id?.startsWith('plot-') ? 'Dados do Endereço' : 'Feições no Local'}
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 border border-[#007AFF]/20">
-                    Ponto Pesquisado
+                    {activeDetailFeature.id?.startsWith('plot-')
+                      ? (activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE
+                          ? toTitleCase(String(activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE))
+                          : 'CNEFE • IBGE')
+                      : 'Ponto Pesquisado'}
                   </span>
                 </div>
 
@@ -1110,16 +1121,26 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <div className="space-y-1.5">
                     {coordDetailsList.map((item, idx) => {
                       const colonIdx = item.indexOf(':');
-                      const label = colonIdx !== -1 ? item.slice(0, colonIdx).trim() : 'Feição';
+                      const label = colonIdx !== -1 ? item.slice(0, colonIdx).trim() : 'Informação';
                       const val = colonIdx !== -1 ? item.slice(colonIdx + 1).trim() : item;
                       return (
                         <div key={idx} className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 flex items-center justify-between gap-2">
                           <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate shrink-0">
                             {label}
                           </span>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate text-right">
-                            {val}
-                          </span>
+                          <div className="flex items-center gap-1.5 min-w-0 justify-end">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate text-right">
+                              {val}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(val, label)}
+                              className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                              title={`Copiar ${label}`}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

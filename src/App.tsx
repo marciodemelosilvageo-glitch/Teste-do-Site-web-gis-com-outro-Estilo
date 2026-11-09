@@ -1630,6 +1630,7 @@ export default function App() {
     setTotalResultsCount(0);
     setIsSearchResultsVisible(false);
     setSearchCoordinates(null);
+    setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
     if ((window as any).removeRightClickPin) {
       (window as any).removeRightClickPin();
     }
@@ -1730,10 +1731,14 @@ export default function App() {
       const remaining = selectedFeatures.filter(f => f.id !== id);
       setSelectedFeatures(remaining);
 
-      // Se removeu a coordenada pesquisada ou a seleção ficou vazia, limpa o pino do mapa e fecha detalhes
-      if (id === 'coord-search' || remaining.length === 0) {
+      // Se removeu feição de endereço plotado, apenas fecha a aba de detalhes sem apagar a plotagem
+      if (id.startsWith('plot-')) {
         setSidebarTab(prev => (prev === 'details' ? null : prev));
-        setSearchCoordinates(null);
+      } else if (id === 'coord-search' || remaining.length === 0) {
+        setSidebarTab(prev => (prev === 'details' ? null : prev));
+        if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
+          setSearchCoordinates(null);
+        }
         if ((window as any).removeRightClickPin) {
           (window as any).removeRightClickPin();
         }
@@ -1753,7 +1758,9 @@ export default function App() {
     });
     setSelectedFeatures([]);
     setSidebarTab(prev => (prev === 'details' ? null : prev));
-    setSearchCoordinates(null);
+    if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
+      setSearchCoordinates(null);
+    }
     if ((window as any).removeRightClickPin) {
       (window as any).removeRightClickPin();
     }
@@ -1764,7 +1771,7 @@ export default function App() {
   const handleZoomToFeature = (feat: SelectedFeature) => {
     if (mapActionsRef.current) {
       mapActionsRef.current.zoomToFeature(feat.layer);
-      if (typeof (feat.layer as any).openPopup === 'function') {
+      if (!feat.id.startsWith('plot-') && typeof (feat.layer as any).openPopup === 'function') {
         (feat.layer as any).openPopup();
       }
       showToast(`Centralizando câmera em ${feat.name}`);
@@ -1779,20 +1786,64 @@ export default function App() {
       }
     };
     
+    add('Identificação do Estabelecimento', row.estabelecimento || row.ESTABELECIMENTO || row['Identificação do estabelecimento']);
     add('Endereço', row.endereco || row.ENDERECO);
+    add('Número', row.numero_logradouro || row.NUMERO_LOGRADOURO || row['Número no logradouro'] || row['número']);
     add('Complemento', row.complemento || row.COMPLEMENTO);
-    add('Município', row.municipio || row.MUNICIPIO);
     add('Bairro', row.bairro || row.BAIRRO);
+    add('Município', row.municipio || row.MUNICIPIO);
+    add('CEP', row.cep || row.CEP);
+    add('Espécie', row.especie || row.ESPECIE || row['Espécie de endereço']);
+    add('Cód. CNEFE', row.codigo_unico || row.CODIGO_UNICO || row['Código único do endereço']);
+    add('Distância', row.distancia_texto);
     add('Zona', row.zona || row.ZONA);
     add('Localidade', row.localidade || row.LOCALIDADE);
     add('Núcleo Urbano', row.nucleo_urbano || row.NUCLEO_URBANO || row['Nucleo Urbano']);
     add('Favelas ou Comunidades Urbana', row.favela_comunidade || row.FAVELA_COMUNIDADE || row['Favelas ou Comunidades Urbana']);
-    add('Espécie', row.especie || row.ESPECIE || row['Espécie de endereço']);
-    add('Identificação do Estabelecimento', row.estabelecimento || row.ESTABELECIMENTO || row['Identificação do estabelecimento']);
     add('Agromerado', row.agromerado || row.AGROMERADO || row['Agromerado']);
     add('Comunidades Rurais de Teresina', row.comunidade_rural || row.COMUNIDADE_RURAL || row['Comunidades Rurais de Teresina']);
     
     return details;
+  };
+
+  const handlePlottedPointClick = (index: number, point: any, marker: any) => {
+    const raw = point.rawAddress || {};
+    const estabRaw = raw.estabelecimento || raw.ESTABELECIMENTO || raw['Identificação do estabelecimento'] || '';
+    const enderecoRaw = raw.endereco || raw.ENDERECO || point.label || '';
+    const numeroRaw = raw.numero_logradouro || raw.NUMERO_LOGRADOURO || raw['Número no logradouro'] || raw['número'] || '';
+
+    let featName = '';
+    if (estabRaw && String(estabRaw).trim()) {
+      featName = toTitleCase(String(estabRaw).trim());
+    } else if (enderecoRaw && String(enderecoRaw).trim()) {
+      featName = toTitleCase(String(enderecoRaw).trim()) + (numeroRaw ? `, ${numeroRaw}` : '');
+    } else {
+      featName = point.label || 'Endereço Plotado';
+    }
+
+    const details = (point.details && point.details.length > 0)
+      ? point.details
+      : formatAddressDetails(raw);
+
+    const plotFeature: SelectedFeature = {
+      id: `plot-${index}`,
+      name: featName,
+      sourceName: 'Endereços plotados',
+      layer: marker,
+      properties: {
+        Latitude: point.lat,
+        Longitude: point.lng,
+        _details: details,
+        ...raw
+      }
+    };
+
+    setSelectedFeatures(prev => {
+      const filtered = prev.filter(f => !f.id.startsWith('plot-'));
+      return [...filtered, plotFeature];
+    });
+
+    setSidebarTab('details');
   };
 
   const handlePlotAddress = (row: any) => {
@@ -1805,15 +1856,48 @@ export default function App() {
     }
 
     const addrLabel = row.endereco || row.ENDERECO || 'Endereço IBGE';
+    const estabRaw = row.estabelecimento || row.ESTABELECIMENTO || row['Identificação do estabelecimento'] || '';
+    const numeroRaw = row.numero_logradouro || row.NUMERO_LOGRADOURO || row['Número no logradouro'] || row['número'] || '';
+
+    let featName = '';
+    if (estabRaw && String(estabRaw).trim()) {
+      featName = toTitleCase(String(estabRaw).trim());
+    } else if (addrLabel && String(addrLabel).trim()) {
+      featName = toTitleCase(String(addrLabel).trim()) + (numeroRaw ? `, ${numeroRaw}` : '');
+    } else {
+      featName = addrLabel;
+    }
+
+    const details = formatAddressDetails(row);
 
     setSearchCoordinates([{ 
       lat, 
       lng, 
       label: addrLabel, 
-      details: formatAddressDetails(row),
+      details,
       isCoordSearch: false,
       rawAddress: row
     }]);
+
+    const plotFeature: SelectedFeature = {
+      id: 'plot-0',
+      name: featName,
+      sourceName: 'Endereços plotados',
+      layer: null as any,
+      properties: {
+        Latitude: lat,
+        Longitude: lng,
+        _details: details,
+        ...row
+      }
+    };
+
+    setSelectedFeatures(prev => {
+      const filtered = prev.filter(f => !f.id.startsWith('plot-'));
+      return [...filtered, plotFeature];
+    });
+
+    setSidebarTab('details');
 
     if (mapInstance) {
       mapInstance.setView([lat, lng], 17);
@@ -1867,6 +1951,8 @@ export default function App() {
   const handleClearPlot = () => {
     setSearchCoordinates(null);
     setCnefeExternalResult(null);
+    setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
+    setSidebarTab(prev => (prev === 'details' ? null : prev));
     logActivity('ENDERECO', 'Limpou marcadores e resultados de endereços do mapa', userRole);
     showToast('Pesquisa e marcadores de endereços limpos.');
   };
@@ -2715,6 +2801,7 @@ export default function App() {
             allowMeasureTool={isAdmin || featurePermissions.allowMeasureTool !== false}
             allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}
             searchCoordinates={searchCoordinates}
+            onPlottedPointClick={handlePlottedPointClick}
             onMeasureChange={(latlngs) => {
               setMeasureHistory(latlngs);
               if (latlngs && latlngs.length >= 2) {
@@ -2758,6 +2845,7 @@ export default function App() {
             onClearExternalResult={() => {
               setCnefeExternalResult(null);
               setSearchCoordinates(null);
+              setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
             }}
             externalPolygonResult={cnefeExternalResult}
             allowedColumns={effectiveSession?.addressColumnsPermissions}

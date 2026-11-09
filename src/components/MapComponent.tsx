@@ -444,6 +444,7 @@ interface MapComponentProps {
     removeMeasurePoint: (index: number) => void;
   }) => void;
   searchCoordinates: Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }> | null;
+  onPlottedPointClick?: (index: number, point: any, marker: L.Marker) => void;
   onToggleMultiSelect: () => void;
   onMeasureChange?: (latlngs: L.LatLng[] | null) => void;
   measureHistory?: L.LatLng[] | null;
@@ -465,6 +466,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   isMultiSelectMode,
   selectedFeatures,
   onSelectionChange,
+  onPlottedPointClick,
   showToast,
   statusText,
   setStatusText,
@@ -1335,6 +1337,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const searchMarkersRef = useRef<L.Marker[]>([]);
   const allSearchMarkersRef = useRef<any[]>([]);
   const searchLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const selectedPlottedIdRef = useRef<string | null>(null);
+  const onPlottedPointClickRef = useRef(onPlottedPointClick);
+  useEffect(() => {
+    onPlottedPointClickRef.current = onPlottedPointClick;
+  }, [onPlottedPointClick]);
   const rightClickMarkerRef = useRef<L.Marker | null>(null);
 
   // Estilo de seleção destacado estilo Apple Maps (Apple Blue brilhante com contorno animado)
@@ -1905,11 +1912,17 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       return;
     }
 
+    const activePlottedId = selectedPlottedIdRef.current;
+    const hasMultiple = allMarkers.length > 1;
+
     // Se houver apenas 1 ponto marcado (ex: busca individual ou clique em endereço único)
     if (allMarkers.length === 1) {
-      if (!layer.hasLayer(allMarkers[0])) {
+      const singleMarker = allMarkers[0];
+      if (typeof singleMarker.setOpacity === 'function') singleMarker.setOpacity(1.0);
+      if (typeof singleMarker.setZIndexOffset === 'function') singleMarker.setZIndexOffset(0);
+      if (!layer.hasLayer(singleMarker)) {
         layer.clearLayers();
-        layer.addLayer(allMarkers[0]);
+        layer.addLayer(singleMarker);
       }
       return;
     }
@@ -1942,9 +1955,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       if (latLng && bounds.contains(latLng)) {
         const passesZoom = currentZoom >= ((marker as any).minZoom ?? 8);
-        const isPopupOpen = marker.isPopupOpen && marker.isPopupOpen();
+        const isSelected = !!activePlottedId && (marker as any).plotId === activePlottedId;
 
-        if (passesZoom || isPopupOpen) {
+        if (passesZoom || isSelected) {
+          if (hasMultiple && activePlottedId) {
+            if (isSelected) {
+              if (typeof marker.setOpacity === 'function') marker.setOpacity(1.0);
+              if (typeof marker.setZIndexOffset === 'function') marker.setZIndexOffset(1000);
+            } else {
+              if (typeof marker.setOpacity === 'function') marker.setOpacity(0.45);
+              if (typeof marker.setZIndexOffset === 'function') marker.setZIndexOffset(0);
+            }
+          } else {
+            if (typeof marker.setOpacity === 'function') marker.setOpacity(1.0);
+            if (typeof marker.setZIndexOffset === 'function') marker.setZIndexOffset(0);
+          }
+
           nextVisible.add(marker);
           count++;
           if (count >= maxVisibleInViewport) break;
@@ -1959,9 +1985,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }
     });
 
-    // Remove apenas os que saíram do viewport (mantendo os que estão com popup aberto)
+    // Remove apenas os que saíram do viewport (mantendo o selecionado)
     layer.eachLayer((marker: any) => {
-      if (!nextVisible.has(marker) && !(marker.isPopupOpen && marker.isPopupOpen())) {
+      const isSelected = !!activePlottedId && (marker as any).plotId === activePlottedId;
+      if (!nextVisible.has(marker) && !isSelected) {
         layer.removeLayer(marker);
       }
     });
@@ -2062,240 +2089,15 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         const marker = L.marker([lat, lng], { icon: chosenIcon });
         (marker as any).featureLatLng = L.latLng(lat, lng);
         (marker as any).minZoom = searchCoordinates.length === 1 ? 1 : minZooms[index];
+        (marker as any).plotIndex = index;
+        (marker as any).plotId = `plot-${index}`;
 
-        const latFormatted = lat.toFixed(6);
-        const lngFormatted = lng.toFixed(6);
-
-        // Determinar Título Hero e Subtítulo no novo layout Apple Maps
-        const hasEstab = !!estabRaw.trim();
-        const hasEndereco = !!enderecoRaw.trim();
-
-        let heroTitle = '';
-        let heroSubtitle = '';
-
-        if (hasEstab) {
-          heroTitle = toTitleCase(estabRaw.trim());
-          const subParts: string[] = [];
-          if (hasEndereco) {
-            subParts.push(toTitleCase(enderecoRaw) + (numeroRaw ? `, ${numeroRaw}` : ''));
+        marker.on('click', () => {
+          if (onPlottedPointClickRef.current) {
+            onPlottedPointClickRef.current(index, coord, marker);
           }
-          if (bairroRaw) subParts.push(toTitleCase(bairroRaw));
-          if (municipioRaw) subParts.push(toTitleCase(municipioRaw));
-          heroSubtitle = subParts.join(' • ');
-        } else if (hasEndereco) {
-          heroTitle = toTitleCase(enderecoRaw.trim()) + (numeroRaw ? `, ${numeroRaw}` : '');
-          const subParts: string[] = [];
-          if (bairroRaw) subParts.push(toTitleCase(bairroRaw));
-          if (localidadeRaw && localidadeRaw.toLowerCase() !== bairroRaw.toLowerCase()) {
-            subParts.push(toTitleCase(localidadeRaw));
-          }
-          if (municipioRaw) subParts.push(toTitleCase(municipioRaw));
-          heroSubtitle = subParts.join(' • ');
-        } else {
-          heroTitle = label || "Ponto Geográfico";
-          heroSubtitle = `${latFormatted}, ${lngFormatted}`;
-        }
-
-        const safeHeroTitle = String(heroTitle).replace(/'/g, "\\'");
-
-        // Montar texto de endereço formatado completo para cópia
-        const fullAddrParts: string[] = [];
-        if (hasEstab) fullAddrParts.push(heroTitle);
-        if (hasEndereco) fullAddrParts.push(toTitleCase(enderecoRaw) + (numeroRaw ? `, ${numeroRaw}` : ''));
-        if (complRaw) fullAddrParts.push(complRaw);
-        if (bairroRaw) fullAddrParts.push(`Bairro ${toTitleCase(bairroRaw)}`);
-        if (localidadeRaw && localidadeRaw.toLowerCase() !== bairroRaw.toLowerCase()) {
-          fullAddrParts.push(`Localidade ${toTitleCase(localidadeRaw)}`);
-        }
-        if (municipioRaw) fullAddrParts.push(`${toTitleCase(municipioRaw)} - PI`);
-        if (cepRaw) fullAddrParts.push(`CEP ${cepRaw}`);
-        const fullAddressStr = fullAddrParts.length > 0 ? fullAddrParts.join(', ') : `${heroTitle} (${latFormatted}, ${lngFormatted})`;
-        const safeFullAddress = fullAddressStr.replace(/'/g, "\\'");
-
-        // Badge de Categoria e Distância
-        let badgeHtml = '';
-        if (isSaude) {
-          badgeHtml = `
-            <div class="apple-cnefe-badge red">
-              <span class="apple-cnefe-dot red"></span>
-              <span>Saúde • CNEFE</span>
-            </div>
-          `;
-        } else if (hasEndereco || hasEstab) {
-          badgeHtml = `
-            <div class="apple-cnefe-badge blue">
-              <span class="apple-cnefe-dot blue"></span>
-              <span>Endereço CNEFE</span>
-            </div>
-          `;
-        } else {
-          badgeHtml = `
-            <div class="apple-cnefe-badge purple">
-              <span class="apple-cnefe-dot purple"></span>
-              <span>Ponto no Mapa</span>
-            </div>
-          `;
-        }
-
-        const distPillHtml = distTexto ? `
-          <div class="apple-cnefe-dist-badge" title="Distância até sua localização">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-            <span>${distTexto}</span>
-          </div>
-        ` : '';
-
-        // Construção elegante das linhas de atributos no card Apple
-        const renderAttr = (lbl: string, val: string, copyVal?: string) => {
-          if (!val || String(val).trim() === '' || val === '-' || val === 'null') return '';
-          const toCopy = String(copyVal || val).replace(/'/g, "\\'");
-          return `
-            <div class="apple-cnefe-attr-row">
-              <span class="apple-cnefe-attr-lbl">${lbl}</span>
-              <div class="apple-cnefe-attr-val-box">
-                <span class="apple-cnefe-attr-val">${val}</span>
-                <button type="button" class="apple-cnefe-mini-copy" onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${toCopy}', this, '${lbl} copiado!')" title="Copiar ${lbl}">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                </button>
-              </div>
-            </div>
-          `;
-        };
-
-        const attrRows: string[] = [];
-        if (hasEstab && hasEndereco) {
-          attrRows.push(renderAttr('Logradouro', toTitleCase(enderecoRaw)));
-          if (numeroRaw) attrRows.push(renderAttr('Número', numeroRaw));
-        } else if (!hasEstab && hasEndereco && numeroRaw) {
-          attrRows.push(renderAttr('Número', numeroRaw));
-        }
-
-        if (complRaw) attrRows.push(renderAttr('Complemento', complRaw));
-        if (bairroRaw) attrRows.push(renderAttr('Bairro', toTitleCase(bairroRaw)));
-        if (localidadeRaw && localidadeRaw.toLowerCase() !== bairroRaw.toLowerCase()) {
-          attrRows.push(renderAttr('Localidade', toTitleCase(localidadeRaw)));
-        }
-        if (municipioRaw) attrRows.push(renderAttr('Município', toTitleCase(municipioRaw)));
-        if (cepRaw) attrRows.push(renderAttr('CEP', cepRaw));
-        if (especieRaw) {
-          attrRows.push(`
-            <div class="apple-cnefe-attr-row">
-              <span class="apple-cnefe-attr-lbl">Espécie</span>
-              <div class="apple-cnefe-attr-val-box">
-                <span class="apple-cnefe-tag">${toTitleCase(especieRaw)}</span>
-              </div>
-            </div>
-          `);
-        }
-        if (codigoUnico) {
-          attrRows.push(renderAttr('Cód. CNEFE', codigoUnico));
-        }
-
-        // Se for pesquisa por coordenadas / identificar e houver nota de 800m
-        const note800mHtml = (!!isCoordSearch && localidadeRaw) ? `
-          <div class="apple-cnefe-note-box">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>Localidade cadastrada a até ~800m do ponto pesquisado</span>
-          </div>
-        ` : '';
-
-        // Novo Balão Pop-up Estilo Apple Maps HIG
-        marker.bindPopup(`
-          <div class="apple-cnefe-container">
-            <!-- Linha de Cabeçalho (Badge de Categoria e Distância) -->
-            <div class="apple-cnefe-header-row">
-              ${badgeHtml}
-              ${distPillHtml}
-            </div>
-
-            <!-- Bloco Hero (Nome Principal e Subtítulo) -->
-            <div class="apple-cnefe-hero">
-              <div class="apple-cnefe-hero-title-row">
-                <h4 class="apple-cnefe-hero-title" title="${safeHeroTitle}">${heroTitle}</h4>
-                <button type="button" class="apple-cnefe-mini-copy" onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${safeHeroTitle}', this, 'Nome copiado!')" title="Copiar nome">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                </button>
-              </div>
-              ${heroSubtitle ? `<p class="apple-cnefe-hero-subtitle">${heroSubtitle}</p>` : ''}
-            </div>
-
-            ${note800mHtml}
-
-            <!-- Grade Estruturada de Atributos do Endereço -->
-            ${attrRows.length > 0 ? `
-              <div class="apple-cnefe-grid">
-                ${attrRows.join('')}
-              </div>
-            ` : ''}
-
-            <!-- Cápsula de Coordenadas Geográficas -->
-            <div class="apple-cnefe-coords-capsule">
-              <div class="apple-cnefe-coords-header">
-                <span>Coordenadas Geográficas</span>
-              </div>
-              <div class="apple-cnefe-coords-grid">
-                <button 
-                  type="button" 
-                  class="apple-cnefe-coord-pill" 
-                  onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}', this, 'Latitude copiada!')" 
-                  title="Clique para copiar Latitude (${latFormatted})"
-                >
-                  <span class="apple-cnefe-coord-tag">LAT</span>
-                  <span class="apple-cnefe-coord-val">${latFormatted}</span>
-                </button>
-
-                <button 
-                  type="button" 
-                  class="apple-cnefe-coord-pill" 
-                  onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${lngFormatted}', this, 'Longitude copiada!')" 
-                  title="Clique para copiar Longitude (${lngFormatted})"
-                >
-                  <span class="apple-cnefe-coord-tag">LNG</span>
-                  <span class="apple-cnefe-coord-val">${lngFormatted}</span>
-                </button>
-              </div>
-
-              <div class="apple-cnefe-copy-all-row">
-                <button 
-                  type="button" 
-                  class="apple-cnefe-copy-all-btn" 
-                  onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}, ${lngFormatted}', this, 'Coordenadas copiadas!')" 
-                  title="Copiar Latitude e Longitude juntas"
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                  <span>Copiar Ambas (${latFormatted}, ${lngFormatted})</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Ações Rápidas: Street View e Copiar Endereço Completo -->
-            <div class="apple-cnefe-actions-row">
-              <a 
-                href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latFormatted},${lngFormatted}" 
-                target="_blank" 
-                rel="noreferrer" 
-                class="apple-cnefe-action-btn streetview" 
-                title="Abrir no Google Street View"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
-                <span>Street View</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto; opacity: 0.6;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-              </a>
-
-              <button 
-                type="button" 
-                class="apple-cnefe-action-btn copy-full" 
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyFullAddressPopup('${safeFullAddress}', this)" 
-                title="Copiar endereço completo formatado"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span>Copiar Tudo</span>
-              </button>
-            </div>
-          </div>
-        `, {
-          className: 'apple-cnefe-popup'
         });
-        
+
         newMarkers.push(marker);
       });
 
@@ -2303,14 +2105,46 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       searchMarkersRef.current = newMarkers;
 
       updatePlottedViewport();
-
-      if (searchCoordinates.length === 1 && !searchCoordinates[0].isCoordSearch && newMarkers.length > 0) {
-        newMarkers[0].openPopup();
-      }
     } else {
       updatePlottedViewport();
     }
   }, [searchCoordinates, updatePlottedViewport]);
+
+  // Destaque visual do marcador plotado selecionado (sem recriar marcadores)
+  useEffect(() => {
+    let activePlottedId: string | null = null;
+    for (let i = selectedFeatures.length - 1; i >= 0; i--) {
+      if (selectedFeatures[i].id && selectedFeatures[i].id.startsWith('plot-')) {
+        activePlottedId = selectedFeatures[i].id;
+        break;
+      }
+    }
+
+    selectedPlottedIdRef.current = activePlottedId;
+
+    const allMarkers = allSearchMarkersRef.current;
+    if (!allMarkers || allMarkers.length === 0) return;
+
+    const hasMultiple = allMarkers.length > 1;
+
+    allMarkers.forEach(marker => {
+      if (!marker) return;
+      const isSelected = !!activePlottedId && (marker as any).plotId === activePlottedId;
+
+      if (hasMultiple && activePlottedId) {
+        if (isSelected) {
+          if (typeof marker.setOpacity === 'function') marker.setOpacity(1.0);
+          if (typeof marker.setZIndexOffset === 'function') marker.setZIndexOffset(1000);
+        } else {
+          if (typeof marker.setOpacity === 'function') marker.setOpacity(0.45);
+          if (typeof marker.setZIndexOffset === 'function') marker.setZIndexOffset(0);
+        }
+      } else {
+        if (typeof marker.setOpacity === 'function') marker.setOpacity(1.0);
+        if (typeof marker.setZIndexOffset === 'function') marker.setZIndexOffset(0);
+      }
+    });
+  }, [selectedFeatures, searchCoordinates]);
 
   // Função para aplicar ordem visual de sobreposição das camadas no mapa Leaflet
   const applyMapLayerOrder = (order: string[]) => {
