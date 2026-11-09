@@ -443,7 +443,7 @@ interface MapComponentProps {
     selectFeature: (layer: L.Layer, feature: any, sourceName: string) => void;
     removeMeasurePoint: (index: number) => void;
   }) => void;
-  searchCoordinates: Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }> | null;
+  searchCoordinates: Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }> | null;
   onPlottedPointClick?: (index: number, point: any, marker: L.Marker) => void;
   onToggleMultiSelect: () => void;
   onMeasureChange?: (latlngs: L.LatLng[] | null) => void;

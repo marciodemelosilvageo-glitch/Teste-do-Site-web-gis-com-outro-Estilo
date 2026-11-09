@@ -61,6 +61,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
     });
   }, [selectedFeatures]);
 
+  const isOnlyPlotPoints = useMemo(() => {
+    if (!selectedFeatures || selectedFeatures.length === 0) return false;
+    return selectedFeatures.every(f => f.id?.startsWith('plot-') || f.sourceName === 'Endereços plotados');
+  }, [selectedFeatures]);
+
+  // Feições territoriais válidas para cálculo demográfico (exclui pontos plotados de endereços/saúde)
+  const validDashboardFeatures = useMemo(() => {
+    if (!selectedFeatures || selectedFeatures.length === 0) return [];
+    return selectedFeatures.filter(f => !f.id?.startsWith('plot-') && f.sourceName !== 'Endereços plotados');
+  }, [selectedFeatures]);
+
   const {
     hasData,
     title,
@@ -81,7 +92,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
     pctCol,
     count
   } = useMemo(() => {
-    if (!selectedFeatures || selectedFeatures.length === 0) {
+    if (!validDashboardFeatures || validDashboardFeatures.length === 0) {
       return {
         hasData: false,
         title: '',
@@ -104,7 +115,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
       };
     }
 
-    const totalCount = selectedFeatures.length;
+    const totalCount = validDashboardFeatures.length;
     let localTitle = 'Selecione um local';
     let munName = '';
     let bairroName = '';
@@ -117,7 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
     let domTotal = 0;
 
     if (totalCount === 1) {
-      const feat = selectedFeatures[0];
+      const feat = validDashboardFeatures[0];
       localTitle = feat.name || 'Área Selecionada';
       const props = feat.properties || {};
 
@@ -137,7 +148,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
       domTotal = totalD;
     } else {
       localTitle = `Seleção Múltipla (${totalCount} áreas)`;
-      selectedFeatures.forEach(feat => {
+      validDashboardFeatures.forEach(feat => {
         const props = feat.properties || {};
         pop += getNumVal(props, ['V0001', 'Total de pessoas', 'POPULACAO', 'populacao']);
         domPart += getNumVal(props, ['V0003', 'Total de Domicílios Particulares']);
@@ -184,9 +195,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
       pctCol: pCol,
       count: totalCount
     };
-  }, [selectedFeatures]);
+  }, [validDashboardFeatures]);
 
-    if (isOnlyLocalidades) {
+  if (isOnlyPlotPoints) {
+    return (
+      <div 
+        id="dashboard-container"
+        className="w-full rounded-3xl p-6 bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-sm text-center space-y-4 animate-fadeIn"
+      >
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-500/15 text-[#007AFF] dark:text-blue-400 flex items-center justify-center shadow-sm">
+          <MapPin className="w-6 h-6" />
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="text-sm font-black text-slate-900 dark:text-white">
+            Endereços e Estabelecimentos
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+            Os pontos plotados são endereços e estabelecimentos pontuais, não possuindo dados de Raio-X Territorial e Domiciliar.
+          </p>
+        </div>
+        <div className="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] text-xs text-slate-600 dark:text-slate-300 font-medium">
+          💡 Para visualizar o Raio-X demográfico (População e Domicílios), selecione uma área territorial no mapa (como Municípios, Bairros, Setores Censitários ou Favelas/Comunidades).
+        </div>
+      </div>
+    );
+  }
+
+  if (isOnlyLocalidades) {
     return (
       <div 
         id="dashboard-container"

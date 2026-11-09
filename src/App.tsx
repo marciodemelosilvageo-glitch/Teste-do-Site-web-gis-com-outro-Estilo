@@ -254,7 +254,7 @@ export default function App() {
     }
   }, [allowedLayerNames]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }> | null>(null);
+  const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }> | null>(null);
 
   // Estados de Carregamento e Status do Mapa
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -382,15 +382,20 @@ export default function App() {
   // E quando o usuário desmarcar a feição (nada selecionado), fecha o painel de detalhes.
   useEffect(() => {
     if (selectedFeatures.length > 0) {
+      const latestFeature = selectedFeatures[selectedFeatures.length - 1];
+      const isLatestPlot = latestFeature?.id?.startsWith('plot-');
+
       const isNoDashboardLayer = selectedFeatures.every(f => {
+        if (f.id?.startsWith('plot-')) return true;
         const src = (f.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (src.includes('localidade')) return true;
         if (src.includes('comunidades rurais') || src.includes('comunidade rural')) return true;
+        if (src.includes('enderecos plotados')) return true;
         const props = f.properties || {};
         return props.id_Localidades != null || props.id_localidades != null || (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN);
       });
 
-      if (isNoDashboardLayer) {
+      if (isLatestPlot || isNoDashboardLayer) {
         setSidebarTab('details');
       } else {
         setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
@@ -1825,6 +1830,11 @@ export default function App() {
       ? point.details
       : formatAddressDetails(raw);
 
+    const isTipoSaude = point.origem === 'tipo-saude' ||
+      cnefeExternalResult?.searchTerm === 'Estabelecimento de saúde' ||
+      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saúde') ||
+      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saude');
+
     const plotFeature: SelectedFeature = {
       id: `plot-${index}`,
       name: featName,
@@ -1834,6 +1844,7 @@ export default function App() {
         Latitude: point.lat,
         Longitude: point.lng,
         _details: details,
+        origem: isTipoSaude ? 'tipo-saude' : point.origem,
         ...raw
       }
     };
@@ -1870,12 +1881,17 @@ export default function App() {
 
     const details = formatAddressDetails(row);
 
+    const isTipoSaude = cnefeExternalResult?.searchTerm === 'Estabelecimento de saúde' ||
+      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saúde') ||
+      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saude');
+
     setSearchCoordinates([{ 
       lat, 
       lng, 
       label: addrLabel, 
       details,
       isCoordSearch: false,
+      origem: isTipoSaude ? 'tipo-saude' : undefined,
       rawAddress: row
     }]);
 
@@ -1888,6 +1904,7 @@ export default function App() {
         Latitude: lat,
         Longitude: lng,
         _details: details,
+        origem: isTipoSaude ? 'tipo-saude' : undefined,
         ...row
       }
     };
@@ -1911,6 +1928,10 @@ export default function App() {
   };
 
   const handlePlotAllAddresses = (results: any[]) => {
+    const isTipoSaude = cnefeExternalResult?.searchTerm === 'Estabelecimento de saúde' ||
+      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saúde') ||
+      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saude');
+
     const validCoords = results
       .map(row => {
         const lat = parseFloat(row.latitude || row.LATITUDE);
@@ -1922,10 +1943,11 @@ export default function App() {
           label: row.endereco || row.ENDERECO || 'Endereço IBGE',
           details: formatAddressDetails(row),
           isCoordSearch: false,
+          origem: isTipoSaude ? 'tipo-saude' : undefined,
           rawAddress: row
         };
       })
-      .filter(Boolean) as Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; rawAddress?: any }>;
+      .filter(Boolean) as Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }>;
 
     if (validCoords.length === 0) {
       showToast('Nenhuma coordenada válida encontrada nos resultados.');

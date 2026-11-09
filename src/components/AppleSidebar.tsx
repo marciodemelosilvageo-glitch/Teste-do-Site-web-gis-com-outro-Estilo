@@ -264,9 +264,29 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const coordDetailsList = useMemo(() => {
     if (!activeDetailFeature) return [];
     const raw = activeDetailFeature.properties?._details;
-    if (Array.isArray(raw)) return raw as string[];
-    if (typeof raw === 'string' && raw.trim()) return [raw];
-    return [];
+    let list: string[] = [];
+    if (Array.isArray(raw)) list = [...raw] as string[];
+    else if (typeof raw === 'string' && raw.trim()) list = [raw];
+
+    // Se o ponto veio da busca por tipo de saúde/hospitais, oculta:
+    // "Identificação do Estabelecimento", "Espécie", "Cód. CNEFE"
+    const isTipoSaude = activeDetailFeature.properties?.origem === 'tipo-saude';
+    if (isTipoSaude && list.length > 0) {
+      list = list.filter(item => {
+        const colonIdx = item.indexOf(':');
+        const label = (colonIdx !== -1 ? item.slice(0, colonIdx) : item)
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+        if (label.includes('identificacao do estabelecimento') || label === 'estabelecimento') return false;
+        if (label.includes('especie')) return false;
+        if (label.includes('cnefe') || label.includes('codigo unico')) return false;
+        return true;
+      });
+    }
+
+    return list;
   }, [activeDetailFeature]);
 
 
@@ -935,21 +955,23 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 <h2 className="text-xl font-black text-slate-900 dark:text-white truncate tracking-tight">
                   {isCoordenadaSearch ? (activeDetailFeature.name || 'Coordenada Pesquisada') : (structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado')}
                 </h2>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                  {isCoordenadaSearch ? (
-                    activeDetailFeature.sourceName && activeDetailFeature.sourceName !== 'Coordenadas'
-                      ? `${activeDetailFeature.sourceName} • Piauí`
-                      : 'Ponto de Pesquisa no Mapa • Piauí'
-                  ) : (
-                    `${activeDetailFeature.sourceName} • ${
-                      (activeDetailFeature.sourceName?.toLowerCase().includes('municipio') ||
-                       (structuredDetails?.nomeMunicipio && (structuredDetails.nomeOficial || activeDetailFeature.name) &&
-                        structuredDetails.nomeMunicipio.toLowerCase().trim() === (structuredDetails.nomeOficial || activeDetailFeature.name).toLowerCase().trim()))
-                        ? (structuredDetails?.nomeUf || 'Piauí')
-                        : (structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : (structuredDetails?.nomeUf || 'Piauí'))
-                    }`
-                  )}
-                </p>
+                {!activeDetailFeature.id?.startsWith('plot-') && (
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                    {isCoordenadaSearch ? (
+                      activeDetailFeature.sourceName && activeDetailFeature.sourceName !== 'Coordenadas'
+                        ? `${activeDetailFeature.sourceName} • Piauí`
+                        : 'Ponto de Pesquisa no Mapa • Piauí'
+                    ) : (
+                      `${activeDetailFeature.sourceName} • ${
+                        (activeDetailFeature.sourceName?.toLowerCase().includes('municipio') ||
+                         (structuredDetails?.nomeMunicipio && (structuredDetails.nomeOficial || activeDetailFeature.name) &&
+                          structuredDetails.nomeMunicipio.toLowerCase().trim() === (structuredDetails.nomeOficial || activeDetailFeature.name).toLowerCase().trim()))
+                          ? (structuredDetails?.nomeUf || 'Piauí')
+                          : (structuredDetails?.nomeMunicipio ? `${structuredDetails.nomeMunicipio}, PI` : (structuredDetails?.nomeUf || 'Piauí'))
+                      }`
+                    )}
+                  </p>
+                )}
               </div>
 
               <button
