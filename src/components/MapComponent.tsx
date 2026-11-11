@@ -14,10 +14,10 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
     imagePath: '/',
   });
 }
-import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon } from 'lucide-react';
+import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download } from 'lucide-react';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename } from '../utils';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
 // Garante que NUNCA haja pontos empilhados ou amontoados em zooms distantes (desaproximados)
@@ -461,6 +461,45 @@ interface MapComponentProps {
   isStage2Open?: boolean;
 }
 
+// Montagem padronizada do polígono medido com anel fechado e propriedades
+const buildMeasuredPolygonFeature = (measureInfo: { points: any[]; areaDisplay?: string; lengthDisplay?: string } | null) => {
+  if (!measureInfo || !measureInfo.points || measureInfo.points.length < 3) return null;
+  const rawCoords = measureInfo.points.map((p: any) => [
+    Number(p.lng !== undefined ? p.lng : (p[1] !== undefined ? p[1] : p[0])),
+    Number(p.lat !== undefined ? p.lat : (p[0] !== undefined ? p[0] : p[1]))
+  ]);
+  if (
+    rawCoords[0][0] !== rawCoords[rawCoords.length - 1][0] || 
+    rawCoords[0][1] !== rawCoords[rawCoords.length - 1][1]
+  ) {
+    rawCoords.push([rawCoords[0][0], rawCoords[0][1]]);
+  }
+  return {
+    type: 'Feature' as const,
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [rawCoords]
+    },
+    properties: {
+      Nome: 'Área Medida',
+      Area: measureInfo.areaDisplay || '',
+      Perimetro: measureInfo.lengthDisplay || '',
+      sourceName: 'Medição'
+    }
+  };
+};
+
+const getMeasureExportFilename = (ext: string) => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const y = now.getFullYear();
+  const m = pad(now.getMonth() + 1);
+  const d = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  return `area_medida_${y}${m}${d}_${hh}${mm}.${ext}`;
+};
+
 export const MapComponent: React.FC<MapComponentProps> = ({
   isPrintMode,
   isMultiSelectMode,
@@ -530,8 +569,154 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     setActiveMeasureInfo(null);
     lastMeasureModelRef.current = null;
     setIsMeasuringActive(false);
+    setMeasureCardPos(null);
+    setIsMeasureCardMinimized(false);
+    setIsExportMenuOpen(false);
     showToast('🗑️ Medição removida do mapa.');
   }, [activeMeasureInfo, showToast]);
+
+  // Estados e controle do card flutuante de resultado de medição
+  const [measureCardPos, setMeasureCardPos] = useState<{ x: number; y: number } | null>(null);
+  const [isMeasureCardMinimized, setIsMeasureCardMinimized] = useState<boolean>(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
+  const measureCardRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const isDraggingCardRef = useRef<boolean>(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initialCardX: number; initialCardY: number }>({
+    startX: 0,
+    startY: 0,
+    initialCardX: 0,
+    initialCardY: 0
+  });
+
+  // Auto-minimizar quando a segunda barra lateral abrir
+  const prevStage2OpenRef = useRef<boolean>(isStage2Open);
+  useEffect(() => {
+    if (!prevStage2OpenRef.current && isStage2Open) {
+      setIsMeasureCardMinimized(true);
+    }
+    prevStage2OpenRef.current = isStage2Open;
+  }, [isStage2Open]);
+
+  // Fechar menu de exportação em clique fora ou Escape
+  useEffect(() => {
+    if (!isExportMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsExportMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isExportMenuOpen]);
+
+  // Exportar medição em GeoJSON, KML ou CSV
+  const handleExportMeasure = useCallback((format: 'geojson' | 'kml' | 'csv') => {
+    if (!activeMeasureInfo) return;
+    const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
+    if (!feat) {
+      showToast('Não foi possível gerar a geometria do polígono medido.');
+      return;
+    }
+    try {
+      const filename = getMeasureExportFilename(format);
+      if (format === 'geojson') {
+        const fc = {
+          type: 'FeatureCollection',
+          features: [feat]
+        };
+        downloadFile(filename, JSON.stringify(fc, null, 2), 'application/geo+json;charset=utf-8');
+        showToast(`Polígono exportado em GeoJSON (${filename})`);
+      } else if (format === 'kml') {
+        exportSelectionToKML(filename, [{ feature: feat }]);
+        showToast(`Polígono exportado em KML (${filename})`);
+      } else if (format === 'csv') {
+        exportSelectionToCSV(filename, [{ feature: feat }]);
+        showToast(`Polígono exportado em CSV (${filename})`);
+      }
+    } catch (err) {
+      console.error('Erro ao exportar polígono medido:', err);
+      showToast('Erro ao exportar polígono medido.');
+    } finally {
+      setIsExportMenuOpen(false);
+    }
+  }, [activeMeasureInfo, showToast]);
+
+  // Manipulação de arrasto (mouse e touch) do card
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    if ('button' in e && e.button !== 0) return;
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const cardEl = measureCardRef.current;
+    if (!cardEl) return;
+    const rect = cardEl.getBoundingClientRect();
+
+    isDraggingCardRef.current = true;
+    dragStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      initialCardX: rect.left,
+      initialCardY: rect.top
+    };
+
+    const onPointerMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!isDraggingCardRef.current) return;
+      moveEvent.stopPropagation();
+      if (moveEvent.cancelable) {
+        moveEvent.preventDefault();
+      }
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+      const deltaX = currentX - dragStartRef.current.startX;
+      const deltaY = currentY - dragStartRef.current.startY;
+
+      const cardWidth = cardEl.offsetWidth || 320;
+      const cardHeight = cardEl.offsetHeight || 50;
+
+      const maxX = window.innerWidth - cardWidth - 12;
+      const maxY = window.innerHeight - cardHeight - 12;
+
+      const clampedX = Math.max(12, Math.min(maxX, dragStartRef.current.initialCardX + deltaX));
+      const clampedY = Math.max(12, Math.min(maxY, dragStartRef.current.initialCardY + deltaY));
+
+      setMeasureCardPos({ x: clampedX, y: clampedY });
+    };
+
+    const onPointerUp = (upEvent: MouseEvent | TouchEvent) => {
+      isDraggingCardRef.current = false;
+      upEvent.stopPropagation();
+      window.removeEventListener('mousemove', onPointerMove, true);
+      window.removeEventListener('mouseup', onPointerUp, true);
+      window.removeEventListener('touchmove', onPointerMove, true);
+      window.removeEventListener('touchend', onPointerUp, true);
+      window.removeEventListener('touchcancel', onPointerUp, true);
+    };
+
+    window.addEventListener('mousemove', onPointerMove, { capture: true, passive: false });
+    window.addEventListener('mouseup', onPointerUp, { capture: true, passive: false });
+    window.addEventListener('touchmove', onPointerMove, { capture: true, passive: false });
+    window.addEventListener('touchend', onPointerUp, { capture: true, passive: false });
+    window.addEventListener('touchcancel', onPointerUp, { capture: true, passive: false });
+  }, []);
+
+  const handleDragHandleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMeasureCardPos(null);
+    showToast('Posição padrão do card restaurada.');
+  }, [showToast]);
 
   const [isMeasuringActive, setIsMeasuringActive] = useState<boolean>(false);
   const isMeasuringActiveRef = useRef<boolean>(false);
@@ -3252,104 +3437,195 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {/* BARRA FLUTUANTE DE MEDIÇÃO ATIVA NO MAPA (APPLE MAPS GLASS PILL) */}
         {!isPrintMode && activeMeasureInfo && (
           <div 
-            className="absolute top-16 z-[999] bg-white/85 dark:bg-[#1c1c1e]/85 backdrop-blur-2xl px-3.5 py-2.5 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] border border-black/5 dark:border-white/10 flex flex-wrap items-center gap-3 animate-fadeIn text-xs max-w-[95vw] sm:max-w-md transition-all duration-300 ease-out"
-            style={{ left: isStage2Open ? 'calc(390px + 16px)' : '16px' }}
+            ref={measureCardRef}
+            className={`fixed z-[999] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/10 dark:border-white/10 flex items-center select-none text-xs max-w-[95vw] pointer-events-auto ${
+              measureCardPos === null ? 'transition-all duration-300 ease-out' : ''
+            } ${
+              isMeasureCardMinimized ? 'px-2.5 py-1.5 gap-2' : 'px-3.5 py-2.5 flex-wrap gap-3 sm:max-w-md'
+            }`}
+            style={
+              measureCardPos !== null
+                ? { left: `${measureCardPos.x}px`, top: `${measureCardPos.y}px` }
+                : { left: isStage2Open ? 'calc(390px + 16px)' : '16px', top: '4rem' }
+            }
             onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-100 font-bold">
-              <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white text-sm shadow-xs shrink-0">
-                <Ruler className="w-4 h-4" />
-              </span>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[12px] font-extrabold text-slate-900 dark:text-white leading-tight">
-                    {activeMeasureInfo.areaDisplay}
-                  </span>
-                  <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#64D2FF]">
-                    Área
-                  </span>
-                </div>
-                {activeMeasureInfo.lengthDisplay && (
-                  <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
-                    Perímetro: {activeMeasureInfo.lengthDisplay}
-                  </span>
-                )}
+            {/* Alça de arrasto */}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Alça de arrasto"
+              onMouseDown={handleDragStart}
+              onTouchStart={handleDragStart}
+              onDoubleClick={handleDragHandleDoubleClick}
+              className="p-1 -ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-grab active:cursor-grabbing select-none shrink-0"
+              title="Arrastar card (duplo clique para restaurar posição padrão)"
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+
+            {isMeasureCardMinimized ? (
+              // MODO MINIMIZADO
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 text-xs shrink-0 border border-black/5 dark:border-white/5">
+                  <Ruler className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-[12px] font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                  {activeMeasureInfo.areaDisplay}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMeasureCardMinimized(false);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 cursor-pointer ml-0.5 transition-colors"
+                  title="Expandir card de medição"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
               </div>
-            </div>
+            ) : (
+              // MODO EXPANDIDO
+              <>
+                <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-100 font-bold">
+                  <span className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-700 dark:text-slate-200 text-sm shrink-0 border border-black/5 dark:border-white/5">
+                    <Ruler className="w-4 h-4" />
+                  </span>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12px] font-extrabold text-slate-900 dark:text-white leading-tight">
+                        {activeMeasureInfo.areaDisplay}
+                      </span>
+                      <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#64D2FF]">
+                        Área
+                      </span>
+                    </div>
+                    {activeMeasureInfo.lengthDisplay && (
+                      <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
+                        Perímetro: {activeMeasureInfo.lengthDisplay}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-            <div className="flex items-center gap-1.5 ml-auto">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (activeMeasureInfo.points && activeMeasureInfo.points.length >= 3) {
-                    const rawCoords = activeMeasureInfo.points.map((p: any) => [
-                      Number(p.lng !== undefined ? p.lng : (p[1] !== undefined ? p[1] : p[0])),
-                      Number(p.lat !== undefined ? p.lat : (p[0] !== undefined ? p[0] : p[1]))
-                    ]);
-                    if (rawCoords[0][0] !== rawCoords[rawCoords.length - 1][0] || rawCoords[0][1] !== rawCoords[rawCoords.length - 1][1]) {
-                      rawCoords.push([rawCoords[0][0], rawCoords[0][1]]);
-                    }
-                    const polygonGeoJson = {
-                      type: 'Feature',
-                      geometry: {
-                        type: 'Polygon',
-                        coordinates: [rawCoords]
-                      },
-                      properties: {
-                        Nome: `Área Medida (${activeMeasureInfo.areaDisplay || 'Polígono'})`,
-                        sourceName: 'Medição'
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
+                      if (feat && onSearchPolygonAddressesRef.current) {
+                        onSearchPolygonAddressesRef.current({
+                          feature: feat,
+                          title: `Área Medida (${activeMeasureInfo.areaDisplay || 'Polígono'})`,
+                          sourceName: 'Medição',
+                          layer: null
+                        });
                       }
-                    };
-                    if (onSearchPolygonAddressesRef.current) {
-                      onSearchPolygonAddressesRef.current({
-                        feature: polygonGeoJson,
-                        title: `Área Medida (${activeMeasureInfo.areaDisplay || 'Polígono'})`,
-                        sourceName: 'Medição',
-                        layer: null
-                      });
-                    }
-                  }
-                }}
-                className="px-3 py-1.5 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer transition-all"
-                title="Buscar Endereços neste polígono medido"
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>Buscar Endereços</span>
-              </button>
+                    }}
+                    className="px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                    title="Buscar Endereços neste polígono medido"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Buscar Endereços</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (activeMeasureInfo.layer && mapRef.current) {
-                    if (typeof activeMeasureInfo.layer.bringToFront === 'function') {
-                      activeMeasureInfo.layer.bringToFront();
-                    }
-                    if (typeof activeMeasureInfo.layer.getBounds === 'function') {
-                      mapRef.current.fitBounds(activeMeasureInfo.layer.getBounds(), { padding: [30, 30], maxZoom: 17 });
-                    }
-                  }
-                }}
-                className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-bold cursor-pointer transition-colors active:scale-95"
-                title="Centralizar no mapa e abrir balão"
-              >
-                <LocateFixed className="w-4 h-4 text-[#007AFF]" />
-              </button>
+                  <div className="relative" ref={exportMenuRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsExportMenuOpen(prev => !prev);
+                      }}
+                      className="px-2.5 py-1.5 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors active:scale-95"
+                      title="Exportar polígono medido"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                      <span>Exportar</span>
+                      <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClearMeasurement();
-                }}
-                className="w-8 h-8 flex items-center justify-center bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 text-[#FF3B30] dark:text-[#FF453A] rounded-xl font-bold cursor-pointer transition-colors active:scale-95"
-                title="Apagar / Limpar Medição do Mapa"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+                    {isExportMenuOpen && (
+                      <div 
+                        className="absolute left-0 top-full mt-1.5 w-36 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xl border border-black/10 dark:border-white/10 py-1 z-50 animate-fadeIn"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleExportMeasure('geojson')}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="font-semibold">GeoJSON</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExportMeasure('kml')}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="font-semibold">KML</span>
+                          <span className="text-[10px] text-slate-400">Earth</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExportMeasure('csv')}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="font-semibold">CSV</span>
+                          <span className="text-[10px] text-slate-400">Excel</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (activeMeasureInfo.layer && mapRef.current) {
+                        if (typeof activeMeasureInfo.layer.bringToFront === 'function') {
+                          activeMeasureInfo.layer.bringToFront();
+                        }
+                        if (typeof activeMeasureInfo.layer.getBounds === 'function') {
+                          mapRef.current.fitBounds(activeMeasureInfo.layer.getBounds(), { padding: [30, 30], maxZoom: 17 });
+                        }
+                      }
+                    }}
+                    className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-bold cursor-pointer transition-colors active:scale-95"
+                    title="Centralizar no mapa e abrir balão"
+                  >
+                    <LocateFixed className="w-4 h-4 text-[#007AFF]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearMeasurement();
+                    }}
+                    className="w-8 h-8 flex items-center justify-center bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 text-[#FF3B30] dark:text-[#FF453A] rounded-xl font-bold cursor-pointer transition-colors active:scale-95"
+                    title="Apagar / Limpar Medição do Mapa"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMeasureCardMinimized(true);
+                    }}
+                    className="w-8 h-8 flex items-center justify-center bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-500 dark:text-slate-400 rounded-xl cursor-pointer transition-colors active:scale-95"
+                    title="Minimizar card de medição"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

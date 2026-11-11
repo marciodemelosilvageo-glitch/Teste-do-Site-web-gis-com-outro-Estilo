@@ -289,3 +289,4 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
     </div>
   );
 };
+
