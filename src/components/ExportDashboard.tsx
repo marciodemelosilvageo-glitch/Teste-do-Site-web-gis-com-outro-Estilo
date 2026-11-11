@@ -199,8 +199,8 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             onClick={() => setExportMode('filtered')}
             className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               exportMode === 'filtered'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Filter className="w-3.5 h-3.5" />
@@ -212,8 +212,8 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             onClick={() => setExportMode('full_layer')}
             className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               exportMode === 'full_layer'
-                ? 'bg-white dark:bg-[#2c2c2e] text-[#AF52DE] shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -228,23 +228,23 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       {exportMode === 'filtered' && count > 0 && (
         <>
           {/* Card Resumo da Seleção Filtrada */}
-          <div className="p-4 rounded-3xl bg-gradient-to-br from-[#AF52DE]/15 via-[#007AFF]/5 to-transparent border border-[#AF52DE]/20 shadow-xs space-y-2.5">
+          <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#AF52DE] to-[#BF5AF2] text-white flex items-center justify-center shadow-md shadow-purple-500/25 shrink-0">
-                  <Download className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                  <Download className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white truncate">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">
                     Exportação Filtrada
                   </h3>
-                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
                     {primaryFeatureName}
                   </p>
                 </div>
               </div>
 
-              <span className="bg-[#AF52DE]/15 text-[#AF52DE] dark:text-[#D17BFF] border border-[#AF52DE]/25 font-black px-2.5 py-1 rounded-full text-[11px] shrink-0 flex items-center gap-1 shadow-2xs">
+              <span className="bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 border border-black/10 dark:border-white/10 font-bold px-2.5 py-1 rounded-full text-[11px] shrink-0 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>{count} {count === 1 ? 'item' : 'itens'}</span>
               </span>
@@ -258,7 +258,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
                 {selectedLayerNames.map(layer => (
                   <span 
                     key={layer} 
-                    className="bg-white/80 dark:bg-white/10 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-black/5 dark:border-white/10 truncate max-w-[160px]"
+                    className="bg-white dark:bg-[#2c2c2e] text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-black/10 dark:border-white/10 truncate max-w-[160px]"
                     title={layer}
                   >
                     {layer}
@@ -276,29 +276,29 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
           </div>
 
           {/* Grade Vertical de Formatos de Exportação Filtrada */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {/* Opção 1: Planilha Excel CSV */}
             <button
               type="button"
               onClick={handleExportFilteredCSV}
-              className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-emerald-500/[0.08] dark:hover:bg-emerald-500/[0.12] border border-black/5 dark:border-white/10 hover:border-emerald-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md"
+              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-green-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                <FileSpreadsheet className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                <FileSpreadsheet className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     Planilha Excel (CSV)
                   </h4>
-                  <span className="text-[9px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
                     .CSV
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
                   Tabela formatada com UTF-8 BOM para abrir sem erros de acentuação no Excel, LibreOffice e Sheets.
                 </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 pt-1.5 opacity-90 group-hover:opacity-100">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
                   <span>Baixar arquivo CSV filtrado</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
@@ -309,24 +309,24 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             <button
               type="button"
               onClick={handleExportFilteredKML}
-              className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-orange-500/[0.08] dark:hover:bg-orange-500/[0.12] border border-black/5 dark:border-white/10 hover:border-orange-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md"
+              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-red-500 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                <Globe className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                <Globe className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-orange-700 dark:group-hover:text-orange-400 transition-colors">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     Google Earth (KML)
                   </h4>
-                  <span className="text-[9px] font-black bg-orange-500/15 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
                     .KML
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
                   Geometrias completas dos polígonos e pontos com visualização tridimensional no Google Earth e QGIS.
                 </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 pt-1.5 opacity-90 group-hover:opacity-100">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
                   <span>Baixar arquivo KML filtrado</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
@@ -337,24 +337,24 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             <button
               type="button"
               onClick={handleExportFilteredGeoJSON}
-              className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-blue-500/[0.08] dark:hover:bg-blue-500/[0.12] border border-black/5 dark:border-white/10 hover:border-blue-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md"
+              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                <FileCode className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                <FileCode className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     GeoJSON Vetorial
                   </h4>
-                  <span className="text-[9px] font-black bg-blue-500/15 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
                     .GEOJSON
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
                   Formato aberto padrão web com estrutura vetorial pura para ArcGIS, QGIS, Leaflet e Mapbox.
                 </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 pt-1.5 opacity-90 group-hover:opacity-100">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
                   <span>Baixar arquivo GeoJSON filtrado</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
@@ -370,23 +370,23 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       {(exportMode === 'full_layer' || count === 0) && (
         <>
           {/* Card Apresentação da Camada Completa */}
-          <div className="p-4 rounded-3xl bg-gradient-to-br from-[#007AFF]/15 via-[#5856D6]/5 to-transparent border border-[#007AFF]/20 shadow-xs space-y-3">
+          <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shadow-md shadow-blue-500/25 shrink-0">
-                  <Layers className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                  <Layers className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white truncate">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">
                     Exportar Camada Completa
                   </h3>
-                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
                     Base territorial integral
                   </p>
                 </div>
               </div>
 
-              <span className="bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] border border-[#007AFF]/25 font-black px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider shrink-0 shadow-2xs">
+              <span className="bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 border border-black/10 dark:border-white/10 font-bold px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider shrink-0">
                 Base Inteira
               </span>
             </div>
@@ -404,7 +404,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
                 <select
                   value={selectedLayerName}
                   onChange={(e) => setSelectedLayerName(e.target.value)}
-                  className="w-full bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#007AFF] transition-all cursor-pointer shadow-xs"
+                  className="w-full bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-slate-500 transition-all cursor-pointer shadow-xs"
                 >
                   {availableLayers.map((layer) => (
                     <option key={layer.name} value={layer.name}>
@@ -421,40 +421,40 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Formatos de Download da Camada
             </span>
-            <span className="text-[10px] font-bold text-[#007AFF]">
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
               {currentLayer.friendlyName}
             </span>
           </div>
 
           {/* Grade Vertical de Formatos da Camada Completa */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {/* 1. GeoJSON Vetorial Completo */}
             <button
               type="button"
               disabled={isDownloading}
               onClick={() => handleExportFullLayer('geojson')}
-              className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-blue-500/[0.08] dark:hover:bg-blue-500/[0.12] border border-black/5 dark:border-white/10 hover:border-blue-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
                 {isDownloading && downloadFormat === 'geojson' ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <FileCode className="w-5 h-5" />
+                  <FileCode className="w-4 h-4" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     GeoJSON Vetorial Completo
                   </h4>
-                  <span className="text-[9px] font-black bg-blue-500/15 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
                     .GEOJSON
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
                   Arquivo vetorial integral com todas as coordenadas, limites e propriedades de cada elemento da camada.
                 </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-[#007AFF] dark:text-[#64D2FF] pt-1.5 opacity-90 group-hover:opacity-100">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
                   <span>{isDownloading && downloadFormat === 'geojson' ? 'Processando download...' : 'Baixar Camada Completa (GeoJSON)'}</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
@@ -466,28 +466,28 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
               type="button"
               disabled={isDownloading}
               onClick={() => handleExportFullLayer('csv')}
-              className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-emerald-500/[0.08] dark:hover:bg-emerald-500/[0.12] border border-black/5 dark:border-white/10 hover:border-emerald-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-green-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
                 {isDownloading && downloadFormat === 'csv' ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <FileSpreadsheet className="w-5 h-5" />
+                  <FileSpreadsheet className="w-4 h-4" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     Planilha Excel Completa (CSV)
                   </h4>
-                  <span className="text-[9px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
                     .CSV
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
                   Tabela completa de atributos com UTF-8 BOM para abrir perfeitamente no Excel, LibreOffice e Sheets.
                 </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 pt-1.5 opacity-90 group-hover:opacity-100">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
                   <span>{isDownloading && downloadFormat === 'csv' ? 'Processando download...' : 'Baixar Tabela Completa (CSV)'}</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
@@ -499,28 +499,28 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
               type="button"
               disabled={isDownloading}
               onClick={() => handleExportFullLayer('kml')}
-              className="w-full p-3.5 bg-black/[0.02] dark:bg-white/[0.04] hover:bg-orange-500/[0.08] dark:hover:bg-orange-500/[0.12] border border-black/5 dark:border-white/10 hover:border-orange-500/30 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-red-500 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
                 {isDownloading && downloadFormat === 'kml' ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <Globe className="w-5 h-5" />
+                  <Globe className="w-4 h-4" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-orange-700 dark:group-hover:text-orange-400 transition-colors">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     Google Earth Completo (KML)
                   </h4>
-                  <span className="text-[9px] font-black bg-orange-500/15 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
                     .KML
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
                   Todos os polígonos e limites com visualização tridimensional no Google Earth Pro e projetos QGIS.
                 </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 pt-1.5 opacity-90 group-hover:opacity-100">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
                   <span>{isDownloading && downloadFormat === 'kml' ? 'Processando download...' : 'Baixar KML Completo'}</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
@@ -530,7 +530,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
           {/* Dica de Filtro */}
           <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 flex items-start gap-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-            <Info className="w-4 h-4 text-[#007AFF] shrink-0 mt-0.5" />
+            <Info className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
             <div>
               <strong className="text-slate-700 dark:text-slate-200">Como exportar apenas uma feição filtrada?</strong>
               <p className="mt-0.5">
@@ -543,7 +543,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
       {/* Nota Informativa Apple Glass */}
       <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 flex items-start gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-        <Info className="w-4 h-4 text-[#AF52DE] shrink-0 mt-0.5" />
+        <Info className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
         <span>
           Os dados exportados contêm todas as coordenadas geométricas e colunas analíticas autorizadas para o seu perfil de usuário.
         </span>

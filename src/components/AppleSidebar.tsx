@@ -56,6 +56,7 @@ import { Dashboard } from './Dashboard';
 import { ExportDashboard } from './ExportDashboard';
 import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
+import { FeatureInfoCustomizerModal, CustomCardOption } from './FeatureInfoCustomizerModal';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
 
@@ -149,6 +150,8 @@ const APPLE_CATEGORIES = [
   { id: 'hospitais', name: 'Hospitais', icon: Hospital, color: 'bg-red-600', query: 'Hospital' }
 ];
 
+const DEFAULT_USEFUL_CARD_IDS = ['popTotal', 'domTotal', 'mediaMoradores', 'areaKm2'];
+
 export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   isCollapsed,
   onToggleCollapse,
@@ -221,6 +224,58 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const [openedFromSearch, setOpenedFromSearch] = useState<boolean>(false);
   const [activeCategorySearchId, setActiveCategorySearchId] = useState<CategorySearchType | null>(null);
   const lastSearchClickTimeRef = useRef<number>(0);
+
+  // Estado e persistência de Informações Úteis personalizáveis no localStorage
+  const [isCustomizerModalOpen, setIsCustomizerModalOpen] = useState<boolean>(false);
+  const usefulCardsStorageKey = useMemo(() => {
+    return currentActiveUser?.username ? `useful_cards_${currentActiveUser.username}` : 'useful_cards_default';
+  }, [currentActiveUser?.username]);
+
+  const [usefulCardIds, setUsefulCardIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const key = currentActiveUser?.username ? `useful_cards_${currentActiveUser.username}` : 'useful_cards_default';
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_USEFUL_CARD_IDS;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(usefulCardsStorageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUsefulCardIds(parsed);
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+    setUsefulCardIds(DEFAULT_USEFUL_CARD_IDS);
+  }, [usefulCardsStorageKey]);
+
+  const handleSaveUsefulCards = (newIds: string[]) => {
+    setUsefulCardIds(newIds);
+    try {
+      localStorage.setItem(usefulCardsStorageKey, JSON.stringify(newIds));
+    } catch (e) {}
+    showToast('Informações úteis personalizadas com sucesso!');
+  };
+
+  const handleResetUsefulCards = () => {
+    setUsefulCardIds(DEFAULT_USEFUL_CARD_IDS);
+    try {
+      localStorage.removeItem(usefulCardsStorageKey);
+    } catch (e) {}
+    showToast('Restaurado o padrão das informações úteis.');
+  };
 
   // Feição ativa detalhada (última selecionada)
   const activeDetailFeature = useMemo(() => {
@@ -452,6 +507,76 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       mediaMoradores
     };
   }, [activeDetailFeature]);
+
+  // Catálogo completo de opções e valores formatados para a seção Informações Úteis
+  const usefulCardsCatalog = useMemo(() => {
+    if (!activeDetailFeature || !structuredDetails) return { options: [], valuesMap: {} as Record<string, { label: string; value: string }> };
+    const d = structuredDetails;
+    const props = activeDetailFeature.properties || {};
+
+    // Helper de permissão: bloqueia campos proibidos pelo admin para usuário comum
+    const isAllowed = (k?: string) => {
+      if (!k) return true;
+      if (isAdmin) return true;
+      if (!allowedProperties) return true;
+      return allowedProperties[k] !== false;
+    };
+
+    const rawAreaNum = props.AREA_KM2 != null ? Number(props.AREA_KM2) : (props.Area != null ? Number(props.Area) : (props.area_km2 != null ? Number(props.area_km2) : null));
+    const densidadeCalculada = (d.popTotal > 0 && rawAreaNum && rawAreaNum > 0)
+      ? `${(d.popTotal / rawAreaNum).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hab/km²`
+      : null;
+
+    const baseItems: Array<{ id: string; label: string; value: string; propertyKey?: string; category?: any }> = [
+      { id: 'popTotal', label: 'População', value: d.popTotal ? `${d.popTotal.toLocaleString('pt-BR')} hab` : '—', propertyKey: 'V0001', category: 'demografia' },
+      { id: 'domTotal', label: 'Domicílios', value: d.domTotal ? d.domTotal.toLocaleString('pt-BR') : '—', propertyKey: 'V0002', category: 'demografia' },
+      { id: 'mediaMoradores', label: 'Média de Moradores', value: d.mediaMoradores ? `${d.mediaMoradores} /dom.` : '—', propertyKey: 'V0005', category: 'demografia' },
+      { id: 'areaKm2', label: 'Área Territorial', value: d.areaKm2 || '—', propertyKey: 'AREA_KM2', category: 'territorio' },
+      { id: 'densidade', label: 'Densidade Demográfica', value: densidadeCalculada || '—', propertyKey: 'DENSIDADE', category: 'demografia' },
+      { id: 'domParticulares', label: 'Dom. Particulares', value: d.domParticulares ? d.domParticulares.toLocaleString('pt-BR') : '—', propertyKey: 'V0003', category: 'demografia' },
+      { id: 'domOcupados', label: 'Dom. Ocupados', value: d.domOcupados ? d.domOcupados.toLocaleString('pt-BR') : '—', propertyKey: 'V0007', category: 'demografia' },
+      { id: 'domVagos', label: 'Dom. Vagos', value: d.domVagos ? d.domVagos.toLocaleString('pt-BR') : '—', category: 'demografia' },
+      { id: 'taxaVacancia', label: 'Taxa de Vacância', value: d.taxaVacancia || '—', category: 'demografia' },
+      { id: 'domColetivos', label: 'Dom. Coletivos', value: d.domColetivos ? d.domColetivos.toLocaleString('pt-BR') : '—', propertyKey: 'V0004', category: 'demografia' },
+      { id: 'situacao', label: 'Situação', value: d.situacao || '—', propertyKey: 'SITUACAO', category: 'territorio' },
+      { id: 'tipoDescritivo', label: 'Tipo do Setor/Feição', value: d.tipoDescritivo || '—', propertyKey: 'Tipo do Setor', category: 'territorio' },
+      { id: 'areaDesenvolvimento', label: 'Área de Desenvolvimento', value: d.areaDesenvolvimento || '—', propertyKey: 'Area de desenvolvimento', category: 'territorio' },
+      { id: 'risp', label: 'RISP (Segurança)', value: d.risp || '—', propertyKey: 'Risp', category: 'seguranca' },
+      { id: 'aisp', label: 'AISP (Segurança)', value: d.aisp || '—', propertyKey: 'Aisp', category: 'seguranca' },
+      { id: 'nomeMunicipio', label: 'Município', value: d.nomeMunicipio || '—', propertyKey: 'NM_MUN', category: 'localizacao' },
+      { id: 'nomeBairro', label: 'Bairro', value: d.nomeBairro || '—', propertyKey: 'NM_BAIRRO', category: 'localizacao' },
+      { id: 'nomeDistrito', label: 'Distrito', value: d.nomeDistrito || '—', propertyKey: 'NM_DIST', category: 'localizacao' },
+      { id: 'nomeSubdistrito', label: 'Subdistrito / Zona', value: d.nomeSubdistrito || '—', propertyKey: 'NM_SUBDIST', category: 'localizacao' },
+      { id: 'nomeRgInt', label: 'Região Intermediária', value: d.nomeRgInt || '—', propertyKey: 'NM_RGINT', category: 'localizacao' },
+      { id: 'nomeRgI', label: 'Região Imediata', value: d.nomeRgI || '—', propertyKey: 'NM_RGI', category: 'localizacao' },
+      { id: 'nomeUf', label: 'Estado / UF', value: d.nomeUf || '—', propertyKey: 'NM_UF', category: 'localizacao' },
+    ];
+
+    const options: CustomCardOption[] = [];
+    const valuesMap: Record<string, { label: string; value: string }> = {};
+
+    baseItems.forEach(item => {
+      if (!isAllowed(item.propertyKey)) return;
+      options.push({ id: item.id, label: item.label, propertyKey: item.propertyKey, category: item.category });
+      valuesMap[item.id] = { label: item.label, value: item.value };
+    });
+
+    // Incluir atributos da feição que não estejam nos itens base
+    Object.keys(props).forEach(k => {
+      if (k.startsWith('_') || ['id', 'geometry', 'layer', 'name', 'sourceName', 'lat', 'lng', 'latitude', 'longitude'].includes(k.toLowerCase())) return;
+      if (!isAllowed(k)) return;
+      const attrId = `attr_${k}`;
+      if (!valuesMap[attrId]) {
+        const label = propertyNames[k] || toTitleCase(k.replace(/_/g, ' '));
+        const rawVal = props[k];
+        const valStr = (rawVal != null && String(rawVal).trim() !== '') ? String(rawVal) : '—';
+        options.push({ id: attrId, label, propertyKey: k, category: 'atributo' });
+        valuesMap[attrId] = { label, value: valStr };
+      }
+    });
+
+    return { options, valuesMap };
+  }, [activeDetailFeature, structuredDetails, allowedProperties, isAdmin]);
 
   // Lista ordenada de propriedades amigáveis e descritivas para a seção Detalhes & Propriedades
   const detailProperties = useMemo(() => {
@@ -786,13 +911,15 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   : 'px-3 py-2.5 text-sm'
               } ${
                 activeTab === 'export'
-                  ? 'bg-[#AF52DE] text-white shadow-lg shadow-purple-500/25'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
                   : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
               title={isCollapsed ? "Exportar Dados" : undefined}
             >
               <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                activeTab === 'export' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-purple-500/10 text-[#AF52DE]'
+                activeTab === 'export'
+                  ? (isCollapsed ? '' : 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900')
+                  : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-200'
               }`}>
                 <Download className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
               </div>
@@ -905,7 +1032,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               {activeTab === 'details' && 'Detalhes da Feição'}
               {activeTab === 'export' && (
                 <>
-                  <Download className="w-5 h-5 text-[#AF52DE]" />
+                  <Download className="w-5 h-5 text-slate-700 dark:text-slate-200" />
                   <span>Exportar Feições</span>
                 </>
               )}
@@ -1028,7 +1155,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     onClick={() => setActiveTab('export')}
                     className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
                   >
-                    <Download className="w-4 h-4 text-[#AF52DE]" />
+                    <Download className="w-4 h-4 text-slate-700 dark:text-slate-200" />
                     <span>Exportar</span>
                   </button>
                 </div>
@@ -1037,42 +1164,30 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               /* Para Coordenadas pesquisadas: não exibir as ferramentas do topo (focar, raio x, exportar, cnefe), pois já existem na primeira barra lateral */
               null
             ) : (
-              /* Ações padrão para camadas poligonais / territoriais */
-              <div className={`grid ${isComunidadeRural ? 'grid-cols-3' : 'grid-cols-4'} gap-2 pt-1`}>
+              /* Ações padrão para camadas poligonais / territoriais: 3 colunas (Focar, Buscar endereços, Exportar) */
+              <div className="grid grid-cols-3 gap-2 pt-1">
                 {/* Botão Trajetos / Focar (Azul Apple #007AFF) */}
                 <button
                   type="button"
                   onClick={() => onZoomToFeature(activeDetailFeature)}
-                  className="py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
+                  className="py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold shadow-sm transition-all cursor-pointer"
                 >
                   <Navigation className="w-5 h-5 fill-white text-white" />
                   <span>Focar</span>
                 </button>
 
-                {/* Botão Raio-X (ocultado na camada Comunidades Rurais de Teresina) */}
-                {!isComunidadeRural && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('dashboard')}
-                    className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
-                  >
-                    <Users className="w-5 h-5 text-[#34C759]" />
-                    <span>Raio-X</span>
-                  </button>
-                )}
-
-                {/* Botão Buscar Endereços no Polígono (exibe 'Busca Endereços' em Comunidades Rurais) */}
+                {/* Botão Buscar Endereços no Polígono */}
                 <button
                   type="button"
                   onClick={() => {
                     onSearchPolygonAddresses(activeDetailFeature);
                     onOpenCnefeBottomBar?.();
                   }}
-                  className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                  className="py-2.5 px-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center"
                   title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
                 >
-                  <Home className="w-5 h-5 text-[#FF9500]" />
-                  <span className="truncate">{isComunidadeRural ? 'Busca Endereços' : 'CNEFE'}</span>
+                  <Home className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                  <span className="leading-tight px-0.5">Buscar endereços</span>
                 </button>
 
                 {/* Botão Exportar */}
@@ -1081,7 +1196,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   onClick={() => setActiveTab('export')}
                   className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
                 >
-                  <Download className="w-5 h-5 text-[#AF52DE]" />
+                  <Download className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                   <span>Exportar</span>
                 </button>
               </div>
@@ -1192,44 +1307,38 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 )}
               </div>
             ) : !isComunidadeRural ? (
-              /* Informações Úteis Demográficas para Feições Poligonais */
+              /* Informações Úteis Demográficas para Feições Poligonais (Personalizáveis) */
               <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Informações Úteis
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Informações Úteis
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomizerModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Personalizar quais informações aparecem nos cartões"
+                  >
+                    <SlidersHorizontal className="w-3 h-3" />
+                    <span>Personalizar</span>
+                  </button>
+                </div>
                 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">População</span>
-                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      {structuredDetails?.popTotal ? `${structuredDetails.popTotal.toLocaleString('pt-BR')} hab` : '—'}
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Domicílios</span>
-                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      {structuredDetails?.domTotal ? structuredDetails.domTotal.toLocaleString('pt-BR') : '—'}
-                    </span>
-                  </div>
-
-                  {structuredDetails?.mediaMoradores && (
-                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Média de Moradores</span>
-                      <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                        {structuredDetails.mediaMoradores} /dom.
-                      </span>
-                    </div>
-                  )}
-
-                  {structuredDetails?.areaKm2 && (
-                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs">
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Área Territorial</span>
-                      <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                        {structuredDetails.areaKm2}
-                      </span>
-                    </div>
-                  )}
+                  {usefulCardIds.slice(0, 8).map(id => {
+                    const cardItem = usefulCardsCatalog.valuesMap[id];
+                    if (!cardItem) return null;
+                    return (
+                      <div key={id} className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block truncate" title={cardItem.label}>
+                          {cardItem.label}
+                        </span>
+                        <span className="text-sm font-black text-slate-800 dark:text-slate-100 truncate block mt-0.5" title={cardItem.value}>
+                          {cardItem.value}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -1767,6 +1876,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de Personalização de Informações Úteis */}
+      <FeatureInfoCustomizerModal
+        isOpen={isCustomizerModalOpen}
+        onClose={() => setIsCustomizerModalOpen(false)}
+        availableOptions={usefulCardsCatalog.options}
+        selectedIds={usefulCardIds}
+        onSave={handleSaveUsefulCards}
+        onReset={handleResetUsefulCards}
+        maxItems={8}
+      />
     </aside>
   );
 };
