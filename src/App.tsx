@@ -459,30 +459,55 @@ export default function App() {
   const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
   const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
 
-  // Abrir aba de Detalhes no estilo Apple Maps quando uma feição for selecionada no mapa,
-  // mas se o usuário já estiver na ferramenta Raio-X (dashboard), permanece nela!
-  // E quando o usuário desmarcar a feição (nada selecionado), fecha o painel de detalhes.
+  // Referência para controlar se o Raio-X foi aberto automaticamente por seleção múltipla (2+ feições)
+  const isAutoOpenedDashboardRef = useRef<boolean>(false);
+
+  // Manipulador manual de troca de abas para resetar o gatilho automático se o usuário navegar por conta própria
+  const handleSetActiveTab = useCallback((tabOrFn: React.SetStateAction<SidebarTab>) => {
+    isAutoOpenedDashboardRef.current = false;
+    setSidebarTab(tabOrFn);
+  }, []);
+
+  // Abrir aba de Detalhes ou Raio-X no estilo Apple Maps quando feições forem selecionadas no mapa:
+  // - 2+ feições válidas para o Raio-X: abre automaticamente a aba "dashboard" (Raio-X) somando dados.
+  // - Se a seleção voltar para 1 feição e foi aberto automaticamente, volta para "details".
+  // - Se o usuário abriu manualmente o Raio-X, mantém nele.
+  // - Feições sem dashboard (plot-, Localidades, Comunidades Rurais) abrem "details".
   useEffect(() => {
     if (selectedFeatures.length > 0) {
-      const latestFeature = selectedFeatures[selectedFeatures.length - 1];
-      const isLatestPlot = latestFeature?.id?.startsWith('plot-');
-
-      const isNoDashboardLayer = selectedFeatures.every(f => {
-        if (f.id?.startsWith('plot-')) return true;
+      const dashboardFeatures = selectedFeatures.filter(f => {
+        if (f.id?.startsWith('plot-')) return false;
         const src = (f.sourceName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (src.includes('localidade')) return true;
-        if (src.includes('comunidades rurais') || src.includes('comunidade rural')) return true;
-        if (src.includes('enderecos plotados')) return true;
+        if (src.includes('localidade')) return false;
+        if (src.includes('comunidades rurais') || src.includes('comunidade rural')) return false;
+        if (src.includes('enderecos plotados')) return false;
         const props = f.properties || {};
-        return props.id_Localidades != null || props.id_localidades != null || (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN);
+        if (props.id_Localidades != null || props.id_localidades != null || (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN)) return false;
+        return true;
       });
 
-      if (isLatestPlot || isNoDashboardLayer) {
-        setSidebarTab('details');
+      const dashCount = dashboardFeatures.length;
+
+      if (dashCount >= 2) {
+        // Seleção múltipla com 2+ feições que contam para o Raio-X vai direto para o Raio-X
+        isAutoOpenedDashboardRef.current = true;
+        setSidebarTab('dashboard');
+      } else if (dashCount === 1) {
+        // Se a seleção voltar a ter 1 feição e o Raio-X tiver sido aberto automaticamente por esse mecanismo, volte para "details"
+        if (isAutoOpenedDashboardRef.current) {
+          isAutoOpenedDashboardRef.current = false;
+          setSidebarTab('details');
+        } else {
+          // Se o usuário abriu o Raio-X manualmente ou já estava nele, mantenha
+          setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
+        }
       } else {
-        setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
+        // Apenas feições sem dashboard (Localidades, Comunidades Rurais, pontos plotados)
+        isAutoOpenedDashboardRef.current = false;
+        setSidebarTab('details');
       }
     } else {
+      isAutoOpenedDashboardRef.current = false;
       // Quando o usuário desmarca a feição (nada selecionado), fecha a barra de detalhes da feição
       setSidebarTab(prev => (prev === 'details' ? null : prev));
     }
@@ -2812,7 +2837,7 @@ export default function App() {
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
             activeTab={sidebarTab}
-            setActiveTab={setSidebarTab}
+            setActiveTab={handleSetActiveTab}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             onSearch={handleSearch}

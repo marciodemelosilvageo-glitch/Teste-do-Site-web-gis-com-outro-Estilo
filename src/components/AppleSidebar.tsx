@@ -1117,6 +1117,23 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               </button>
             </div>
 
+            {/* Aviso discreto quando houver 2+ feições selecionadas */}
+            {selectedFeatures.length >= 2 && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-100/90 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl text-xs text-slate-700 dark:text-slate-300 animate-fadeIn">
+                <span className="truncate">
+                  <strong className="font-semibold text-slate-900 dark:text-white">{selectedFeatures.length}</strong> feições selecionadas. Exibindo a última.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dashboard')}
+                  className="text-[#007AFF] dark:text-[#64D2FF] font-semibold hover:underline shrink-0 cursor-pointer text-[11px] flex items-center gap-1"
+                >
+                  <span>Veja o total no Raio-X</span>
+                  <span>&rarr;</span>
+                </button>
+              </div>
+            )}
+
             {/* Linha de Botões de Ação Apple */}
             {isLocalidade ? (
               /* Ações exclusivas para Localidades: sem Raio-X e sem CNEFE Polígono, com Busca Direta no CNEFE */

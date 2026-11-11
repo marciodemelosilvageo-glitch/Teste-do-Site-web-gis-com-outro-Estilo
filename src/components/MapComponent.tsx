@@ -14,7 +14,9 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
     imagePath: '/',
   });
 }
-import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download } from 'lucide-react';
+import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine } from 'lucide-react';
+import { union } from '@turf/union';
+import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename } from '../utils';
@@ -1645,6 +1647,211 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       updateLocalidadesViewport(locLayer, mapRef.current, selectedFeatures, customColor);
     }
   }, [selectedFeatures]);
+
+  // ==============================================================
+  // DISSOLVER FEIÇÕES POLIGONAIS (Turf v7 Union)
+  // ==============================================================
+  const [isDissolved, setIsDissolved] = useState<boolean>(false);
+  const [isDissolving, setIsDissolving] = useState<boolean>(false);
+  const dissolvedLayerRef = useRef<L.GeoJSON | null>(null);
+  const dissolvedOriginalLayersRef = useRef<Map<any, L.PathOptions>>(new Map());
+
+  // Filtrar apenas feições poligonais válidas da seleção (Polygon / MultiPolygon)
+  const selectedPolygonFeatures = useMemo(() => {
+    return selectedFeatures.filter(f => {
+      if (!f || !f.layer) return false;
+      if (f.id?.startsWith('plot-') || f.id === 'coord-search') return false;
+      const lyr = f.layer as any;
+      const geomType = lyr?.feature?.geometry?.type || 
+        (typeof lyr?.toGeoJSON === 'function' ? lyr.toGeoJSON()?.geometry?.type : null);
+      return geomType === 'Polygon' || geomType === 'MultiPolygon';
+    });
+  }, [selectedFeatures]);
+
+  const selectedPolygonCount = selectedPolygonFeatures.length;
+
+  // Limpar dissolução e restaurar o estado visual original de seleção
+  const clearDissolve = useCallback(() => {
+    if (dissolvedLayerRef.current && mapRef.current) {
+      mapRef.current.removeLayer(dissolvedLayerRef.current);
+      dissolvedLayerRef.current = null;
+    }
+    // Restaurar estilos das camadas originais
+    dissolvedOriginalLayersRef.current.forEach((savedStyle, layer) => {
+      if (layer && typeof layer.setStyle === 'function') {
+        layer.setStyle(savedStyle);
+      }
+      const el = layer._path || (typeof layer.getElement === 'function' ? layer.getElement() : null);
+      if (el && savedStyle.className?.includes('selected-feature-animated-dash')) {
+        el.classList.add('selected-feature-animated-dash');
+        el.setAttribute('stroke-dasharray', '6, 6');
+      }
+    });
+    dissolvedOriginalLayersRef.current.clear();
+
+    // Re-aplicar o destaque de seleção padrão às feições
+    selectedFeatures.forEach(f => {
+      if (f.layer) {
+        applySelectedStyleToLayer(f.layer, true);
+      }
+    });
+
+    setIsDissolved(false);
+    setIsDissolving(false);
+  }, [selectedFeatures]);
+
+  // Executar a união geométrica das feições poligonais de forma assíncrona
+  const computeDissolve = useCallback((polys: SelectedFeature[]) => {
+    if (!mapRef.current) return;
+    if (polys.length < 2) {
+      clearDissolve();
+      return;
+    }
+
+    if (polys.length > 200) {
+      showToast(`Unindo ${polys.length} feições poligonais. Isso pode levar alguns segundos...`);
+    }
+
+    setIsDissolving(true);
+
+    setTimeout(() => {
+      try {
+        const geojsonFeatures: any[] = [];
+        for (const item of polys) {
+          const lyr = item.layer as any;
+          let feat = lyr?.feature;
+          if (lyr && typeof lyr.toGeoJSON === 'function') {
+            feat = lyr.toGeoJSON();
+          }
+          if (!feat || !feat.geometry) {
+            continue;
+          }
+          if (feat.geometry.type !== 'Polygon' && feat.geometry.type !== 'MultiPolygon') {
+            continue;
+          }
+          geojsonFeatures.push(feat);
+        }
+
+        if (geojsonFeatures.length < 2) {
+          clearDissolve();
+          setIsDissolving(false);
+          return;
+        }
+
+        // União com Turf v7
+        const fc = featureCollection(geojsonFeatures as any) as any;
+        const unionResult = union(fc);
+
+        if (!unionResult || !unionResult.geometry) {
+          throw new Error('Não foi possível gerar a união das geometrias.');
+        }
+
+        const map = mapRef.current;
+        if (!map) return;
+
+        // Criar pane exclusivo para o contorno externo dissolvido se não existir
+        if (!map.getPane('dissolvedPane')) {
+          const pane = map.createPane('dissolvedPane');
+          pane.style.zIndex = '620';
+          pane.style.pointerEvents = 'none';
+        }
+
+        // Remover camada anterior de dissolução se houver
+        if (dissolvedLayerRef.current) {
+          map.removeLayer(dissolvedLayerRef.current);
+          dissolvedLayerRef.current = null;
+        }
+
+        // Atenuar/esconder bordas internas das feições selecionadas
+        polys.forEach(p => {
+          const layer = p.layer as any;
+          if (!layer) return;
+          if (!dissolvedOriginalLayersRef.current.has(layer)) {
+            dissolvedOriginalLayersRef.current.set(layer, {
+              color: layer.options?.color || '#007AFF',
+              weight: layer.options?.weight || 3,
+              opacity: layer.options?.opacity ?? 1,
+              fillColor: layer.options?.fillColor || '#007AFF',
+              fillOpacity: layer.options?.fillOpacity ?? 0.45,
+              dashArray: layer.options?.dashArray || '6, 6',
+              className: layer.options?.className || 'selected-feature-animated-dash'
+            });
+          }
+          if (typeof layer.setStyle === 'function') {
+            layer.setStyle({
+              opacity: 0,
+              weight: 0,
+              stroke: false
+            });
+          }
+          const el = layer._path || (typeof layer.getElement === 'function' ? layer.getElement() : null);
+          if (el) {
+            el.classList.remove('selected-feature-animated-dash');
+            el.removeAttribute('stroke-dasharray');
+          }
+        });
+
+        // Adicionar camada de contorno externo dissolvido em pane superior não interativo
+        const newDissolvedLayer = L.geoJSON(unionResult as any, {
+          pane: 'dissolvedPane',
+          interactive: false,
+          style: () => ({
+            pane: 'dissolvedPane',
+            interactive: false,
+            color: '#007AFF',
+            weight: 4,
+            opacity: 1,
+            fillColor: '#007AFF',
+            fillOpacity: 0.08,
+            lineCap: 'round',
+            lineJoin: 'round'
+          })
+        });
+
+        newDissolvedLayer.addTo(map);
+        dissolvedLayerRef.current = newDissolvedLayer;
+        setIsDissolved(true);
+      } catch (err) {
+        console.error('Erro ao dissolver polígonos:', err);
+        showToast('Erro ao unir geometrias selecionadas. Verifique se os polígonos são válidos.');
+        clearDissolve();
+      } finally {
+        setIsDissolving(false);
+      }
+    }, 10);
+  }, [clearDissolve, showToast]);
+
+  // Sincronização automática da dissolução quando a seleção muda
+  useEffect(() => {
+    if (!isDissolved) {
+      if (dissolvedLayerRef.current) {
+        clearDissolve();
+      }
+      return;
+    }
+
+    if (selectedPolygonCount < 2) {
+      clearDissolve();
+      showToast('Dissolução desfeita: menos de 2 polígonos selecionados.');
+    } else {
+      computeDissolve(selectedPolygonFeatures);
+    }
+  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast]);
+
+  const handleToggleDissolve = useCallback(() => {
+    if (isDissolved) {
+      clearDissolve();
+      showToast('Dissolução desfeita.');
+    } else {
+      if (selectedPolygonCount < 2) {
+        showToast('Selecione pelo menos 2 polígonos para dissolver.');
+        return;
+      }
+      setIsDissolved(true);
+      computeDissolve(selectedPolygonFeatures);
+      showToast('Polígonos dissolvidos em contorno único.');
+    }
+  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast]);
 
   // Inicializar o Leaflet Map
   useEffect(() => {
@@ -4142,6 +4349,30 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   <MousePointerClick className="w-4 h-4" />
                   <span className="hidden sm:inline">Multiseleção: {isMultiSelectMode ? 'ON' : 'OFF'}</span>
                 </button>
+
+                {/* 2.1. Botão Dissolver Feições Poligonais (visível com 2+ polígonos selecionados) */}
+                {selectedPolygonCount >= 2 && (
+                  <button
+                    type="button"
+                    id="btn-dissolve"
+                    onClick={handleToggleDissolve}
+                    disabled={isDissolving}
+                    className={`h-10 px-3.5 rounded-2xl flex items-center gap-1.5 border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer ${
+                      isDissolved
+                        ? 'bg-[#007AFF] text-white border-[#0066d6] shadow-blue-500/25'
+                        : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10'
+                    }`}
+                    title={isDissolved ? "Desfazer união dos polígonos selecionados" : "Unir os polígonos selecionados em contorno único"}
+                  >
+                    {isDissolving ? (
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+                    ) : (
+                      <Combine className="w-4 h-4 shrink-0" />
+                    )}
+                    <span className="hidden sm:inline">{isDissolved ? 'Desfazer dissolução' : 'Dissolver'}</span>
+                    <span className="sm:hidden">{isDissolved ? 'Desfazer' : 'Dissolver'}</span>
+                  </button>
+                )}
 
                 {/* 3. Botão de Camadas Estilo Apple (Floating Pill) */}
                 {allowLayerPanel && (
