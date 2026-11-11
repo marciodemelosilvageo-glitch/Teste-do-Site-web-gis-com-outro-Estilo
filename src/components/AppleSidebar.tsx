@@ -57,6 +57,7 @@ import { ExportDashboard } from './ExportDashboard';
 import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { FeatureInfoCustomizerModal, CustomCardOption } from './FeatureInfoCustomizerModal';
+import { RecentSearchItem, getCategoryConfig } from '../categories';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
 
@@ -75,7 +76,7 @@ interface AppleSidebarProps {
   isSearchLoading: boolean;
   searchActiveLayersOnly: boolean;
   setSearchActiveLayersOnly: (v: boolean) => void;
-  recentSearches: string[];
+  recentSearches: RecentSearchItem[];
   savedSearches: string[];
   onToggleSaveSearch: (term: string) => void;
   searchResults: GroupedSearchResults;
@@ -728,8 +729,27 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       });
     }
 
-    return items;
-  }, [structuredDetails, activeDetailFeature, allowedProperties, isAdmin]);
+    // Ocultar qualquer campo que já esteja escolhido nos cards de "Informações Úteis"
+    const hiddenKeys = new Set<string>();
+    const activeCardIds = usefulCardIds.slice(0, 8);
+    activeCardIds.forEach(id => {
+      if (id === 'domVagos') hiddenKeys.add('dom_vagos');
+      if (id === 'taxaVacancia') hiddenKeys.add('taxa_vacancia');
+      if (id === 'tipoDescritivo') {
+        hiddenKeys.add('cd_tipo');
+        hiddenKeys.add('tipo do setor');
+      }
+      const opt = usefulCardsCatalog.options.find(o => o.id === id);
+      if (opt?.propertyKey) {
+        hiddenKeys.add(opt.propertyKey.toLowerCase().trim());
+      }
+    });
+
+    return items.filter(item => {
+      const k = item.key.toLowerCase().trim();
+      return !hiddenKeys.has(k);
+    });
+  }, [structuredDetails, activeDetailFeature, allowedProperties, isAdmin, usefulCardIds, usefulCardsCatalog]);
 
   // Se uma feição foi selecionada e o usuário ainda não está na aba de detalhes, permitir alternar suavemente
   const hasFeature = !!activeDetailFeature;
@@ -926,6 +946,42 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               {!isCollapsed && <span className="truncate">Exportar</span>}
             </button>
           </div>
+
+          {/* Atalhos para Buscas Recentes na Barra Lateral Recolhida */}
+          {isCollapsed && recentSearches && recentSearches.length > 0 && (
+            <div className="pt-1 flex flex-col items-center gap-1.5 w-full">
+              <div className="w-8 h-px bg-black/10 dark:bg-white/10 my-1 mx-auto" />
+              {recentSearches.slice(0, 3).map((item, idx) => {
+                const cat = item.categoryId ? getCategoryConfig(item.categoryId) : undefined;
+                const Icon = cat ? cat.icon : History;
+                const label = item.term;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setOpenedFromSearch(false);
+                      setActiveTab('search');
+                      if (item.categoryId) {
+                        setActiveCategorySearchId(item.categoryId as CategorySearchType);
+                      } else {
+                        setSearchQuery(item.term);
+                        onSearch(item.term);
+                      }
+                    }}
+                    className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                      cat 
+                        ? `${cat.color} text-white hover:opacity-90 shadow-sm` 
+                        : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/10 dark:hover:bg-white/20'
+                    }`}
+                    title={`Busca recente: ${label}`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Rodapé do Estágio 1 */}
@@ -1267,27 +1323,21 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 border border-[#007AFF]/20">
                     {activeDetailFeature.id?.startsWith('plot-')
                       ? (activeDetailFeature.properties?.origem === 'tipo-saude'
-                          ? 'CNEFE Saúde'
+                          ? 'Saúde'
                           : activeDetailFeature.properties?.origem === 'tipo-farmacias'
-                          ? 'CNEFE Farmácia • por nome'
+                          ? 'Farmácia'
                           : activeDetailFeature.properties?.origem === 'tipo-restaurantes'
-                          ? 'CNEFE Restaurante • por nome'
+                          ? 'Restaurante'
                           : activeDetailFeature.properties?.origem === 'tipo-postos'
-                          ? 'CNEFE Posto • por nome'
+                          ? 'Posto de Gasolina'
                           : activeDetailFeature.properties?.origem === 'tipo-hoteis'
-                          ? 'CNEFE Hotelaria • por nome'
+                          ? 'Hotel'
                           : (activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE
                               ? toTitleCase(String(activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE))
-                              : 'CNEFE • IBGE'))
+                              : 'Endereço'))
                       : 'Ponto Pesquisado'}
                   </span>
                 </div>
-
-                {activeDetailFeature.properties?.origem?.startsWith('tipo-') && activeDetailFeature.properties?.origem !== 'tipo-saude' && (
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 italic bg-amber-500/10 dark:bg-amber-400/10 p-2 rounded-xl border border-amber-500/20">
-                    * Exibe locais com nome registrado no CNEFE. Estabelecimentos sem identificação na fachada podem não constar.
-                  </p>
-                )}
 
                 {coordDetailsList.length > 0 ? (
                   <div className="space-y-1.5">
@@ -1346,7 +1396,16 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     const cardItem = usefulCardsCatalog.valuesMap[id];
                     if (!cardItem) return null;
                     return (
-                      <div key={id} className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                      <div 
+                        key={id} 
+                        onClick={() => {
+                          if (cardItem.value && cardItem.value !== '—') {
+                            handleCopy(cardItem.value, cardItem.label);
+                          }
+                        }}
+                        className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 active:scale-[0.98] transition-all"
+                        title={cardItem.value !== '—' ? `Clique para copiar ${cardItem.label}` : cardItem.label}
+                      >
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block truncate" title={cardItem.label}>
                           {cardItem.label}
                         </span>
@@ -1566,15 +1625,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                             {cat.name}
                           </span>
                         </div>
-                        {cat.id === 'hospitais' ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 shrink-0">
-                            CNEFE Saúde
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 shrink-0">
-                            Por nome
-                          </span>
-                        )}
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     );
                   })}
@@ -1591,25 +1642,35 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  {recentSearches.map((term, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery(term);
-                        onSearch(term);
-                      }}
-                      className="w-full p-2 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
-                          <Store className="w-3.5 h-3.5" />
+                  {recentSearches.map((item, idx) => {
+                    const cat = item.categoryId ? getCategoryConfig(item.categoryId) : undefined;
+                    const Icon = cat ? cat.icon : History;
+                    const iconBg = cat ? cat.color : 'bg-black/10 dark:bg-white/10 text-slate-600 dark:text-slate-300';
+                    const textColor = cat ? 'text-white' : '';
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          if (item.categoryId) {
+                            setActiveCategorySearchId(item.categoryId as CategorySearchType);
+                          } else {
+                            setSearchQuery(item.term);
+                            onSearch(item.term);
+                          }
+                        }}
+                        className="w-full p-2 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <div className={`w-6 h-6 rounded-full ${iconBg} ${textColor} flex items-center justify-center shrink-0 shadow-xs`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="truncate">{item.term}</span>
                         </div>
-                        <span className="truncate">{term}</span>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                    </button>
-                  ))}
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

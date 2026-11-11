@@ -171,9 +171,6 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
           <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">
             {meta.name}
           </h3>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-            {meta.subtitle}
-          </p>
         </div>
       </div>
 

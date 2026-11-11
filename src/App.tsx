@@ -28,6 +28,7 @@ import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
+import { RecentSearchItem, detectCategoryFromData } from './categories';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const Globe = lazy(() => import('./components/Globe'));
@@ -352,11 +353,21 @@ export default function App() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   // Pesquisas Recentes e Salvas (Persistidos no localStorage)
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+  const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('recent_searches');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return parsed.map((item: any) => {
+              if (typeof item === 'string') {
+                return { term: item };
+              }
+              return item;
+            });
+          }
+        }
       } catch (e) {
         console.error('Erro ao ler pesquisas recentes:', e);
       }
@@ -376,12 +387,16 @@ export default function App() {
     return [];
   });
 
-  const addRecentSearch = (term: string) => {
+  const addRecentSearch = (term: string, categoryId?: string) => {
     const trimmed = term.trim();
     if (!trimmed) return;
     setRecentSearches(prev => {
-      const filtered = prev.filter(item => item.toLowerCase() !== trimmed.toLowerCase());
-      const updated = [trimmed, ...filtered].slice(0, 3);
+      const filtered = prev.filter(item => 
+        item.term.toLowerCase() !== trimmed.toLowerCase() || 
+        (categoryId && item.categoryId !== categoryId)
+      );
+      const newItem: RecentSearchItem = { term: trimmed, categoryId };
+      const updated = [newItem, ...filtered].slice(0, 3);
       try {
         localStorage.setItem('recent_searches', JSON.stringify(updated));
       } catch (e) {}
@@ -841,6 +856,8 @@ export default function App() {
       // Não plota no mapa de imediato, conforme solicitado
       setSearchCoordinates(null);
 
+      addRecentSearch('Hospitais', 'hospitais');
+
       setCnefeExternalResult({
         results: res.results,
         totalEncontrado: res.totalEncontrado,
@@ -897,6 +914,8 @@ export default function App() {
 
       // Não plota no mapa de imediato, conforme solicitado
       setSearchCoordinates(null);
+
+      addRecentSearch(catName, categoryId);
 
       setCnefeExternalResult({
         results: res.results,
@@ -1975,15 +1994,14 @@ export default function App() {
     return details;
   };
 
-  const getDetectedCategoryOrigem = (pointOrigem?: string): string | undefined => {
+  const getDetectedCategoryOrigem = (pointOrigem?: string, row?: any): string | undefined => {
     if (pointOrigem && pointOrigem.startsWith('tipo-')) return pointOrigem;
+    const fromRow = detectCategoryFromData(row, pointOrigem);
+    if (fromRow) return fromRow;
     const term = (cnefeExternalResult?.searchTerm || '').toLowerCase();
     const layer = (cnefeExternalResult?.sourceLayerName || '').toLowerCase();
-    if (term === 'estabelecimento de saúde' || layer.includes('saúde') || layer.includes('saude')) return 'tipo-saude';
-    if (term === 'farmácias' || term === 'farmacias' || layer.includes('farmácia') || layer.includes('farmacia')) return 'tipo-farmacias';
-    if (term === 'restaurantes' || layer.includes('restaurante')) return 'tipo-restaurantes';
-    if (term === 'postos de gasolina' || term.includes('posto') || layer.includes('posto')) return 'tipo-postos';
-    if (term === 'hotéis' || term === 'hoteis' || layer.includes('hotel') || layer.includes('hotéis')) return 'tipo-hoteis';
+    const fromContext = detectCategoryFromData(row, `${term} ${layer}`);
+    if (fromContext) return fromContext;
     return pointOrigem;
   };
 
@@ -2006,7 +2024,7 @@ export default function App() {
       ? point.details
       : formatAddressDetails(raw);
 
-    const detectedOrigem = getDetectedCategoryOrigem(point.origem);
+    const detectedOrigem = getDetectedCategoryOrigem(point.origem, raw);
 
     const plotFeature: SelectedFeature = {
       id: `plot-${index}`,
@@ -2053,7 +2071,7 @@ export default function App() {
     }
 
     const details = formatAddressDetails(row);
-    const detectedOrigem = getDetectedCategoryOrigem();
+    const detectedOrigem = getDetectedCategoryOrigem(undefined, row);
 
     setSearchCoordinates([{ 
       lat, 
@@ -2098,20 +2116,19 @@ export default function App() {
   };
 
   const handlePlotAllAddresses = (results: any[]) => {
-    const detectedOrigem = getDetectedCategoryOrigem();
-
     const validCoords = results
       .map(row => {
         const lat = parseFloat(row.latitude || row.LATITUDE);
         const lng = parseFloat(row.longitude || row.LONGITUDE);
         if (isNaN(lat) || isNaN(lng)) return null;
+        const rowOrigem = getDetectedCategoryOrigem(undefined, row);
         return {
           lat,
           lng,
           label: row.endereco || row.ENDERECO || 'Endereço IBGE',
           details: formatAddressDetails(row),
           isCoordSearch: false,
-          origem: detectedOrigem,
+          origem: rowOrigem,
           rawAddress: row
         };
       })
@@ -2917,6 +2934,7 @@ export default function App() {
           <MapComponent 
             isPrintMode={isPrintMode}
             isStage2Open={!!sidebarTab}
+            isSidebarCollapsed={isSidebarCollapsed}
             isMultiSelectMode={isMultiSelectMode}
             onToggleMultiSelect={() => {
               setIsMultiSelectMode(!isMultiSelectMode);

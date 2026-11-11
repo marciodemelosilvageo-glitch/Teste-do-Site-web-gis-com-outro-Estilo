@@ -20,6 +20,7 @@ import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename } from '../utils';
+import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
 // Garante que NUNCA haja pontos empilhados ou amontoados em zooms distantes (desaproximados)
@@ -461,6 +462,7 @@ interface MapComponentProps {
   isBottomBarExpanded?: boolean;
   isBottomBarMaximized?: boolean;
   isStage2Open?: boolean;
+  isSidebarCollapsed?: boolean;
 }
 
 // Montagem padronizada do polígono medido com anel fechado e propriedades
@@ -531,7 +533,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   isBottomBarOpen = true,
   isBottomBarExpanded = false,
   isBottomBarMaximized = false,
-  isStage2Open = false
+  isStage2Open = false,
+  isSidebarCollapsed = false
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -1533,6 +1536,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
   // Estilo de seleção destacado estilo Apple Maps (Apple Blue brilhante com contorno animado)
   const selectedStyle: L.PathOptions = { 
+    stroke: true,
     weight: 3.5, 
     color: '#007AFF', 
     dashArray: '6, 6', 
@@ -1599,8 +1603,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         if (l.options) {
           l.options.dashArray = '';
           l.options.className = '';
+          l.options.stroke = true;
         }
         const resetStyle: L.PathOptions = {
+          stroke: true,
           ...(l.defaultStyle || {}),
           dashArray: '',
           className: ''
@@ -1678,13 +1684,26 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
     // Restaurar estilos das camadas originais
     dissolvedOriginalLayersRef.current.forEach((savedStyle, layer) => {
-      if (layer && typeof layer.setStyle === 'function') {
-        layer.setStyle(savedStyle);
-      }
-      const el = layer._path || (typeof layer.getElement === 'function' ? layer.getElement() : null);
-      if (el && savedStyle.className?.includes('selected-feature-animated-dash')) {
-        el.classList.add('selected-feature-animated-dash');
-        el.setAttribute('stroke-dasharray', '6, 6');
+      if (layer) {
+        if (layer.options) {
+          layer.options.stroke = true;
+          layer.options.dashArray = '';
+          layer.options.className = '';
+        }
+        const styleToRestore: L.PathOptions = {
+          stroke: true,
+          ...savedStyle,
+          dashArray: '',
+          className: ''
+        };
+        if (typeof layer.setStyle === 'function') {
+          layer.setStyle(styleToRestore);
+        }
+        const el = layer._path || (typeof layer.getElement === 'function' ? layer.getElement() : null);
+        if (el) {
+          el.removeAttribute('stroke-dasharray');
+          el.classList.remove('selected-feature-animated-dash');
+        }
       }
     });
     dissolvedOriginalLayersRef.current.clear();
@@ -1768,13 +1787,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           if (!layer) return;
           if (!dissolvedOriginalLayersRef.current.has(layer)) {
             dissolvedOriginalLayersRef.current.set(layer, {
-              color: layer.options?.color || '#007AFF',
-              weight: layer.options?.weight || 3,
-              opacity: layer.options?.opacity ?? 1,
-              fillColor: layer.options?.fillColor || '#007AFF',
-              fillOpacity: layer.options?.fillOpacity ?? 0.45,
-              dashArray: layer.options?.dashArray || '6, 6',
-              className: layer.options?.className || 'selected-feature-animated-dash'
+              stroke: true,
+              ...(layer.defaultStyle || layer.options || {}),
+              color: layer.defaultStyle?.color || layer.options?.color || '#007AFF',
+              weight: layer.defaultStyle?.weight || layer.options?.weight || 3,
+              opacity: layer.defaultStyle?.opacity ?? layer.options?.opacity ?? 1,
+              fillColor: layer.defaultStyle?.fillColor || layer.options?.fillColor || '#007AFF',
+              fillOpacity: layer.defaultStyle?.fillOpacity ?? layer.options?.fillOpacity ?? 0.45,
             });
           }
           if (typeof layer.setStyle === 'function') {
@@ -2405,106 +2424,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         rightClickMarkerRef.current = null;
       }
 
-      // Ícone temático de Saúde (Hospitais / UBS / Clínicas) - 100% estático sem animações
-      const healthPinIcon = L.divIcon({
-        className: 'custom-search-marker-pin',
-        html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#DC2626" stroke="#FFFFFF" stroke-width="1.5"/>
-              <path d="M11 6.5H15V10.5H19V14.5H15V18.5H11V14.5H7V10.5H11V6.5Z" fill="#FFFFFF"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [26, 32],
-        iconAnchor: [13, 32],
-        popupAnchor: [0, -30]
-      });
-
-      // Ícone temático de Farmácias - 100% estático sem animações (Rosa #EC4899)
-      const pharmacyPinIcon = L.divIcon({
-        className: 'custom-search-marker-pin',
-        html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#EC4899" stroke="#FFFFFF" stroke-width="1.5"/>
-              <path d="M10 15.5L16 9.5M8.5 11.5L11.5 8.5C12.8 7.2 15 7.2 16.3 8.5C17.6 9.8 17.6 12 16.3 13.3L13.3 16.3C12 17.6 9.8 17.6 8.5 16.3C7.2 15 7.2 12.8 8.5 11.5Z" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [26, 32],
-        iconAnchor: [13, 32],
-        popupAnchor: [0, -30]
-      });
-
-      // Ícone temático de Restaurantes - 100% estático sem animações (Laranja #F97316)
-      const restaurantPinIcon = L.divIcon({
-        className: 'custom-search-marker-pin',
-        html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#F97316" stroke="#FFFFFF" stroke-width="1.5"/>
-              <path d="M8.5 7V11M10.5 7V11M12.5 7V11M8.5 11C8.5 12.1 9.4 13 10.5 13V18M16.5 7V18M16.5 7C14.8 7 14.5 8.5 14.5 10.5C14.5 12 14.8 13 16.5 13" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [26, 32],
-        iconAnchor: [13, 32],
-        popupAnchor: [0, -30]
-      });
-
-      // Ícone temático de Postos de Gasolina - 100% estático sem animações (Azul #0284C7)
-      const gasPinIcon = L.divIcon({
-        className: 'custom-search-marker-pin',
-        html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#0284C7" stroke="#FFFFFF" stroke-width="1.5"/>
-              <path d="M8 7.5H13.5V17.5H8V7.5Z" fill="#FFFFFF"/>
-              <path d="M13.5 9.5H15.5C16.6 9.5 17.5 10.4 17.5 11.5V15M17.5 15L15.5 13" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-              <rect x="9.2" y="9.2" width="3.1" height="2.5" rx="0.5" fill="#0284C7"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [26, 32],
-        iconAnchor: [13, 32],
-        popupAnchor: [0, -30]
-      });
-
-      // Ícone temático de Hotéis - 100% estático sem animações (Roxo #8B5CF6)
-      const hotelPinIcon = L.divIcon({
-        className: 'custom-search-marker-pin',
-        html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#8B5CF6" stroke="#FFFFFF" stroke-width="1.5"/>
-              <circle cx="9" cy="11" r="1.3" fill="#FFFFFF"/>
-              <path d="M7 11V17M19 12.5V17M7 13.5H19M7 15.5H19" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M11.5 13.5V11.2C11.5 10.5 12.2 10 13 10H16.5C17.3 10 18 10.5 18 11.2V13.5" fill="#FFFFFF"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [26, 32],
-        iconAnchor: [13, 32],
-        popupAnchor: [0, -30]
-      });
-
-      // Ícone padrão de Localização / Endereço (Estilo Apple Maps) - 100% estático sem animações
-      const defaultPinIcon = L.divIcon({
-        className: 'custom-search-marker-pin',
-        html: `
-          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#007AFF" stroke="#FFFFFF" stroke-width="1.5"/>
-              <circle cx="13" cy="12.5" r="4.5" fill="#FFFFFF"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [26, 32],
-        iconAnchor: [13, 32],
-        popupAnchor: [0, -30]
-      });
-
       const minZooms = computeSpatialMinZoomsForCoords(searchCoordinates);
       const newMarkers: any[] = [];
 
@@ -2543,20 +2462,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           return low.includes('saúde') || low.includes('saude') || low.includes('hospital') || low.includes('ubs') || low.includes('clínica') || low.includes('clinica') || low.includes('maternidade') || low.includes('pronto socorro');
         }) || (label || '').toLowerCase().includes('hospital') || (label || '').toLowerCase().includes('saude') || (especieRaw || '').toLowerCase().includes('saude') || (estabRaw || '').toLowerCase().includes('hospital');
 
-        const origem = coord.origem || '';
-        let chosenIcon = defaultPinIcon;
-
-        if (origem === 'tipo-farmacias') {
-          chosenIcon = pharmacyPinIcon;
-        } else if (origem === 'tipo-restaurantes') {
-          chosenIcon = restaurantPinIcon;
-        } else if (origem === 'tipo-postos') {
-          chosenIcon = gasPinIcon;
-        } else if (origem === 'tipo-hoteis') {
-          chosenIcon = hotelPinIcon;
-        } else if (origem === 'tipo-saude' || isSaude) {
-          chosenIcon = healthPinIcon;
-        }
+        const detectedOrigem = coord.origem || detectCategoryFromData(rawAddress, coord.label) || (isSaude ? 'tipo-saude' : undefined);
+        const chosenIcon = createCategoryPinIcon(detectedOrigem);
 
         // Criar marcador para renderização progressiva por viewport
         const marker = L.marker([lat, lng], { icon: chosenIcon });
@@ -3645,7 +3552,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {!isPrintMode && activeMeasureInfo && (
           <div 
             ref={measureCardRef}
-            className={`fixed z-[999] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/10 dark:border-white/10 flex items-center select-none text-xs max-w-[95vw] pointer-events-auto ${
+            className={`fixed z-[1100] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/10 dark:border-white/10 flex items-center select-none text-xs max-w-[95vw] pointer-events-auto ${
               measureCardPos === null ? 'transition-all duration-300 ease-out' : ''
             } ${
               isMeasureCardMinimized ? 'px-2.5 py-1.5 gap-2' : 'px-3.5 py-2.5 flex-wrap gap-3 sm:max-w-md'
@@ -3653,7 +3560,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             style={
               measureCardPos !== null
                 ? { left: `${measureCardPos.x}px`, top: `${measureCardPos.y}px` }
-                : { left: isStage2Open ? 'calc(390px + 16px)' : '16px', top: '4rem' }
+                : { left: `${(isSidebarCollapsed ? 68 : 215) + (isStage2Open ? 390 : 0) + 16}px`, top: '4rem' }
             }
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
