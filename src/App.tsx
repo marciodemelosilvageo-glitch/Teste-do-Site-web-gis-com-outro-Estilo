@@ -27,7 +27,7 @@ import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
-import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
+import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const Globe = lazy(() => import('./components/Globe'));
@@ -843,6 +843,63 @@ export default function App() {
     } catch (err) {
       console.error('Erro ao buscar hospitais por município no CNEFE:', err);
       showToast('Erro ao consultar estabelecimentos de saúde no CNEFE.');
+    } finally {
+      setIsHospitalSearching(false);
+    }
+  };
+
+  // Executa busca temática por Categoria (Farmácias, Restaurantes, Postos, Hotéis) filtrando por Município
+  const handleExecuteCategorySearchByMunicipio = async (categoryId: string, municipio: string) => {
+    try {
+      setIsHospitalSearching(true);
+
+      const config = CATEGORY_CONFIGS[categoryId];
+      const catName = config ? config.name : categoryId;
+      const isTodos = !municipio || municipio === 'Todos';
+      const munLabel = isTodos ? 'em todo o Estado' : `em ${municipio}`;
+      showToast(`🔍 Consultando ${catName.toLowerCase()} ${munLabel} no CNEFE...`);
+
+      const res = await buscarEnderecosPorCategoria(
+        categoryId,
+        isTodos ? undefined : municipio,
+        5000
+      );
+
+      if (!res.results || res.results.length === 0) {
+        showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} localizado ${munLabel}.`);
+        return;
+      }
+
+      // Não plota no mapa de imediato, conforme solicitado
+      setSearchCoordinates(null);
+
+      setCnefeExternalResult({
+        results: res.results,
+        totalEncontrado: res.totalEncontrado,
+        title: `${catName} (${isTodos ? 'Piauí' : municipio})`,
+        sourceLayerName: catName,
+        timestamp: Date.now(),
+        searchTerm: catName
+      });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
+
+      logActivity(
+        'ENDERECO',
+        `Busca CNEFE: ${catName} por Município (${municipio})`,
+        userRole,
+        `${res.totalEncontrado} estabelecimentos encontrados`
+      );
+
+      showToast(`📍 ${res.totalEncontrado} estabelecimentos de ${catName.toLowerCase()} carregados na Busca Avançada (${isTodos ? 'Piauí' : municipio})!`);
+
+      setTimeout(() => {
+        const el = document.getElementById('ibge-search-panel');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    } catch (err) {
+      console.error(`Erro ao buscar ${categoryId} por município no CNEFE:`, err);
+      showToast('Erro ao consultar estabelecimentos no CNEFE.');
     } finally {
       setIsHospitalSearching(false);
     }
@@ -1893,6 +1950,18 @@ export default function App() {
     return details;
   };
 
+  const getDetectedCategoryOrigem = (pointOrigem?: string): string | undefined => {
+    if (pointOrigem && pointOrigem.startsWith('tipo-')) return pointOrigem;
+    const term = (cnefeExternalResult?.searchTerm || '').toLowerCase();
+    const layer = (cnefeExternalResult?.sourceLayerName || '').toLowerCase();
+    if (term === 'estabelecimento de saúde' || layer.includes('saúde') || layer.includes('saude')) return 'tipo-saude';
+    if (term === 'farmácias' || term === 'farmacias' || layer.includes('farmácia') || layer.includes('farmacia')) return 'tipo-farmacias';
+    if (term === 'restaurantes' || layer.includes('restaurante')) return 'tipo-restaurantes';
+    if (term === 'postos de gasolina' || term.includes('posto') || layer.includes('posto')) return 'tipo-postos';
+    if (term === 'hotéis' || term === 'hoteis' || layer.includes('hotel') || layer.includes('hotéis')) return 'tipo-hoteis';
+    return pointOrigem;
+  };
+
   const handlePlottedPointClick = (index: number, point: any, marker: any) => {
     const raw = point.rawAddress || {};
     const estabRaw = raw.estabelecimento || raw.ESTABELECIMENTO || raw['Identificação do estabelecimento'] || '';
@@ -1912,10 +1981,7 @@ export default function App() {
       ? point.details
       : formatAddressDetails(raw);
 
-    const isTipoSaude = point.origem === 'tipo-saude' ||
-      cnefeExternalResult?.searchTerm === 'Estabelecimento de saúde' ||
-      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saúde') ||
-      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saude');
+    const detectedOrigem = getDetectedCategoryOrigem(point.origem);
 
     const plotFeature: SelectedFeature = {
       id: `plot-${index}`,
@@ -1926,7 +1992,7 @@ export default function App() {
         Latitude: point.lat,
         Longitude: point.lng,
         _details: details,
-        origem: isTipoSaude ? 'tipo-saude' : point.origem,
+        origem: detectedOrigem,
         ...raw
       }
     };
@@ -1962,10 +2028,7 @@ export default function App() {
     }
 
     const details = formatAddressDetails(row);
-
-    const isTipoSaude = cnefeExternalResult?.searchTerm === 'Estabelecimento de saúde' ||
-      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saúde') ||
-      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saude');
+    const detectedOrigem = getDetectedCategoryOrigem();
 
     setSearchCoordinates([{ 
       lat, 
@@ -1973,7 +2036,7 @@ export default function App() {
       label: addrLabel, 
       details,
       isCoordSearch: false,
-      origem: isTipoSaude ? 'tipo-saude' : undefined,
+      origem: detectedOrigem,
       rawAddress: row
     }]);
 
@@ -1986,7 +2049,7 @@ export default function App() {
         Latitude: lat,
         Longitude: lng,
         _details: details,
-        origem: isTipoSaude ? 'tipo-saude' : undefined,
+        origem: detectedOrigem,
         ...row
       }
     };
@@ -2010,9 +2073,7 @@ export default function App() {
   };
 
   const handlePlotAllAddresses = (results: any[]) => {
-    const isTipoSaude = cnefeExternalResult?.searchTerm === 'Estabelecimento de saúde' ||
-      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saúde') ||
-      cnefeExternalResult?.sourceLayerName?.toLowerCase().includes('saude');
+    const detectedOrigem = getDetectedCategoryOrigem();
 
     const validCoords = results
       .map(row => {
@@ -2025,7 +2086,7 @@ export default function App() {
           label: row.endereco || row.ENDERECO || 'Endereço IBGE',
           details: formatAddressDetails(row),
           isCoordSearch: false,
-          origem: isTipoSaude ? 'tipo-saude' : undefined,
+          origem: detectedOrigem,
           rawAddress: row
         };
       })
@@ -2780,6 +2841,7 @@ export default function App() {
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
             onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
+            onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
             onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
             cnefeMunicipios={cnefeMunicipios}
             isHospitalSearching={isHospitalSearching}

@@ -54,7 +54,7 @@ import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
 import { ExportDashboard } from './ExportDashboard';
-import { HospitalSidebarPanel } from './HospitalSidebarPanel';
+import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
@@ -95,6 +95,7 @@ interface AppleSidebarProps {
   onSearchLocalidadeAddresses?: (localidade: string, municipio: string) => void;
   onSearchHospitais?: () => void;
   onSearchHospitaisByMunicipio?: (municipio: string) => void;
+  onSearchCategoryByMunicipio?: (categoryId: string, municipio: string) => void;
   onSearchHospitaisByRadius?: (raioMetros: number) => void;
   cnefeMunicipios?: string[];
   isHospitalSearching?: boolean;
@@ -180,6 +181,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onSearchLocalidadeAddresses,
   onSearchHospitais,
   onSearchHospitaisByMunicipio,
+  onSearchCategoryByMunicipio,
   onSearchHospitaisByRadius,
   cnefeMunicipios,
   isHospitalSearching,
@@ -217,7 +219,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
   // Controlar se a feição exibida em detalhes foi aberta a partir de um clique no resultado da busca lateral
   const [openedFromSearch, setOpenedFromSearch] = useState<boolean>(false);
-  const [isHospitalSearchActive, setIsHospitalSearchActive] = useState<boolean>(false);
+  const [activeCategorySearchId, setActiveCategorySearchId] = useState<CategorySearchType | null>(null);
   const lastSearchClickTimeRef = useRef<number>(0);
 
   // Feição ativa detalhada (última selecionada)
@@ -268,10 +270,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     if (Array.isArray(raw)) list = [...raw] as string[];
     else if (typeof raw === 'string' && raw.trim()) list = [raw];
 
-    // Se o ponto veio da busca por tipo de saúde/hospitais, oculta:
+    // Se o ponto veio de qualquer busca por tipo (hospitais, farmácias, restaurantes, postos, hotéis), oculta:
     // "Identificação do Estabelecimento", "Espécie", "Cód. CNEFE"
-    const isTipoSaude = activeDetailFeature.properties?.origem === 'tipo-saude';
-    if (isTipoSaude && list.length > 0) {
+    const isBuscaPorTipo = Boolean(activeDetailFeature.properties?.origem?.startsWith('tipo-'));
+    if (isBuscaPorTipo && list.length > 0) {
       list = list.filter(item => {
         const colonIdx = item.indexOf(':');
         const label = (colonIdx !== -1 ? item.slice(0, colonIdx) : item)
@@ -898,7 +900,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           {/* Cabeçalho do Segundo Estágio (Título + Botão X redondo de fechar) */}
           <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">
             <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              {activeTab === 'search' && (isHospitalSearchActive ? 'Hospitais & Saúde' : 'Buscar')}
+              {activeTab === 'search' && (activeCategorySearchId ? (CATEGORY_UI_META[activeCategorySearchId]?.title || 'Buscar') : 'Buscar')}
               {activeTab === 'dashboard' && 'Raio-X Territorial e Domiciliar'}
               {activeTab === 'details' && 'Detalhes da Feição'}
               {activeTab === 'export' && (
@@ -919,7 +921,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               type="button"
               onClick={() => {
                 setOpenedFromSearch(false);
-                setIsHospitalSearchActive(false);
+                setActiveCategorySearchId(null);
                 setActiveTab(null);
               }}
               className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer active:scale-90"
@@ -1132,12 +1134,28 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 border border-[#007AFF]/20">
                     {activeDetailFeature.id?.startsWith('plot-')
-                      ? (activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE
-                          ? toTitleCase(String(activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE))
-                          : 'CNEFE • IBGE')
+                      ? (activeDetailFeature.properties?.origem === 'tipo-saude'
+                          ? 'CNEFE Saúde'
+                          : activeDetailFeature.properties?.origem === 'tipo-farmacias'
+                          ? 'CNEFE Farmácia • por nome'
+                          : activeDetailFeature.properties?.origem === 'tipo-restaurantes'
+                          ? 'CNEFE Restaurante • por nome'
+                          : activeDetailFeature.properties?.origem === 'tipo-postos'
+                          ? 'CNEFE Posto • por nome'
+                          : activeDetailFeature.properties?.origem === 'tipo-hoteis'
+                          ? 'CNEFE Hotelaria • por nome'
+                          : (activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE
+                              ? toTitleCase(String(activeDetailFeature.properties?.especie || activeDetailFeature.properties?.ESPECIE))
+                              : 'CNEFE • IBGE'))
                       : 'Ponto Pesquisado'}
                   </span>
                 </div>
+
+                {activeDetailFeature.properties?.origem?.startsWith('tipo-') && activeDetailFeature.properties?.origem !== 'tipo-saude' && (
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 italic bg-amber-500/10 dark:bg-amber-400/10 p-2 rounded-xl border border-amber-500/20">
+                    * Exibe locais com nome registrado no CNEFE. Estabelecimentos sem identificação na fachada podem não constar.
+                  </p>
+                )}
 
                 {coordDetailsList.length > 0 ? (
                   <div className="space-y-1.5">
@@ -1338,11 +1356,18 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {/* ABA: BUSCAR (Screenshot 4 do Apple Maps) */}
         {/* ============================================================== */}
         {activeTab === 'search' && (
-          isHospitalSearchActive ? (
+          activeCategorySearchId ? (
             <HospitalSidebarPanel
-              onBack={() => setIsHospitalSearchActive(false)}
-              onSearchByMunicipio={(mun) => onSearchHospitaisByMunicipio?.(mun)}
-              onSearchByRadius={(raio) => onSearchHospitaisByRadius?.(raio)}
+              category={activeCategorySearchId}
+              onBack={() => setActiveCategorySearchId(null)}
+              onSearchByMunicipio={(mun) => {
+                if (activeCategorySearchId === 'hospitais') {
+                  onSearchHospitaisByMunicipio?.(mun);
+                } else {
+                  onSearchCategoryByMunicipio?.(activeCategorySearchId, mun);
+                }
+              }}
+              onSearchByRadius={activeCategorySearchId === 'hospitais' ? ((raio) => onSearchHospitaisByRadius?.(raio)) : undefined}
               availableMunicipios={cnefeMunicipios}
               isLoading={isHospitalSearching}
             />
@@ -1403,12 +1428,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         key={cat.id}
                         type="button"
                         onClick={() => {
-                          if (cat.id === 'hospitais') {
-                            setIsHospitalSearchActive(true);
-                          } else {
-                            setSearchQuery(cat.query);
-                            onSearch(cat.query);
-                          }
+                          setActiveCategorySearchId(cat.id as CategorySearchType);
                         }}
                         className="w-full px-3.5 py-2.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-between text-left border border-black/5 dark:border-white/5 group"
                       >
@@ -1420,9 +1440,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                             {cat.name}
                           </span>
                         </div>
-                        {cat.id === 'hospitais' && (
+                        {cat.id === 'hospitais' ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 shrink-0">
                             CNEFE Saúde
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 shrink-0">
+                            Por nome
                           </span>
                         )}
                       </button>

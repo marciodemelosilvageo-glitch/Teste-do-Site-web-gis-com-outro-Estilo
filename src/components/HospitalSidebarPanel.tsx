@@ -1,14 +1,79 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Hospital, MapPin, Navigation, Search, Check, ChevronLeft, Compass, Loader2 } from 'lucide-react';
+import { Hospital, MapPin, Navigation, Search, Check, ChevronLeft, Compass, Loader2, Pill, UtensilsCrossed, Fuel, Hotel } from 'lucide-react';
+
+export type CategorySearchType = 'hospitais' | 'farmacias' | 'restaurantes' | 'postos' | 'hoteis';
 
 interface HospitalSidebarPanelProps {
+  category?: CategorySearchType;
   onBack: () => void;
   onSearchByMunicipio: (municipio: string) => void;
-  onSearchByRadius: (raioMetros: number) => void;
+  onSearchByRadius?: (raioMetros: number) => void;
   availableMunicipios?: string[];
   isLoading?: boolean;
 }
+
+export const CATEGORY_UI_META: Record<CategorySearchType, {
+  name: string;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  cardBg: string;
+  border: string;
+  shadow: string;
+}> = {
+  hospitais: {
+    name: 'Hospitais & Saúde',
+    title: 'Hospitais & Saúde',
+    subtitle: 'CNEFE IBGE • Estabelecimentos de Saúde',
+    icon: Hospital,
+    iconBg: 'bg-red-600',
+    cardBg: 'from-red-500/10 via-red-500/5 to-transparent',
+    border: 'border-red-500/15',
+    shadow: 'shadow-red-500/20'
+  },
+  farmacias: {
+    name: 'Farmácias & Drogarias',
+    title: 'Farmácias & Drogarias',
+    subtitle: 'CNEFE IBGE • Estabelecimentos por nome',
+    icon: Pill,
+    iconBg: 'bg-rose-500',
+    cardBg: 'from-rose-500/10 via-rose-500/5 to-transparent',
+    border: 'border-rose-500/15',
+    shadow: 'shadow-rose-500/20'
+  },
+  restaurantes: {
+    name: 'Restaurantes & Alimentação',
+    title: 'Restaurantes & Alimentação',
+    subtitle: 'CNEFE IBGE • Estabelecimentos por nome',
+    icon: UtensilsCrossed,
+    iconBg: 'bg-orange-500',
+    cardBg: 'from-orange-500/10 via-orange-500/5 to-transparent',
+    border: 'border-orange-500/15',
+    shadow: 'shadow-orange-500/20'
+  },
+  postos: {
+    name: 'Postos de Gasolina',
+    title: 'Postos de Gasolina',
+    subtitle: 'CNEFE IBGE • Estabelecimentos por nome',
+    icon: Fuel,
+    iconBg: 'bg-blue-600',
+    cardBg: 'from-blue-500/10 via-blue-500/5 to-transparent',
+    border: 'border-blue-500/15',
+    shadow: 'shadow-blue-500/20'
+  },
+  hoteis: {
+    name: 'Hotéis & Pousadas',
+    title: 'Hotéis & Pousadas',
+    subtitle: 'CNEFE IBGE • Estabelecimentos por nome',
+    icon: Hotel,
+    iconBg: 'bg-purple-600',
+    cardBg: 'from-purple-500/10 via-purple-500/5 to-transparent',
+    border: 'border-purple-500/15',
+    shadow: 'shadow-purple-500/20'
+  }
+};
 
 const PRESET_RADII = [
   { label: '500 m', value: 500, desc: 'A pé' },
@@ -43,12 +108,16 @@ const DEFAULT_MUNICIPIOS_PI = [
 ];
 
 export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
+  category = 'hospitais',
   onBack,
   onSearchByMunicipio,
   onSearchByRadius,
   availableMunicipios = [],
   isLoading = false
 }) => {
+  const meta = CATEGORY_UI_META[category] || CATEGORY_UI_META.hospitais;
+  const CategoryIcon = meta.icon;
+
   const [searchMode, setSearchMode] = useState<'municipio' | 'radius'>('municipio');
   const [selectedMunicipio, setSelectedMunicipio] = useState<string>('Teresina');
   const [filterMunText, setFilterMunText] = useState<string>('');
@@ -73,7 +142,7 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchMode === 'municipio') {
+    if (searchMode === 'municipio' || !onSearchByRadius) {
       onSearchByMunicipio(selectedMunicipio);
     } else {
       const radiusToUse = isCustomRadius ? (parseInt(customRadiusText, 10) || selectedRadius) : selectedRadius;
@@ -94,31 +163,32 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
       </button>
 
       {/* Card Cabeçalho da Ferramenta */}
-      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-red-500/10 via-red-500/5 to-transparent border border-red-500/15 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-red-500/20">
-          <Hospital className="w-5 h-5" />
+      <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${meta.cardBg} border ${meta.border} flex items-center gap-3`}>
+        <div className={`w-10 h-10 rounded-2xl ${meta.iconBg} text-white flex items-center justify-center shrink-0 shadow-sm ${meta.shadow}`}>
+          <CategoryIcon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
           <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">
-            Hospitais & Saúde
+            {meta.name}
           </h3>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-            CNEFE IBGE • Estabelecimentos de Saúde
+            {meta.subtitle}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Pergunta de Seleção de Modo */}
-        <div className="space-y-2">
-          <label className="block text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 px-0.5">
-            Onde deseja pesquisar?
-          </label>
+        {/* Pergunta de Seleção de Modo (se busca por raio estiver disponível) */}
+        {onSearchByRadius && (
+          <div className="space-y-2">
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 px-0.5">
+              Onde deseja pesquisar?
+            </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            {/* Opção 1: Por Município */}
-            <button
-              type="button"
+            <div className="grid grid-cols-2 gap-2">
+              {/* Opção 1: Por Município */}
+              <button
+                type="button"
               onClick={() => setSearchMode('municipio')}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 relative ${searchMode === 'municipio'
                   ? 'bg-[#007AFF]/10 border-[#007AFF] shadow-sm text-[#007AFF] dark:text-[#0a84ff]'
@@ -173,6 +243,7 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
             </button>
           </div>
         </div>
+        )}
 
         {/* MODO MUNICÍPIO */}
         {searchMode === 'municipio' && (

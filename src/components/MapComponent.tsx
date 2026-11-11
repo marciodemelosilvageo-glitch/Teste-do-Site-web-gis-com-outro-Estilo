@@ -2029,6 +2029,74 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         popupAnchor: [0, -30]
       });
 
+      // Ícone temático de Farmácias - 100% estático sem animações (Rosa #EC4899)
+      const pharmacyPinIcon = L.divIcon({
+        className: 'custom-search-marker-pin',
+        html: `
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#EC4899" stroke="#FFFFFF" stroke-width="1.5"/>
+              <path d="M10 15.5L16 9.5M8.5 11.5L11.5 8.5C12.8 7.2 15 7.2 16.3 8.5C17.6 9.8 17.6 12 16.3 13.3L13.3 16.3C12 17.6 9.8 17.6 8.5 16.3C7.2 15 7.2 12.8 8.5 11.5Z" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [26, 32],
+        iconAnchor: [13, 32],
+        popupAnchor: [0, -30]
+      });
+
+      // Ícone temático de Restaurantes - 100% estático sem animações (Laranja #F97316)
+      const restaurantPinIcon = L.divIcon({
+        className: 'custom-search-marker-pin',
+        html: `
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#F97316" stroke="#FFFFFF" stroke-width="1.5"/>
+              <path d="M8.5 7V11M10.5 7V11M12.5 7V11M8.5 11C8.5 12.1 9.4 13 10.5 13V18M16.5 7V18M16.5 7C14.8 7 14.5 8.5 14.5 10.5C14.5 12 14.8 13 16.5 13" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [26, 32],
+        iconAnchor: [13, 32],
+        popupAnchor: [0, -30]
+      });
+
+      // Ícone temático de Postos de Gasolina - 100% estático sem animações (Azul #0284C7)
+      const gasPinIcon = L.divIcon({
+        className: 'custom-search-marker-pin',
+        html: `
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#0284C7" stroke="#FFFFFF" stroke-width="1.5"/>
+              <path d="M8 7.5H13.5V17.5H8V7.5Z" fill="#FFFFFF"/>
+              <path d="M13.5 9.5H15.5C16.6 9.5 17.5 10.4 17.5 11.5V15M17.5 15L15.5 13" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="9.2" y="9.2" width="3.1" height="2.5" rx="0.5" fill="#0284C7"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [26, 32],
+        iconAnchor: [13, 32],
+        popupAnchor: [0, -30]
+      });
+
+      // Ícone temático de Hotéis - 100% estático sem animações (Roxo #8B5CF6)
+      const hotelPinIcon = L.divIcon({
+        className: 'custom-search-marker-pin',
+        html: `
+          <div style="width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="26" height="32" viewBox="0 0 26 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 0C5.82 0 0 5.82 0 13C0 21.6 13 32 13 32C13 32 26 21.6 26 13C26 5.82 20.18 0 13 0Z" fill="#8B5CF6" stroke="#FFFFFF" stroke-width="1.5"/>
+              <circle cx="9" cy="11" r="1.3" fill="#FFFFFF"/>
+              <path d="M7 11V17M19 12.5V17M7 13.5H19M7 15.5H19" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M11.5 13.5V11.2C11.5 10.5 12.2 10 13 10H16.5C17.3 10 18 10.5 18 11.2V13.5" fill="#FFFFFF"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [26, 32],
+        iconAnchor: [13, 32],
+        popupAnchor: [0, -30]
+      });
+
       // Ícone padrão de Localização / Endereço (Estilo Apple Maps) - 100% estático sem animações
       const defaultPinIcon = L.divIcon({
         className: 'custom-search-marker-pin',
@@ -2083,7 +2151,20 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           return low.includes('saúde') || low.includes('saude') || low.includes('hospital') || low.includes('ubs') || low.includes('clínica') || low.includes('clinica') || low.includes('maternidade') || low.includes('pronto socorro');
         }) || (label || '').toLowerCase().includes('hospital') || (label || '').toLowerCase().includes('saude') || (especieRaw || '').toLowerCase().includes('saude') || (estabRaw || '').toLowerCase().includes('hospital');
 
-        const chosenIcon = isSaude ? healthPinIcon : defaultPinIcon;
+        const origem = coord.origem || '';
+        let chosenIcon = defaultPinIcon;
+
+        if (origem === 'tipo-farmacias') {
+          chosenIcon = pharmacyPinIcon;
+        } else if (origem === 'tipo-restaurantes') {
+          chosenIcon = restaurantPinIcon;
+        } else if (origem === 'tipo-postos') {
+          chosenIcon = gasPinIcon;
+        } else if (origem === 'tipo-hoteis') {
+          chosenIcon = hotelPinIcon;
+        } else if (origem === 'tipo-saude' || isSaude) {
+          chosenIcon = healthPinIcon;
+        }
 
         // Criar marcador para renderização progressiva por viewport
         const marker = L.marker([lat, lng], { icon: chosenIcon });

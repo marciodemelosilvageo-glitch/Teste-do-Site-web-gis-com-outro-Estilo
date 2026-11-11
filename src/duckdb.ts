@@ -573,6 +573,175 @@ export async function buscarEnderecosPorEspecie(
   }
 }
 
+export interface CategorySearchConfig {
+  id: string;
+  name: string;
+  badgeLabel: string;
+  species: string[];
+  keywords: string[];
+  exclusions: string[];
+  useWordBoundaryPosto?: boolean;
+  useWordBoundaryPetExclusion?: boolean;
+  color: string;
+}
+
+export const CATEGORY_CONFIGS: Record<string, CategorySearchConfig> = {
+  farmacias: {
+    id: 'farmacias',
+    name: 'Farmácias',
+    badgeLabel: 'CNEFE Farmácia • por nome',
+    species: ['Estabelecimento de outras finalidades'],
+    keywords: ['farmacia', 'drogaria', 'drogasil', 'extrafarma', 'drogao', 'farmaceutic', 'pague menos'],
+    exclusions: ['veterinari', 'agro', 'petshop', 'pet shop', 'racoes', 'animal', 'animais', 'mercad'],
+    useWordBoundaryPetExclusion: true,
+    color: '#EC4899',
+  },
+  restaurantes: {
+    id: 'restaurantes',
+    name: 'Restaurantes',
+    badgeLabel: 'CNEFE Restaurante • por nome',
+    species: ['Estabelecimento de outras finalidades'],
+    keywords: [
+      'restaurante', 'churrascaria', 'pizzaria', 'lanchonete', 'hamburgueria',
+      'pastelaria', 'bistro', 'petiscaria', 'self service', 'self-service',
+      'espetaria', 'refeicoes'
+    ],
+    exclusions: ['escola', 'colegio', 'hospital', 'igreja', 'associacao'],
+    color: '#F97316',
+  },
+  postos: {
+    id: 'postos',
+    name: 'Postos de Gasolina',
+    badgeLabel: 'CNEFE Posto • por nome',
+    species: ['Estabelecimento de outras finalidades'],
+    keywords: [
+      'posto de combustiv', 'posto de gasolina', 'auto posto', 'autoposto'
+    ],
+    useWordBoundaryPosto: true,
+    exclusions: [
+      'saude', 'medic', 'vacina', 'policia', 'fiscal', 'atendimento',
+      'lavag', 'lava jato', 'telefon', 'telemar', 'correio', 'str',
+      'sindicato', 'eleitoral', 'bancari', 'coleta', 'comunitari',
+      'agespisa', 'equatorial', 'cepisa', 'dormitorio', 'apostolic'
+    ],
+    color: '#0284C7',
+  },
+  hoteis: {
+    id: 'hoteis',
+    name: 'Hotéis',
+    badgeLabel: 'CNEFE Hotelaria • por nome',
+    species: ['Estabelecimento de outras finalidades', 'Domicílio coletivo'],
+    keywords: [
+      'hotel', 'pousada', 'motel', 'hostel', 'hospedaria', 'dormitorio', 'resort'
+    ],
+    exclusions: [
+      'hotelzinho', 'creche', 'infantil', 'escola', 'petshop', 'pet shop',
+      'canil', 'cachorro', 'gato', 'animais'
+    ],
+    useWordBoundaryPetExclusion: true,
+    color: '#8B5CF6',
+  }
+};
+
+/**
+ * Busca endereços no CNEFE filtrando por categoria temática através da coluna "estabelecimento"
+ * combinada estritamente com a "especie" autorizada e município.
+ */
+export async function buscarEnderecosPorCategoria(
+  categoryId: string,
+  municipio?: string,
+  limit: number = 3000
+): Promise<{ results: any[]; totalEncontrado: number; config: CategorySearchConfig }> {
+  const config = CATEGORY_CONFIGS[categoryId];
+  if (!config) {
+    throw new Error(`Configuração não encontrada para a categoria: ${categoryId}`);
+  }
+
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    const cleanMun = (municipio || '').trim();
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 3000));
+
+    const whereClauses: string[] = [];
+
+    // 1. Filtro obrigatório de município
+    if (cleanMun && cleanMun !== 'Todos') {
+      const escMun = escapeSqlLiteral(normalizeString(cleanMun));
+      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+    }
+
+    // 2. Filtro estrito de espécie(s) autorizada(s)
+    const speciesList = config.species.map(s => `'${escapeSqlLiteral(s)}'`).join(', ');
+    whereClauses.push(`"especie" IN (${speciesList})`);
+
+    // 3. Estabelecimento deve estar preenchido
+    whereClauses.push(`"estabelecimento" IS NOT NULL AND trim("estabelecimento") != ''`);
+
+    // 4. Palavras-chave que entram
+    const kwConditions: string[] = [];
+    if (config.useWordBoundaryPosto) {
+      kwConditions.push(`regexp_matches(strip_accents(lower("estabelecimento")), '(^|\\s)posto(\\s|$)')`);
+    }
+    config.keywords.forEach(kw => {
+      const escKw = escapeSqlLikePattern(normalizeString(kw));
+      if (kw === 'pague menos') {
+        kwConditions.push(`(strip_accents(lower("estabelecimento")) LIKE '%${escKw}%' AND strip_accents(lower("estabelecimento")) NOT LIKE '%mercad%')`);
+      } else {
+        kwConditions.push(`strip_accents(lower("estabelecimento")) LIKE '%${escKw}%'`);
+      }
+    });
+    if (kwConditions.length > 0) {
+      whereClauses.push(`(${kwConditions.join(' OR ')})`);
+    }
+
+    // 5. Palavras de exclusão
+    config.exclusions.forEach(ex => {
+      const escEx = escapeSqlLikePattern(normalizeString(ex));
+      whereClauses.push(`strip_accents(lower("estabelecimento")) NOT LIKE '%${escEx}%'`);
+    });
+    if (config.useWordBoundaryPetExclusion) {
+      whereClauses.push(`regexp_matches(strip_accents(lower("estabelecimento")), '(^|\\s)pet(\\s|$)') = false`);
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT * FROM (
+        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
+        FROM enderecos
+        ${whereSql}
+      )
+      ORDER BY 
+        CASE 
+          WHEN strip_accents(lower(trim(municipio))) = 'teresina' THEN 0 
+          WHEN strip_accents(lower(trim(municipio))) LIKE '%teresina%' THEN 1
+          ELSE 2 
+        END ASC,
+        "municipio" ASC, 
+        "endereco" ASC, 
+        TRY_CAST("numero_logradouro" AS BIGINT) ASC
+      LIMIT ${safeLimit};
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    const rawResults = rows.map(r => r.toJSON());
+    const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+
+    return { results: rawResults, totalEncontrado, config };
+  } catch (e) {
+    console.error(`Erro na busca de endereços por categoria (${categoryId}) no DuckDB:`, e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
+
 /**
  * Busca endereços (como Hospitais / Estabelecimentos de Saúde) em um raio geométrico
  * a partir de uma coordenada central (latitude, longitude) em metros.
