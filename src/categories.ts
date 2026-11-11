@@ -275,3 +275,4 @@ export const createCategoryPinIcon = (origemOrCatId?: string): L.DivIcon => {
     popupAnchor: [0, -30]
   });
 };
+

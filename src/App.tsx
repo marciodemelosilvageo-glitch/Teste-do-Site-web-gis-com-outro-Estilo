@@ -104,19 +104,19 @@ const HeroGlobe = React.memo(({ isDarkMode }: HeroGlobeProps) => {
   }, []);
 
   const dotsConfig = useMemo(() => ({
-    color: isDarkMode ? "#38bdf8" : "#007AFF",
+    color: isDarkMode ? "#FFFFFF" : "#000000",
     size: 5,
     density: 8,
     allDots: false
   }), [isDarkMode]);
 
   const outlineColor = useMemo(
-    () => (isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,122,255,0.45)"),
+    () => (isDarkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)"),
     [isDarkMode]
   );
 
   const graticuleColor = useMemo(
-    () => (isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,122,255,0.15)"),
+    () => (isDarkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)"),
     [isDarkMode]
   );
 
