@@ -125,6 +125,15 @@ export function getFormattedDisplayValue(row: any, colKey: string): string {
   return isTextCol ? toTitleCase(valStr) : valStr;
 }
 
+// Helper para anexar uma chave interna única e estável para cada linha de resultado
+export function attachRowKeys(items: any[]): any[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((row, idx) => ({
+    ...row,
+    __rowKey: `${row.codigo_unico ?? 'cnefe'}_${idx}`
+  }));
+}
+
 export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({ 
   onPlotAddress, 
   onPlotAllAddresses, 
@@ -347,7 +356,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     if (externalPolygonResult && externalPolygonResult.timestamp > 0) {
       if (externalPolygonResult.timestamp !== lastExternalTimestampRef.current) {
         lastExternalTimestampRef.current = externalPolygonResult.timestamp;
-        setResults(externalPolygonResult.results);
+        setResults(attachRowKeys(externalPolygonResult.results));
         setTotalEncontrado(externalPolygonResult.totalEncontrado);
         setHasSearched(true);
         setIsPlotted(false);
@@ -536,7 +545,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       // Descarta resposta obsoleta caso outra requisição tenha sido disparada
       if (currentReqId !== searchRequestIdRef.current) return;
 
-      setResults(res.results);
+      setResults(attachRowKeys(res.results));
       setTotalEncontrado(res.totalEncontrado);
       setHasSearched(true);
       setIsPlotted(false);
@@ -1347,7 +1356,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
                         {processedResults.map((row, i) => (
                           <tr 
-                            key={row.codigo_unico || i} 
+                            key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`} 
                             onClick={() => onPlotAddress(row)}
                             className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
                             title="Clique para navegar e destacar este endereço no mapa"
