@@ -1,11 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { 
   Users, 
   Home, 
   ShieldAlert, 
   Building, 
-  Copy, 
-  Check, 
   MapPin, 
   TrendingUp, 
   Sparkles,
@@ -14,9 +12,11 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { SelectedFeature } from '../types';
+import { CopyableText } from './CopyableText';
 
 interface DashboardProps {
   selectedFeatures: SelectedFeature[];
+  showToast?: (msg: string) => void;
 }
 
 // Helper para obter valores numéricos com tolerância a vírgulas e tipos
@@ -47,8 +47,7 @@ const formatTitle = (text: string): string => {
     .join(' ');
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
-  const [copied, setCopied] = useState(false);
+export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures, showToast }) => {
 
   // Hook executado incondicionalmente no topo do componente (conforme regras do React)
   const isOnlyLocalidades = useMemo(() => {
@@ -300,9 +299,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
     );
   }
 
-  // Ação de copiar resumo demográfico
-  const handleCopySummary = () => {
-    const text = `📊 *Raio-X Territorial e Domiciliar - ${title}*
+  // Resumo textual demográfico para cópia
+  const summaryText = useMemo(() => {
+    return `📊 *Raio-X Territorial e Domiciliar - ${title}*
 👥 População Total: ${sumPop.toLocaleString('pt-BR')} habitantes
 📈 Média por Domicílio: ${densidade} moradores/dom.
 🏠 Total de Domicílios: ${sumDomTotal.toLocaleString('pt-BR')}
@@ -310,11 +309,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures }) => {
   • Vagos / Uso Ocasional: ${sumVagos.toLocaleString('pt-BR')} (Vacância: ${taxaVac}%)
   • Coletivos (Instituições): ${sumDomCol.toLocaleString('pt-BR')}
 ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebGIS Geocodificando`;
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2200);
-  };
+  }, [title, sumPop, densidade, sumDomTotal, sumDomOcup, taxaOcupacao, sumVagos, taxaVac, sumDomCol, areaKm2]);
 
   return (
     <section 
@@ -328,35 +323,24 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
           <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
             Localidade Selecionada
           </span>
-
-          <button
-            type="button"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-700 dark:text-slate-300 transition-all cursor-pointer active:scale-95"
-            title="Copiar resumo para a área de transferência"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="text-emerald-600 dark:text-emerald-400">Copiado!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copiar</span>
-              </>
-            )}
-          </button>
         </div>
 
         <div>
-          <h2 
-            id="dash-local-name" 
-            className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2"
+          <CopyableText
+            value={summaryText}
+            label="Resumo territorial"
+            showToast={showToast}
+            className="w-full text-left p-1.5 -ml-1.5 rounded-2xl"
+            title="Clique para copiar resumo demográfico"
           >
-            <MapPin className="w-5 h-5 text-[#007AFF] shrink-0" />
-            <span className="truncate">{title}</span>
-          </h2>
+            <h2 
+              id="dash-local-name" 
+              className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2"
+            >
+              <MapPin className="w-5 h-5 text-[#007AFF] shrink-0" />
+              <span className="truncate">{title}</span>
+            </h2>
+          </CopyableText>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-black/5 dark:border-white/5 text-[11px] text-slate-500 dark:text-slate-400">
             {municipio && (

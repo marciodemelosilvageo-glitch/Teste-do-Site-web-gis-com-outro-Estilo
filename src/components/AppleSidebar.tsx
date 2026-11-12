@@ -12,7 +12,6 @@ import {
   Navigation, 
   Compass, 
   Share2, 
-  Copy, 
   Download, 
   SlidersHorizontal, 
   Eye, 
@@ -53,6 +52,7 @@ import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../type
 import { dataSources, propertyNames, situationMap, typeMap } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
 import { Dashboard } from './Dashboard';
+import { CopyableText } from './CopyableText';
 import { ExportDashboard } from './ExportDashboard';
 import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
@@ -1501,17 +1501,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                             {label}
                           </span>
                           <div className="flex items-center gap-1.5 min-w-0 justify-end">
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate text-right">
-                              {val}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(val, label)}
-                              className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                              title={`Copiar ${label}`}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </button>
+                            <CopyableText
+                              value={val}
+                              label={label}
+                              showToast={showToast}
+                              className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate text-right px-1.5 py-0.5"
+                            />
                           </div>
                         </div>
                       );
@@ -1640,56 +1635,41 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             {featureCoords && (
               <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <Compass className="w-3.5 h-3.5 text-[#007AFF]" />
-                    <span>Coordenadas Geográficas</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(`${featureCoords.lat.toFixed(6)}, ${featureCoords.lng.toFixed(6)}`, 'Coordenadas completas')}
-                    className="text-[11px] font-bold text-[#007AFF] hover:underline flex items-center gap-1 cursor-pointer"
-                    title="Copiar par de coordenadas com 6 dígitos"
+                  <CopyableText
+                    value={`${featureCoords.lat.toFixed(6)}, ${featureCoords.lng.toFixed(6)}`}
+                    label="Coordenadas completas"
+                    showToast={showToast}
+                    className="p-1 -ml-1 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400"
+                    title="Clique para copiar par de coordenadas (lat, lng)"
                   >
-                    <Copy className="w-3 h-3" />
-                    <span>Copiar Par</span>
-                  </button>
+                    <span className="flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5 text-[#007AFF]" />
+                      <span>Coordenadas Geográficas</span>
+                    </span>
+                  </CopyableText>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   {/* Latitude (6 dígitos) */}
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs flex items-center justify-between border border-black/5 dark:border-white/5">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Latitude</span>
-                      <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 block truncate">
-                        {featureCoords.lat.toFixed(6)}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(featureCoords.lat.toFixed(6), 'Latitude')}
-                      className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                      title="Copiar Latitude"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block mb-0.5">Latitude</span>
+                    <CopyableText
+                      value={featureCoords.lat.toFixed(6)}
+                      label="Latitude"
+                      showToast={showToast}
+                      className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 truncate w-full px-1 py-0.5"
+                    />
                   </div>
 
                   {/* Longitude (6 dígitos) */}
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs flex items-center justify-between border border-black/5 dark:border-white/5">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Longitude</span>
-                      <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 block truncate">
-                        {featureCoords.lng.toFixed(6)}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(featureCoords.lng.toFixed(6), 'Longitude')}
-                      className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                      title="Copiar Longitude"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
+                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block mb-0.5">Longitude</span>
+                    <CopyableText
+                      value={featureCoords.lng.toFixed(6)}
+                      label="Longitude"
+                      showToast={showToast}
+                      className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 truncate w-full px-1 py-0.5"
+                    />
                   </div>
                 </div>
               </div>
@@ -1709,16 +1689,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                       <span className="font-semibold text-slate-500 dark:text-slate-400 truncate max-w-[140px]" title={prop.label}>
                         {prop.label}
                       </span>
-                      <div className="flex items-center gap-1.5 shrink-0 font-bold text-slate-800 dark:text-slate-200">
-                        <span className="truncate max-w-[170px]" title={prop.value}>{prop.value}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(prop.value, prop.label)}
-                          className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                          title="Copiar valor"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
+                      <div className="flex items-center shrink-0 font-bold text-slate-800 dark:text-slate-200">
+                        <CopyableText
+                          value={prop.value}
+                          label={prop.label}
+                          showToast={showToast}
+                          className="text-right truncate max-w-[190px] px-1.5 py-0.5"
+                        />
                       </div>
                     </div>
                   ))}
@@ -1983,7 +1960,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {/* ============================================================== */}
         {activeTab === 'dashboard' && (
           <div className="animate-fadeIn">
-            <Dashboard selectedFeatures={selectedFeatures} />
+            <Dashboard selectedFeatures={selectedFeatures} showToast={showToast} />
           </div>
         )}
 

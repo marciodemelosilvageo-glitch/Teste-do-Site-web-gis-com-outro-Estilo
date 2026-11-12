@@ -1272,28 +1272,118 @@ html.dark .apple-selected-label {
   color: #f2f2f7;
 }
 
-/* Botão de Copiar */
-.webgis-popup-copy-btn {
-  background: transparent;
-  border: none;
-  padding: 4px;
+/* Elementos Copiáveis com Animação Fluida (Pop-ups do Mapa) */
+.webgis-copyable {
+  position: relative;
+  overflow: hidden;
   cursor: pointer;
+  user-select: text;
+  -webkit-user-select: text;
+  transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
+  padding: 1px 4px;
+  margin: -1px -4px;
+}
+
+.webgis-copyable:hover {
+  background-color: rgba(0, 122, 255, 0.08);
+}
+
+.dark .webgis-copyable:hover {
+  background-color: rgba(10, 132, 255, 0.18);
+}
+
+.webgis-copyable:active {
+  transform: scale(0.96);
+}
+
+.webgis-copyable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #007AFF;
+}
+
+/* Onda azul (ripple) a partir do ponto do clique */
+.webgis-copyable::after {
+  content: '';
+  position: absolute;
+  left: var(--ripple-x, 50%);
+  top: var(--ripple-y, 50%);
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: rgba(0, 122, 255, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0);
+}
+
+.dark .webgis-copyable::after {
+  background: rgba(100, 210, 255, 0.4);
+}
+
+.webgis-copyable.webgis-copied::after {
+  animation: webgis-ripple 0.6s ease-out forwards;
+}
+
+@keyframes webgis-ripple {
+  0% {
+    opacity: 0.45;
+    transform: scale(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(8);
+  }
+}
+
+/* Transição do texto para "✓ Copiado" */
+.webgis-copyable .webgis-copy-feedback {
+  display: none;
+}
+
+.webgis-copyable.webgis-copied .webgis-copy-original {
+  display: none !important;
+}
+
+.webgis-copyable.webgis-copied .webgis-copy-feedback {
+  display: inline-flex !important;
+  align-items: center;
   justify-content: center;
-  color: #8e8e93;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+  gap: 3px;
+  color: #007AFF !important;
+  font-weight: 800 !important;
+  animation: webgis-fade-in 0.16s ease-out;
 }
 
-.webgis-popup-copy-btn:hover {
-  color: #007AFF;
-  background: rgba(0, 122, 255, 0.1);
+.dark .webgis-copyable.webgis-copied .webgis-copy-feedback {
+  color: #64D2FF !important;
 }
 
-.dark .webgis-popup-copy-btn:hover {
-  color: #0a84ff;
-  background: rgba(10, 132, 255, 0.18);
+@keyframes webgis-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .webgis-copyable:active {
+    transform: none;
+  }
+  .webgis-copyable::after {
+    display: none !important;
+  }
+  .webgis-copyable.webgis-copied .webgis-copy-feedback {
+    animation: none;
+  }
 }
 
 /* Botão de Ação Espacial CNEFE (Estilo Apple Filled Button) */
@@ -1720,27 +1810,7 @@ html.dark .apple-selected-label {
   color: #f1f5f9;
 }
 
-.apple-cnefe-mini-copy {
-  background: transparent;
-  border: none;
-  padding: 3px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-  border-radius: 5px;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-.apple-cnefe-mini-copy:hover {
-  color: #007AFF;
-  background: rgba(0, 122, 255, 0.1);
-}
-.dark .apple-cnefe-mini-copy:hover {
-  color: #0a84ff;
-  background: rgba(10, 132, 255, 0.18);
-}
+
 
 .apple-cnefe-tag {
   display: inline-block;
@@ -1854,31 +1924,7 @@ html.dark .apple-selected-label {
   color: #f8fafc;
 }
 
-.apple-cnefe-copy-all-row {
-  text-align: center;
-  margin-top: 1px;
-}
 
-.apple-cnefe-copy-all-btn {
-  background: transparent;
-  border: none;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #64748b;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  transition: color 0.15s;
-}
-.apple-cnefe-copy-all-btn:hover {
-  color: #007AFF;
-  text-decoration: underline;
-}
-.dark .apple-cnefe-copy-all-btn:hover {
-  color: #38bdf8;
-}
 
 .apple-cnefe-actions-row {
   display: grid;

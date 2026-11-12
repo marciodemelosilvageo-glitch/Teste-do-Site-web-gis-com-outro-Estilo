@@ -14,7 +14,7 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
     imagePath: '/',
   });
 }
-import { Layers, ZoomIn, Copy, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine } from 'lucide-react';
+import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine } from 'lucide-react';
 import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
@@ -1470,45 +1470,133 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         onSearchCoordinateRef.current(`${latStr}, ${lngStr}`);
       }
     };
+    const copyTextSafely = (text: string): boolean => {
+      if (!text) return false;
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          navigator.clipboard.writeText(text);
+          return true;
+        } catch {}
+      }
+      try {
+        if (typeof document !== 'undefined') {
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          textArea.setAttribute('readonly', '');
+          document.body.appendChild(textArea);
+          textArea.select();
+          const ok = document.execCommand('copy');
+          document.body.removeChild(textArea);
+          return ok;
+        }
+      } catch {}
+      return false;
+    };
+
     (window as any).copyCtxCoord = (type: 'all' | 'lat' | 'lng', latStr: string, lngStr: string) => {
       if (type === 'all') {
-        navigator.clipboard.writeText(`${latStr}, ${lngStr}`);
+        copyTextSafely(`${latStr}, ${lngStr}`);
         if (showToastRef.current) showToastRef.current(`Coordenadas copiadas: ${latStr}, ${lngStr}`);
       } else if (type === 'lat') {
-        navigator.clipboard.writeText(latStr);
+        copyTextSafely(latStr);
         if (showToastRef.current) showToastRef.current(`Latitude copiada: ${latStr}`);
       } else {
-        navigator.clipboard.writeText(lngStr);
+        copyTextSafely(lngStr);
         if (showToastRef.current) showToastRef.current(`Longitude copiada: ${lngStr}`);
       }
     };
+
+    (window as any).copyPopupEl = (el: HTMLElement, event?: Event) => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (!el) return;
+
+      // Não aciona cópia se o usuário estiver selecionando texto com o mouse
+      const selection = window.getSelection();
+      if (selection && selection.toString().trim().length > 0) {
+        return;
+      }
+
+      const copyVal = el.getAttribute('data-copy');
+      const label = el.getAttribute('data-label') || 'Texto';
+      if (!copyVal) return;
+
+      const ok = copyTextSafely(copyVal);
+      if (!ok) {
+        if (showToastRef.current) showToastRef.current(`Não foi possível copiar ${label}`);
+        return;
+      }
+
+      if (showToastRef.current) {
+        showToastRef.current(`${label} copiado!`);
+      }
+
+      // Calcula a origem da onda a partir do ponto clicado
+      if (event && 'clientX' in event && 'clientY' in event) {
+        const mouseEv = event as MouseEvent;
+        const rect = el.getBoundingClientRect();
+        const x = mouseEv.clientX - rect.left;
+        const y = mouseEv.clientY - rect.top;
+        el.style.setProperty('--ripple-x', `${x}px`);
+        el.style.setProperty('--ripple-y', `${y}px`);
+      } else {
+        el.style.setProperty('--ripple-x', '50%');
+        el.style.setProperty('--ripple-y', '50%');
+      }
+
+      // Ativa classe com animação CSS suave
+      el.classList.remove('webgis-copied');
+      void el.offsetWidth; // Força reflow para permitir reiniciar caso clicado de novo
+      el.classList.add('webgis-copied');
+
+      const existingTimer = (el as any)._webgisCopyTimer;
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+      (el as any)._webgisCopyTimer = setTimeout(() => {
+        el.classList.remove('webgis-copied');
+        (el as any)._webgisCopyTimer = null;
+      }, 1200);
+    };
+
+    (window as any).handlePopupKeydown = (el: HTMLElement, event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        (window as any).copyPopupEl(el, event);
+      }
+    };
+
     (window as any).copyPopupText = (text: string, btnEl?: HTMLElement, feedbackMsg?: string) => {
       if (!text) return;
-      navigator.clipboard.writeText(text);
+      copyTextSafely(text);
       if (showToastRef.current && feedbackMsg) {
         showToastRef.current(feedbackMsg);
       }
       if (btnEl) {
-        const oldHtml = btnEl.innerHTML;
-        btnEl.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        btnEl.classList.remove('webgis-copied');
+        void btnEl.offsetWidth;
+        btnEl.classList.add('webgis-copied');
         setTimeout(() => {
-          btnEl.innerHTML = oldHtml;
-        }, 1800);
+          btnEl.classList.remove('webgis-copied');
+        }, 1200);
       }
     };
+
     (window as any).copyFullAddressPopup = (fullAddr: string, btnEl?: HTMLElement) => {
       if (!fullAddr) return;
-      navigator.clipboard.writeText(fullAddr);
+      copyTextSafely(fullAddr);
       if (showToastRef.current) {
         showToastRef.current('Endereço completo copiado!');
       }
       if (btnEl) {
-        const span = btnEl.querySelector('span');
-        if (span) {
-          const old = span.innerText;
-          span.innerText = '✓ Copiado!';
-          setTimeout(() => { span.innerText = old; }, 1800);
-        }
+        btnEl.classList.add('webgis-copied');
+        setTimeout(() => btnEl.classList.remove('webgis-copied'), 1200);
       }
     };
     (window as any).removeRightClickPin = () => {
@@ -2176,54 +2264,63 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           <div class="apple-cnefe-hero">
             <div class="apple-cnefe-hero-title-row">
               <h4 class="apple-cnefe-hero-title">Ponto Geográfico Marcado</h4>
-              <button 
-                type="button" 
-                class="apple-cnefe-mini-copy" 
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}, ${lngFormatted}', this, 'Coordenadas copiadas!')" 
-                title="Copiar coordenadas"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              </button>
             </div>
             <p class="apple-cnefe-hero-subtitle">Clique com o botão direito para reposicionar</p>
           </div>
 
           <!-- Cápsula de Coordenadas Geográficas -->
           <div class="apple-cnefe-coords-capsule">
-            <div class="apple-cnefe-coords-header">
-              <span>Coordenadas Geográficas</span>
+            <div 
+              class="apple-cnefe-coords-header webgis-copyable"
+              data-copy="${latFormatted}, ${lngFormatted}"
+              data-label="Coordenadas completas"
+              onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
+              onkeydown="window.handlePopupKeydown(this, event);"
+              tabindex="0"
+              role="button"
+              title="Clique para copiar par de coordenadas (${latFormatted}, ${lngFormatted})"
+            >
+              <span class="webgis-copy-original">Coordenadas Geográficas</span>
+              <span class="webgis-copy-feedback">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span>Copiado</span>
+              </span>
             </div>
             <div class="apple-cnefe-coords-grid">
               <button 
                 type="button" 
-                class="apple-cnefe-coord-pill" 
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}', this, 'Latitude copiada!')" 
+                class="apple-cnefe-coord-pill webgis-copyable" 
+                data-copy="${latFormatted}"
+                data-label="Latitude"
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
                 title="Clique para copiar Latitude (${latFormatted})"
               >
-                <span class="apple-cnefe-coord-tag">LAT</span>
-                <span class="apple-cnefe-coord-val">${latFormatted}</span>
+                <div class="webgis-copy-original" style="display: flex; flex-direction: column; align-items: center; gap: 1px;">
+                  <span class="apple-cnefe-coord-tag">LAT</span>
+                  <span class="apple-cnefe-coord-val">${latFormatted}</span>
+                </div>
+                <div class="webgis-copy-feedback">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Copiado</span>
+                </div>
               </button>
 
               <button 
                 type="button" 
-                class="apple-cnefe-coord-pill" 
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${lngFormatted}', this, 'Longitude copiada!')" 
+                class="apple-cnefe-coord-pill webgis-copyable" 
+                data-copy="${lngFormatted}"
+                data-label="Longitude"
+                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
                 title="Clique para copiar Longitude (${lngFormatted})"
               >
-                <span class="apple-cnefe-coord-tag">LNG</span>
-                <span class="apple-cnefe-coord-val">${lngFormatted}</span>
-              </button>
-            </div>
-
-            <div class="apple-cnefe-copy-all-row">
-              <button 
-                type="button" 
-                class="apple-cnefe-copy-all-btn" 
-                onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupText('${latFormatted}, ${lngFormatted}', this, 'Coordenadas copiadas!')" 
-                title="Copiar Latitude e Longitude juntas"
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span>Copiar Ambas (${latFormatted}, ${lngFormatted})</span>
+                <div class="webgis-copy-original" style="display: flex; flex-direction: column; align-items: center; gap: 1px;">
+                  <span class="apple-cnefe-coord-tag">LNG</span>
+                  <span class="apple-cnefe-coord-val">${lngFormatted}</span>
+                </div>
+                <div class="webgis-copy-feedback">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Copiado</span>
+                </div>
               </button>
             </div>
           </div>
@@ -2815,16 +2912,38 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           
           const layerDotColor = customStrokeColor || customColor || getLayerColor(source.name) || '#e11d48';
 
+          const escapeHtml = (str: string): string => {
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+          };
+
           const renderCopyableField = (label: string, val: string) => {
-            const safeVal = String(val).replace(/'/g, "\\'");
+            const safeVal = escapeHtml(String(val));
+            const safeLabel = escapeHtml(String(label));
             return `
               <div class="webgis-popup-attribute-item">
                 <span class="webgis-popup-attr-label">${label}</span>
                 <div class="webgis-popup-attr-val-box">
-                  <span class="webgis-popup-attr-val">${val}</span>
-                  <button type="button" class="webgis-popup-copy-btn" onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${safeVal}'); const old=this.innerHTML; this.innerHTML='<svg width=\\'11\\' height=\\'11\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'#10b981\\' stroke-width=\\'3\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><polyline points=\\'20 6 9 17 4 12\\'></polyline></svg>'; setTimeout(() => this.innerHTML=old, 2000)" title="Copiar ${label}">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                  </button>
+                  <span 
+                    class="webgis-popup-attr-val webgis-copyable" 
+                    data-copy="${safeVal}" 
+                    data-label="${safeLabel}"
+                    onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
+                    onkeydown="window.handlePopupKeydown(this, event);"
+                    tabindex="0"
+                    role="button"
+                    title="Clique para copiar ${safeLabel}"
+                  >
+                    <span class="webgis-copy-original">${val}</span>
+                    <span class="webgis-copy-feedback">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>Copiado</span>
+                    </span>
+                  </span>
                 </div>
               </div>
             `;
@@ -2909,7 +3028,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           }
 
           // Pop-up HTML moderno e elegante com suporte a cópia e busca CNEFE
-          const safeTitle = String(title).replace(/'/g, "\\'");
           const popupContentHtml = `
             <div class="webgis-popup-container">
               <div class="webgis-popup-badge-row">
@@ -2922,10 +3040,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               <div class="webgis-popup-title-box">
                 <div class="webgis-popup-field-label">${fieldLabel}</div>
                 <div class="webgis-popup-title-row">
-                  <div class="webgis-popup-title-val">${title}</div>
-                  <button type="button" class="webgis-popup-copy-btn" onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${safeTitle}'); const old=this.innerHTML; this.innerHTML='<svg width=\\'12\\' height=\\'12\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'#10b981\\' stroke-width=\\'3\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><polyline points=\\'20 6 9 17 4 12\\'></polyline></svg>'; setTimeout(() => this.innerHTML=old, 2000)" title="Copiar ${fieldLabel}">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                  </button>
+                  <div 
+                    class="webgis-popup-title-val webgis-copyable"
+                    data-copy="${escapeHtml(String(title))}"
+                    data-label="${escapeHtml(String(fieldLabel))}"
+                    onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
+                    onkeydown="window.handlePopupKeydown(this, event);"
+                    tabindex="0"
+                    role="button"
+                    title="Clique para copiar ${escapeHtml(String(fieldLabel))}"
+                  >
+                    <span class="webgis-copy-original">${title}</span>
+                    <span class="webgis-copy-feedback">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>Copiado</span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
