@@ -267,7 +267,7 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
                 value={filterMunText}
                 onChange={(e) => setFilterMunText(e.target.value)}
                 placeholder="Filtrar cidade (ex: Teresina...)"
-                className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
               />
             </div>
 
@@ -367,7 +367,7 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
                   value={customRadiusText}
                   onChange={(e) => setCustomRadiusText(e.target.value)}
                   placeholder="Ex: 1500"
-                  className="w-full px-3 py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                  className="w-full px-3 py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
                 />
                 <span className="text-xs font-black text-slate-500 shrink-0">metros</span>
               </motion.div>

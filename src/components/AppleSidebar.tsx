@@ -114,7 +114,7 @@ interface AppleSidebarProps {
   isManager: boolean;
   isAdmin: boolean;
   isDarkMode: boolean;
-  onToggleDarkMode: () => void;
+  onToggleDarkMode: (event?: React.MouseEvent) => void;
   onOpenAdminPanel: () => void;
   onOpenProfileModal: () => void;
   onLogout: () => void;
@@ -1011,23 +1011,30 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
-                  onClick={onToggleDarkMode}
-                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-700 dark:text-slate-300 cursor-pointer"
+                  onClick={(e) => onToggleDarkMode(e)}
+                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
                   title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                  aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
                 >
-                  {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+                  <motion.div
+                    key={isDarkMode ? 'dark' : 'light'}
+                    initial={{ rotate: -45, opacity: 0, scale: 0.8 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+                  </motion.div>
                 </button>
 
-                {currentActiveUser && (
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 text-slate-400 cursor-pointer transition-colors"
-                    title="Sair"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-500/10 hover:text-red-500 text-slate-400 dark:text-slate-500 cursor-pointer transition-colors"
+                  title="Sair"
+                  aria-label="Sair"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -1054,11 +1061,19 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           <div className="flex flex-col items-center gap-2 pt-3 border-t border-black/10 dark:border-white/10 w-full shrink-0">
             <button
               type="button"
-              onClick={onToggleDarkMode}
+              onClick={(e) => onToggleDarkMode(e)}
               className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
               title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+              aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
             >
-              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              <motion.div
+                key={isDarkMode ? 'dark' : 'light'}
+                initial={{ rotate: -45, opacity: 0, scale: 0.8 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              </motion.div>
             </button>
 
             <button
@@ -1571,7 +1586,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     if (e.key === 'Enter') onSearch(searchQuery);
                   }}
                   placeholder="Buscar no Geocodificando..."
-                  className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900 dark:text-white placeholder-slate-400"
+                  className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                 />
                 {searchQuery && (
                   <button

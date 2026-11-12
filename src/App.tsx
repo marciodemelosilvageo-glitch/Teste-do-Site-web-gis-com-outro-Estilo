@@ -16,6 +16,7 @@ import {
   UserCheck, UserPlus, Crown, Briefcase, AlertTriangle, Loader2,
   Download, Table2, ExternalLink, PanelLeft, PanelLeftClose
 } from 'lucide-react';
+import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import L from 'leaflet';
 
@@ -529,6 +530,88 @@ export default function App() {
   }, [selectedFeatures]);
 
   const [measureHistory, setMeasureHistory] = useState<L.LatLng[] | null>(null);
+
+  // Controle de transição suave de tema com revelação circular (View Transitions API)
+  const isThemeTransitioningRef = useRef<boolean>(false);
+
+  const toggleDarkModeWithTransition = useCallback((event?: React.MouseEvent) => {
+    if (isThemeTransitioningRef.current) return;
+
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!(document as any).startViewTransition || prefersReducedMotion) {
+      setIsDarkMode(prev => {
+        const next = !prev;
+        if (next) {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+          localStorage.setItem('theme', 'light');
+        }
+        return next;
+      });
+      return;
+    }
+
+    isThemeTransitioningRef.current = true;
+
+    let x = window.innerWidth / 2;
+    let y = window.innerHeight / 2;
+
+    if (event && typeof event.clientX === 'number') {
+      x = event.clientX;
+      y = event.clientY;
+    }
+
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const transition = (document as any).startViewTransition(() => {
+      flushSync(() => {
+        setIsDarkMode(prev => {
+          const next = !prev;
+          if (next) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+          }
+          return next;
+        });
+      });
+    });
+
+    transition.ready.then(() => {
+      const anim = document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`,
+          ],
+        },
+        {
+          duration: 750,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+          pseudoElement: '::view-transition-new(root)',
+        }
+      );
+
+      anim.finished.finally(() => {
+        isThemeTransitioningRef.current = false;
+      });
+    }).catch(() => {
+      isThemeTransitioningRef.current = false;
+    });
+
+    transition.finished.finally(() => {
+      isThemeTransitioningRef.current = false;
+    });
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -2182,6 +2265,23 @@ export default function App() {
   if (!hasEntered) {
     return (
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 font-sans select-none overflow-hidden animate-fade-in">
+        {/* Botão de Tema no Canto Superior Direito da Tela Inicial */}
+        <button
+          type="button"
+          onClick={(e) => toggleDarkModeWithTransition(e)}
+          className="fixed top-5 right-5 z-50 p-2.5 rounded-full bg-white/70 dark:bg-[#1c1c1e]/70 backdrop-blur-md border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-[#2c2c2e] shadow-sm hover:shadow transition-all cursor-pointer"
+          title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+          aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+        >
+          <motion.div
+            key={isDarkMode ? 'dark' : 'light'}
+            initial={{ rotate: -45, opacity: 0, scale: 0.8 }}
+            animate={{ rotate: 0, opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {isDarkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-700" />}
+          </motion.div>
+        </button>
         {/* Fundo imersivo com efeito Apple Glass */}
         <div className="fixed inset-0 z-[-2] pointer-events-none overflow-hidden bg-[#f2f2f7] dark:bg-[#000000]">
           <div 
@@ -2742,7 +2842,7 @@ export default function App() {
   }
 
   return (
-    <div className={`relative w-screen h-screen overflow-hidden font-sans select-none bg-slate-100 dark:bg-slate-950 ${isPrintMode ? 'bg-white' : ''}`}>
+    <div className={`relative w-screen h-screen overflow-hidden font-sans select-none bg-slate-100 dark:bg-slate-950 ${isPrintMode ? '!bg-white dark:!bg-white text-slate-900 dark:text-slate-900' : ''}`}>
       <style>
         {`
           @media print {
@@ -2900,7 +3000,7 @@ export default function App() {
             isManager={isManager}
             isAdmin={isAdmin}
             isDarkMode={isDarkMode}
-            onToggleDarkMode={() => setIsDarkMode(prev => !prev)}
+            onToggleDarkMode={toggleDarkModeWithTransition}
             onOpenAdminPanel={() => {
               if (isAdmin) setIsAdminModalOpen(true);
               else handleOpenAdminLogin();
