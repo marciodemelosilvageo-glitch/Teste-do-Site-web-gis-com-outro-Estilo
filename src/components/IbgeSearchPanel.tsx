@@ -42,6 +42,7 @@ interface IbgeSearchPanelProps {
   allowedColumns?: Record<string, boolean>;
   embedded?: boolean;
   isMaximized?: boolean;
+  hasPlottedMarkers?: boolean;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -50,6 +51,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   endereco: 300,
   numero_logradouro: 120,
   complemento: 200,
+  cep: 120,
   bairro: 180,
   subdistrito: 140,
   localidade: 180,
@@ -74,6 +76,7 @@ export const tableColumns = [
   { key: 'endereco', label: 'Endereco' },
   { key: 'numero_logradouro', label: 'Número no logradouro' },
   { key: 'complemento', label: 'Complemento' },
+  { key: 'cep', label: 'CEP' },
   { key: 'bairro', label: 'Bairro' },
   { key: 'subdistrito', label: 'Zona' },
   { key: 'localidade', label: 'Localidade' },
@@ -92,6 +95,36 @@ export const tableColumns = [
   { key: 'tipo_edificacao', label: 'Tipo da edificação dos domicílios' }
 ];
 
+// Helper para obter o valor textual formatado exatamente como é exibido ao usuário
+export function getFormattedDisplayValue(row: any, colKey: string): string {
+  if (!row) return '';
+  const val = row[colKey];
+  if (val === null || val === undefined) return '';
+  const valStr = String(val).trim();
+
+  // Formatar Latitude e Longitude com exatamente 6 dígitos após o ponto/vírgula
+  if ((colKey === 'latitude' || colKey === 'longitude') && val != null) {
+    const numVal = parseFloat(String(val).replace(',', '.'));
+    if (!isNaN(numVal)) {
+      return numVal.toFixed(6);
+    }
+  }
+
+  const isTextCol = [
+    'municipio', 
+    'endereco', 
+    'bairro', 
+    'localidade', 
+    'nucleo_urbano', 
+    'favela_comunidade', 
+    'agromerado', 
+    'comunidade_rural', 
+    'estabelecimento'
+  ].includes(colKey);
+
+  return isTextCol ? toTitleCase(valStr) : valStr;
+}
+
 export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({ 
   onPlotAddress, 
   onPlotAllAddresses, 
@@ -100,7 +133,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   externalPolygonResult,
   allowedColumns,
   embedded = false,
-  isMaximized = false
+  isMaximized = false,
+  hasPlottedMarkers = false
 }) => {
   // Configuração de colunas visíveis pelo usuário com persistência em localStorage
   const [userVisibleKeys, setUserVisibleKeys] = useState<string[]>(() => {
@@ -195,16 +229,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     });
   };
 
-  // Filtros individuais por coluna via lupinha no cabeçalho da tabela
+  // Filtros individuais por coluna via inputs no cabeçalho da tabela
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-  const [activeSearchCol, setActiveSearchCol] = useState<string | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (activeSearchCol && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [activeSearchCol]);
 
   const [municipio, setMunicipio] = useState('Todos');
   const [municipiosList, setMunicipiosList] = useState<string[]>(() => {
@@ -235,6 +261,13 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   const [hasSearched, setHasSearched] = useState(false);
   const [isPlotted, setIsPlotted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sincroniza isPlotted quando marcadores forem limpos externamente
+  useEffect(() => {
+    if (hasPlottedMarkers === false && isPlotted) {
+      setIsPlotted(false);
+    }
+  }, [hasPlottedMarkers, isPlotted]);
 
   // Larguras personalizadas das colunas (estilo Excel com persistência no localStorage)
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
@@ -309,40 +342,43 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   };
 
   // Monitora resultados vindos de busca espacial por polígono
+  const lastExternalTimestampRef = useRef<number>(0);
   useEffect(() => {
     if (externalPolygonResult && externalPolygonResult.timestamp > 0) {
-      setResults(externalPolygonResult.results);
-      setTotalEncontrado(externalPolygonResult.totalEncontrado);
-      setHasSearched(true);
-      setIsPlotted(false);
-      setTextoBusca(externalPolygonResult.searchTerm || '');
-      if (externalPolygonResult.searchTerm) {
-        setModoAvancado(true);
-      }
-      setColumnFilters({});
-      setActiveSearchCol(null);
-      setSortConfig(null);
-      setPolygonSearchTitle(externalPolygonResult.title);
-      setErrorMsg(null);
-
-      // Scroll suave para o painel de endereços CNEFE
-      setTimeout(() => {
-        const el = document.getElementById('ibge-search-panel');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (externalPolygonResult.timestamp !== lastExternalTimestampRef.current) {
+        lastExternalTimestampRef.current = externalPolygonResult.timestamp;
+        setResults(externalPolygonResult.results);
+        setTotalEncontrado(externalPolygonResult.totalEncontrado);
+        setHasSearched(true);
+        setIsPlotted(false);
+        setTextoBusca(externalPolygonResult.searchTerm || '');
+        if (externalPolygonResult.searchTerm) {
+          setModoAvancado(true);
         }
-      }, 100);
+        setColumnFilters({});
+        setSortConfig(null);
+        setPolygonSearchTitle(externalPolygonResult.title);
+        setErrorMsg(null);
+
+        // Scroll suave para o painel de endereços CNEFE
+        setTimeout(() => {
+          const el = document.getElementById('ibge-search-panel');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      }
     } else if (!externalPolygonResult && polygonSearchTitle) {
+      lastExternalTimestampRef.current = 0;
       setResults([]);
       setTotalEncontrado(0);
       setHasSearched(false);
       setIsPlotted(false);
       setPolygonSearchTitle(null);
       setColumnFilters({});
-      setActiveSearchCol(null);
       setSortConfig(null);
     }
-  }, [externalPolygonResult]);
+  }, [externalPolygonResult, polygonSearchTitle]);
 
   // Controle de requisições concorrentes (race conditions)
   const searchRequestIdRef = useRef(0);
@@ -505,7 +541,6 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
       setHasSearched(true);
       setIsPlotted(false);
       setColumnFilters({});
-      setActiveSearchCol(null);
       setSortConfig(null);
 
       logActivity('ENDERECO', `Pesquisou por "${queryText}" (${municipio}) - ${res.totalEncontrado} resultados`, 'user');
@@ -529,7 +564,6 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     setPolygonSearchTitle(null);
     setErrorMsg(null);
     setColumnFilters({});
-    setActiveSearchCol(null);
     setSortConfig(null);
     if (onClearPlot) {
       onClearPlot();
@@ -543,14 +577,28 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   const processedResults = useMemo(() => {
     let list = results;
 
-    // 1. Filtragem individual por coluna (ativada pelas lupinhas nos cabeçalhos)
+    // 1. Filtragem individual por coluna (inputs sticky no cabeçalho)
     const activeFilters = Object.entries(columnFilters).filter(([_, text]) => Boolean(text && text.trim()));
     if (activeFilters.length > 0) {
       list = list.filter(row => {
         return activeFilters.every(([colKey, filterVal]) => {
-          const rowVal = row[colKey];
-          if (rowVal === null || rowVal === undefined) return false;
-          return normalizeString(String(rowVal)).includes(normalizeString(filterVal));
+          const rawFilter = filterVal.trim();
+          if (!rawFilter) return true;
+
+          const displayStr = getFormattedDisplayValue(row, colKey);
+          if (!displayStr) return false;
+
+          // Se for latitude ou longitude, aceita busca com vírgula ou ponto
+          if (colKey === 'latitude' || colKey === 'longitude') {
+            const normalizedDisplay = displayStr.replace(',', '.');
+            const normalizedFilter = rawFilter.replace(',', '.');
+            return normalizedDisplay.includes(normalizedFilter);
+          }
+
+          // Para colunas de texto e código, ignora maiúsculas e acentos
+          const normDisplay = normalizeString(displayStr);
+          const normFilter = normalizeString(rawFilter);
+          return normDisplay.includes(normFilter);
         });
       });
     }
@@ -583,7 +631,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
         const isAValidNum = !isNaN(numA) && /^-?\d+(\.\d+)?$/.test(strA.replace(',', '.'));
         const isBValidNum = !isNaN(numB) && /^-?\d+(\.\d+)?$/.test(strB.replace(',', '.'));
 
-        if (isAValidNum && isBValidNum && !['codigo_unico', 'codigo_setor'].includes(key)) {
+        if (isAValidNum && isBValidNum && !['codigo_unico', 'codigo_setor', 'cep'].includes(key)) {
           return (numA - numB) * factor;
         }
 
@@ -595,7 +643,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
   }, [results, columnFilters, sortConfig]);
 
   const exportToCSV = useCallback(() => {
-    const dataToExport = processedResults.length > 0 ? processedResults : results;
+    const hasActiveFilters = Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim()));
+    const dataToExport = hasActiveFilters ? processedResults : results;
     if (!dataToExport || dataToExport.length === 0) return;
 
     const visibleCols = visibleTableColumns;
@@ -603,9 +652,9 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     
     const rows = dataToExport.map(row => {
       return visibleCols.map(col => {
-        const val = row[col.key];
-        if (val === null || val === undefined) return '""';
-        return `"${String(val).replace(/"/g, '""')}"`;
+        const val = getFormattedDisplayValue(row, col.key);
+        if (!val) return '""';
+        return `"${val.replace(/"/g, '""')}"`;
       }).join(',');
     });
 
@@ -621,7 +670,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     URL.revokeObjectURL(url);
 
     logActivity('EXPORTACAO', `Exportou ${dataToExport.length} endereços CNEFE (${municipio}) para planilha CSV`, 'user');
-  }, [processedResults, results, municipio, visibleTableColumns]);
+  }, [processedResults, results, columnFilters, municipio, visibleTableColumns]);
 
   const filteredMunicipios = useMemo(() => {
     const q = normalizeString(municipioBusca);
@@ -1038,7 +1087,6 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                         type="button"
                         onClick={() => {
                           setColumnFilters({});
-                          setActiveSearchCol(null);
                         }}
                         className="ml-1 text-[#FF3B30] dark:text-[#FF453A] hover:underline cursor-pointer flex items-center gap-0.5 text-[11px]"
                         title="Limpar todos os filtros das colunas"
@@ -1048,8 +1096,8 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     </div>
                   ) : (
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-                      <Search size={12} className="text-[#007AFF]" />
-                      <span>Dica: Use a <strong>lupinha</strong> no cabeçalho de qualquer coluna para pesquisar nela diretamente.</span>
+                      <Filter size={12} className="text-[#007AFF]" />
+                      <span>Dica: Use os campos <strong>Filtrar...</strong> abaixo de cada coluna para refinar os resultados exibidos.</span>
                     </span>
                   )}
                 </div>
@@ -1164,6 +1212,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                   }`}>
                     <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
                       <thead className="bg-slate-100/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none border-b border-black/10 dark:border-white/10">
+                        {/* Linha 1: Títulos das Colunas, Ordenação e Alça de Redimensionamento */}
                         <tr>
                           <th className="px-3 py-3 font-extrabold w-12 min-w-[48px] max-w-[48px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 z-20 bg-slate-100 dark:bg-[#2c2c2e] shadow-r text-slate-500 dark:text-slate-400">
                             #
@@ -1173,108 +1222,40 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                             const isResizingThis = resizingColKey === col.key;
                             const isSorted = sortConfig?.key === col.key;
                             const hasActiveFilter = Boolean(columnFilters[col.key] && columnFilters[col.key].trim());
-                            const isSearchOpen = activeSearchCol === col.key;
 
                             return (
                               <th 
                                 key={col.key} 
                                 style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                className="relative px-3 py-2 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th"
+                                className={`relative px-3 py-2.5 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th transition-colors ${
+                                  hasActiveFilter ? 'bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF]' : ''
+                                }`}
                               >
-                                {isSearchOpen ? (
-                                  <div 
-                                    className="flex items-center gap-1.5 w-full bg-white dark:bg-[#1c1c1e] px-2 py-1 rounded-xl border border-[#007AFF] ring-2 ring-[#007AFF]/25 shadow-xs" 
-                                    onClick={(e) => e.stopPropagation()}
+                                <div className="flex items-center justify-between gap-1 w-full pr-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSort(col.key)}
+                                    className={`flex items-center gap-1.5 min-w-0 flex-1 text-left truncate select-none transition-colors cursor-pointer ${
+                                      hasActiveFilter 
+                                        ? 'text-[#007AFF] dark:text-[#64D2FF]' 
+                                        : 'text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] group-hover/th:text-[#007AFF]'
+                                    }`}
+                                    title={`${col.label} (Clique para ordenar; arraste a borda para redimensionar)`}
                                   >
-                                    <Search size={12} className="text-[#007AFF] shrink-0" />
-                                    <input
-                                      ref={searchInputRef}
-                                      type="text"
-                                      value={columnFilters[col.key] || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setColumnFilters(prev => ({
-                                          ...prev,
-                                          [col.key]: val
-                                        }));
-                                      }}
-                                      placeholder={`Filtrar ${col.label}...`}
-                                      className="w-full text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 placeholder:font-normal"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Escape' || e.key === 'Enter') {
-                                          setActiveSearchCol(null);
-                                        }
-                                      }}
-                                    />
-                                    {hasActiveFilter && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setColumnFilters(prev => {
-                                            const copy = { ...prev };
-                                            delete copy[col.key];
-                                            return copy;
-                                          });
-                                        }}
-                                        className="p-0.5 text-slate-400 hover:text-rose-500 rounded-md cursor-pointer shrink-0"
-                                        title="Limpar filtro desta coluna"
-                                      >
-                                        <X size={12} />
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => setActiveSearchCol(null)}
-                                      className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md cursor-pointer shrink-0"
-                                      title="Fechar caixa de pesquisa"
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-between gap-1 w-full pr-2.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSort(col.key)}
-                                      className="flex items-center gap-1.5 min-w-0 flex-1 text-left truncate select-none text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] transition-colors cursor-pointer group-hover/th:text-[#007AFF]"
-                                      title={`${col.label} (Clique para ordenar por esta coluna; arraste a borda para redimensionar)`}
-                                    >
-                                      <span className="truncate font-black">{col.label}</span>
-                                      <span className="shrink-0">
-                                        {isSorted ? (
-                                          sortConfig?.direction === 'asc' ? (
-                                            <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-                                          ) : (
-                                            <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-                                          )
+                                    <span className="truncate font-black">{col.label}</span>
+                                    <span className="shrink-0">
+                                      {isSorted ? (
+                                        sortConfig?.direction === 'asc' ? (
+                                          <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
                                         ) : (
-                                          <ArrowUpDown size={11} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
-                                        )}
-                                      </span>
-                                    </button>
-
-                                    {/* Lupinha para pesquisa direta na coluna */}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setActiveSearchCol(col.key);
-                                      }}
-                                      className={`p-1 rounded-lg transition-all cursor-pointer shrink-0 ${
-                                        hasActiveFilter
-                                          ? 'bg-[#007AFF] text-white shadow-2xs'
-                                          : 'text-slate-400 hover:text-[#007AFF] hover:bg-black/5 dark:hover:bg-white/10 opacity-70 group-hover/th:opacity-100'
-                                      }`}
-                                      title={
-                                        hasActiveFilter
-                                          ? `Filtro ativo: "${columnFilters[col.key]}". Clique para alterar ou limpar.`
-                                          : `Pesquisar na coluna "${col.label}"`
-                                      }
-                                    >
-                                      <Search size={12} />
-                                    </button>
-                                  </div>
-                                )}
+                                          <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                        )
+                                      ) : (
+                                        <ArrowUpDown size={11} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
+                                      )}
+                                    </span>
+                                  </button>
+                                </div>
                                 
                                 {/* Alça de redimensionamento estilo Excel */}
                                 <div
@@ -1300,6 +1281,68 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                             );
                           })}
                         </tr>
+
+                        {/* Linha 2: Caixas de Filtro Individuais por Coluna (Sempre Visíveis e Sticky) */}
+                        <tr className="bg-slate-200/75 dark:bg-[#242426]/90 border-b border-black/10 dark:border-white/10">
+                          <th className="px-1.5 py-1.5 sticky left-0 z-20 bg-slate-200 dark:bg-[#242426] shadow-r text-center">
+                            <Filter size={11} className="mx-auto text-slate-400" />
+                          </th>
+                          {visibleTableColumns.map(col => {
+                            const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
+                            const filterVal = columnFilters[col.key] || '';
+                            const hasActiveFilter = Boolean(filterVal && filterVal.trim());
+
+                            return (
+                              <th
+                                key={`filter-${col.key}`}
+                                style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+                                className="px-2 py-1.5 font-normal"
+                              >
+                                <div className={`relative flex items-center w-full rounded-lg border transition-all ${
+                                  hasActiveFilter 
+                                    ? 'border-[#007AFF] bg-white dark:bg-[#1c1c1e] ring-2 ring-[#007AFF]/25 shadow-xs' 
+                                    : 'border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20'
+                                }`}>
+                                  <input
+                                    type="text"
+                                    value={filterVal}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setColumnFilters(prev => {
+                                        if (!val) {
+                                          const copy = { ...prev };
+                                          delete copy[col.key];
+                                          return copy;
+                                        }
+                                        return { ...prev, [col.key]: val };
+                                      });
+                                    }}
+                                    placeholder="Filtrar..."
+                                    className="w-full pl-2 pr-6 py-1 text-[11px] font-medium text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
+                                    title={`Filtrar por ${col.label}`}
+                                  />
+                                  {hasActiveFilter && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setColumnFilters(prev => {
+                                          const copy = { ...prev };
+                                          delete copy[col.key];
+                                          return copy;
+                                        });
+                                      }}
+                                      className="absolute right-1 p-0.5 rounded text-slate-400 hover:text-rose-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                                      title={`Limpar filtro de ${col.label}`}
+                                      aria-label={`Limpar filtro de ${col.label}`}
+                                    >
+                                      <X size={11} />
+                                    </button>
+                                  )}
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
                       </thead>
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
                         {processedResults.map((row, i) => (
@@ -1314,38 +1357,16 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                             </td>
                             {visibleTableColumns.map(col => {
                               const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                              const val = row[col.key];
-                              if (val === null || val === undefined) {
-                                return (
-                                  <td 
-                                    key={col.key} 
-                                    style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                    className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate"
-                                  >
-                                    <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>
-                                  </td>
-                                );
-                              }
-                              const valStr = String(val);
-                              const isTextCol = ['municipio', 'endereco', 'bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural', 'estabelecimento'].includes(col.key);
-                              let displayVal = isTextCol ? toTitleCase(valStr) : valStr;
-
-                              // Formatar Latitude e Longitude com exatamente 6 dígitos após a vírgula/ponto
-                              if ((col.key === 'latitude' || col.key === 'longitude') && val != null) {
-                                const numVal = parseFloat(String(val).replace(',', '.'));
-                                if (!isNaN(numVal)) {
-                                  displayVal = numVal.toFixed(6);
-                                }
-                              }
+                              const displayVal = getFormattedDisplayValue(row, col.key);
 
                               return (
                                 <td 
                                   key={col.key} 
                                   style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
                                   className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate" 
-                                  title={displayVal}
+                                  title={displayVal || '-'}
                                 >
-                                  {displayVal}
+                                  {displayVal || <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
                                 </td>
                               );
                             })}
@@ -1360,7 +1381,7 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                     <p className="font-bold text-sm text-slate-600 dark:text-slate-300">Nenhum resultado corresponde ao filtro atual</p>
                     <p className="text-xs text-slate-400">Verifique a grafia ou selecione outra coluna para pesquisar.</p>
                     <button
-                      onClick={() => { setColumnFilters({}); setActiveSearchCol(null); }}
+                      onClick={() => { setColumnFilters({}); }}
                       className="mt-2 text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 px-3.5 py-1.5 rounded-xl cursor-pointer"
                     >
                       Limpar Filtro nos Resultados

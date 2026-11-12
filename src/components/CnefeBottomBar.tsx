@@ -49,8 +49,6 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
   hasPlottedMarkers = false,
   isStage2Open = false,
 }) => {
-  if (isOpen === false) return null;
-
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
 
@@ -63,7 +61,9 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
 
   // Sincronizar variável CSS global --cnefe-bottom-height para que elementos do mapa (legenda/legal) e tabela acompanhem o arrasto
   useEffect(() => {
-    if (!isExpanded) {
+    if (!isOpen) {
+      document.documentElement.style.setProperty('--cnefe-bottom-height', '0px');
+    } else if (!isExpanded) {
       document.documentElement.style.setProperty('--cnefe-bottom-height', '46px');
     } else if (customHeight != null) {
       document.documentElement.style.setProperty('--cnefe-bottom-height', `${customHeight}px`);
@@ -72,7 +72,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
     } else {
       document.documentElement.style.setProperty('--cnefe-bottom-height', '46vh');
     }
-  }, [isExpanded, customHeight, isMaximized]);
+  }, [isOpen, isExpanded, customHeight, isMaximized]);
 
   useEffect(() => {
     return () => {
@@ -166,7 +166,9 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
     <div 
       ref={barContainerRef}
       style={
-        isExpanded
+        !isOpen
+          ? { display: 'none' }
+          : isExpanded
           ? {
               height: customHeight ? `${customHeight}px` : (isMaximized ? '82vh' : '46vh'),
               maxHeight: '92vh',
@@ -179,6 +181,8 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
             }
       }
       className={`absolute bottom-0 left-0 right-0 z-[1100] pointer-events-auto flex flex-col bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] rounded-t-2xl sm:rounded-t-3xl overflow-hidden ${
+        !isOpen ? 'hidden' : ''
+      } ${
         isDragging ? 'transition-none select-none' : 'transition-[height,left] duration-300 ease-out'
       }`}
     >
@@ -320,22 +324,21 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* CONTEÚDO EXPANDIDO (SLIDE UP DE BAIXO PARA CIMA) */}
+      {/* CONTEÚDO EXPANDIDO (SLIDE UP DE BAIXO PARA CIMA - SEMPRE MONTADO) */}
       {/* ============================================================== */}
-      {isExpanded && (
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 animate-fadeIn min-h-0">
-          <IbgeSearchPanel
-            embedded={true}
-            isMaximized={isMaximized}
-            onPlotAddress={onPlotAddress}
-            onPlotAllAddresses={onPlotAllAddresses}
-            onClearPlot={onClearPlot}
-            onClearExternalResult={onClearExternalResult}
-            externalPolygonResult={externalPolygonResult}
-            allowedColumns={allowedColumns}
-          />
-        </div>
-      )}
+      <div className={`flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0 ${isExpanded ? 'animate-fadeIn' : 'hidden'}`}>
+        <IbgeSearchPanel
+          embedded={true}
+          isMaximized={isMaximized}
+          onPlotAddress={onPlotAddress}
+          onPlotAllAddresses={onPlotAllAddresses}
+          onClearPlot={onClearPlot}
+          onClearExternalResult={onClearExternalResult}
+          externalPolygonResult={externalPolygonResult}
+          allowedColumns={allowedColumns}
+          hasPlottedMarkers={hasPlottedMarkers}
+        />
+      </div>
     </div>
   );
 };
