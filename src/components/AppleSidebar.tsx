@@ -754,15 +754,94 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   // Se uma feição foi selecionada e o usuário ainda não está na aba de detalhes, permitir alternar suavemente
   const hasFeature = !!activeDetailFeature;
 
-  const handleCopy = (text: string, label: string) => {
+  // Helper resiliente para cópia com Clipboard API e fallback para textarea + execCommand
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    if (!text || text === '—') return false;
     try {
-      if (navigator?.clipboard?.writeText) {
-        navigator.clipboard.writeText(text).catch(() => {});
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+        return true;
       }
-      showToast(`${label} copiado!`);
     } catch {
-      showToast(`${label} copiado!`);
+      // Falha silenciosa para fallback
     }
+
+    try {
+      if (typeof document !== 'undefined') {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        textArea.setAttribute('readonly', '');
+        document.body.appendChild(textArea);
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  };
+
+  const handleCopy = async (text: string, label: string): Promise<boolean> => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      showToast(`${label} copiado!`);
+    } else {
+      showToast(`Não foi possível copiar ${label}`);
+    }
+    return success;
+  };
+
+  // Estados e controle de timer para animação dos cartões de Informações Úteis
+  const [copiedCardId, setCopiedCardId] = useState<string | null>(null);
+  const [ripplePos, setRipplePos] = useState<{ id: string; x: number; y: number } | null>(null);
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const prefersReducedMotion = typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const handleCardClick = async (
+    e: React.MouseEvent<HTMLButtonElement>, 
+    id: string, 
+    value: string, 
+    label: string
+  ) => {
+    if (!value || value === '—') return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const success = await handleCopy(value, label);
+    if (!success) return;
+
+    // Se clicar repetidamente, cancela o timer anterior para reiniciar
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = null;
+    }
+
+    setRipplePos({ id, x, y });
+    setCopiedCardId(id);
+
+    copyTimeoutRef.current = setTimeout(() => {
+      setCopiedCardId(prev => (prev === id ? null : prev));
+      setRipplePos(prev => (prev?.id === id ? null : prev));
+      copyTimeoutRef.current = null;
+    }, 1200);
   };
 
   return (
@@ -1406,28 +1485,95 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </button>
                 </div>
                 
+                {/* Região acessível para anúncio em leitores de tela */}
+                <div className="sr-only" aria-live="polite" aria-atomic="true">
+                  {copiedCardId && usefulCardsCatalog.valuesMap[copiedCardId] 
+                    ? `${usefulCardsCatalog.valuesMap[copiedCardId].label} copiado` 
+                    : ''}
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   {usefulCardIds.slice(0, 8).map(id => {
                     const cardItem = usefulCardsCatalog.valuesMap[id];
                     if (!cardItem) return null;
+                    const isCopied = copiedCardId === id;
+                    const isInteractive = cardItem.value && cardItem.value !== '—';
+
                     return (
-                      <div 
-                        key={id} 
-                        onClick={() => {
-                          if (cardItem.value && cardItem.value !== '—') {
-                            handleCopy(cardItem.value, cardItem.label);
-                          }
-                        }}
-                        className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 active:scale-[0.98] transition-all"
-                        title={cardItem.value !== '—' ? `Clique para copiar ${cardItem.label}` : cardItem.label}
+                      <motion.button 
+                        key={id}
+                        type="button"
+                        onClick={(e) => handleCardClick(e, id, cardItem.value, cardItem.label)}
+                        disabled={!isInteractive}
+                        whileTap={!prefersReducedMotion && isInteractive ? { scale: 0.96 } : undefined}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        className={`relative overflow-hidden p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 text-left w-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF] ${
+                          isInteractive
+                            ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 active:bg-slate-100 dark:active:bg-white/10' 
+                            : 'cursor-default opacity-85'
+                        }`}
+                        title={isInteractive ? `Clique para copiar ${cardItem.label}` : cardItem.label}
                       >
+                        {/* Pulso / Onda discreta originada do ponto de clique */}
+                        {!prefersReducedMotion && ripplePos?.id === id && (
+                          <motion.span
+                            key={`ripple-${id}-${ripplePos.x}-${ripplePos.y}`}
+                            initial={{ scale: 0, opacity: 0.45 }}
+                            animate={{ scale: 4.5, opacity: 0 }}
+                            transition={{ duration: 0.6, ease: "easeOut" }}
+                            className="absolute pointer-events-none rounded-full bg-[#007AFF]/20 dark:bg-[#007AFF]/30"
+                            style={{
+                              left: ripplePos.x - 20,
+                              top: ripplePos.y - 20,
+                              width: 40,
+                              height: 40,
+                            }}
+                          />
+                        )}
+
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block truncate" title={cardItem.label}>
                           {cardItem.label}
                         </span>
-                        <span className="text-sm font-black text-slate-800 dark:text-slate-100 truncate block mt-0.5" title={cardItem.value}>
-                          {cardItem.value}
-                        </span>
-                      </div>
+
+                        {/* Contêiner de altura fixa com sobreposição dos dois estados (valor original vs 'Copiado') */}
+                        <div className="relative h-5 mt-0.5 w-full overflow-hidden">
+                          <AnimatePresence mode="wait" initial={false}>
+                            {isCopied ? (
+                              <motion.div
+                                key="copied"
+                                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
+                                animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -5 }}
+                                transition={{ duration: 0.16, ease: "easeOut" }}
+                                className="absolute inset-0 flex items-center gap-1.5 text-xs font-black text-[#007AFF] dark:text-[#64D2FF]"
+                              >
+                                <motion.span
+                                  initial={prefersReducedMotion ? undefined : { scale: 0.5, rotate: -25 }}
+                                  animate={prefersReducedMotion ? undefined : { scale: 1, rotate: 0 }}
+                                  transition={{ type: "spring", stiffness: 600, damping: 24 }}
+                                  className="inline-flex items-center justify-center shrink-0"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                </motion.span>
+                                <span className="truncate tracking-tight font-black">Copiado</span>
+                              </motion.div>
+                            ) : (
+                              <motion.div
+                                key="value"
+                                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -5 }}
+                                animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
+                                transition={{ duration: 0.16, ease: "easeOut" }}
+                                className="absolute inset-0 flex items-center"
+                              >
+                                <span className="text-sm font-black text-slate-800 dark:text-slate-100 truncate block w-full" title={cardItem.value}>
+                                  {cardItem.value}
+                                </span>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </motion.button>
                     );
                   })}
                 </div>
