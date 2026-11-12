@@ -296,10 +296,48 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     return getEffectiveCardIds(userKey, normalizedLayer);
   });
 
+  // Histórico de cartões personalizados pelo usuário (persistido em localStorage)
+  const [historyIds, setHistoryIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`useful_cards_history_${userKey}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  // Atualizar histórico quando o usuário ativo mudar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`useful_cards_history_${userKey}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            setHistoryIds(parsed);
+            return;
+          }
+        }
+      } catch {}
+    }
+    setHistoryIds([]);
+  }, [userKey]);
+
   // Atualizar cartões quando mudar o usuário ou a camada da feição ativa
   useEffect(() => {
     setUsefulCardIds(getEffectiveCardIds(userKey, normalizedLayer));
   }, [userKey, normalizedLayer, getEffectiveCardIds]);
+
+  // Fechar o modal de personalização se a aba de detalhes for fechada ou alterada
+  useEffect(() => {
+    if (activeTab !== 'details' && isCustomizerModalOpen) {
+      setIsCustomizerModalOpen(false);
+    }
+  }, [activeTab, isCustomizerModalOpen]);
 
   const handleSaveUsefulCards = (newIds: string[]) => {
     setUsefulCardIds(newIds);
@@ -310,6 +348,34 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         localStorage.setItem(`useful_cards_${userKey}`, JSON.stringify(newIds));
       }
     } catch (e) {}
+
+    // Atualizar histórico de escolhas do usuário (mais recentes na frente, sem duplicatas, máx 30)
+    try {
+      const currentHistory: string[] = (() => {
+        try {
+          const raw = localStorage.getItem(`useful_cards_history_${userKey}`);
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (Array.isArray(p)) return p;
+          }
+        } catch {}
+        return [];
+      })();
+
+      const combined = [...newIds, ...currentHistory];
+      const deduplicated: string[] = [];
+      const seen = new Set<string>();
+      for (const id of combined) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          deduplicated.push(id);
+        }
+        if (deduplicated.length >= 30) break;
+      }
+      localStorage.setItem(`useful_cards_history_${userKey}`, JSON.stringify(deduplicated));
+      setHistoryIds(deduplicated);
+    } catch (e) {}
+
     showToast(activeLayerName ? `Informações úteis de ${activeLayerName} salvas com sucesso!` : 'Informações úteis personalizadas com sucesso!');
   };
 
@@ -2146,20 +2212,25 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           </div>
         )}
           </div>
+
+          {/* Painel de Personalização de Informações Úteis (acoplado dentro do Estágio 2 da barra lateral, sem cobrir o mapa) */}
+          <AnimatePresence>
+            {isCustomizerModalOpen && (
+              <FeatureInfoCustomizerModal
+                isOpen={isCustomizerModalOpen}
+                onClose={() => setIsCustomizerModalOpen(false)}
+                availableOptions={usefulCardsCatalog.options}
+                selectedIds={usefulCardIds}
+                historyIds={historyIds}
+                onSave={handleSaveUsefulCards}
+                onReset={handleResetUsefulCards}
+                maxItems={8}
+                layerName={activeLayerName}
+              />
+            )}
+          </AnimatePresence>
         </div>
       )}
-
-      {/* Modal de Personalização de Informações Úteis */}
-      <FeatureInfoCustomizerModal
-        isOpen={isCustomizerModalOpen}
-        onClose={() => setIsCustomizerModalOpen(false)}
-        availableOptions={usefulCardsCatalog.options}
-        selectedIds={usefulCardIds}
-        onSave={handleSaveUsefulCards}
-        onReset={handleResetUsefulCards}
-        maxItems={8}
-        layerName={activeLayerName}
-      />
     </aside>
   );
 };
