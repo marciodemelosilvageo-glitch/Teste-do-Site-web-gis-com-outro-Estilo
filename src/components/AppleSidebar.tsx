@@ -1504,29 +1504,141 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </span>
                 </div>
 
+                {/* Região acessível para anúncio em leitores de tela das Localidades */}
+                <div className="sr-only" aria-live="polite" aria-atomic="true">
+                  {copiedCardId === 'loc-municipio' && 'Município copiado'}
+                  {copiedCardId === 'loc-cep' && 'CEP copiado'}
+                  {copiedCardId === 'loc-aglomerado' && 'Aglomerado copiado'}
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Município</span>
-                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block" title={localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || 'Piauí'}>
-                      {localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || 'Piauí'}
-                    </span>
-                  </div>
+                  {(() => {
+                    const munRaw = localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || '';
+                    const isMunInteractive = Boolean(
+                      munRaw && 
+                      munRaw !== '—' && 
+                      munRaw.toLowerCase() !== 'piaui' && 
+                      munRaw.toLowerCase() !== 'piauí'
+                    );
+                    const munDisplay = munRaw || 'Piauí';
 
-                  <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">CEP</span>
-                    <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                      {localidadeMetadata?.cep || '—'}
-                    </span>
-                  </div>
+                    const cepRaw = localidadeMetadata?.cep || '';
+                    const isCepInteractive = Boolean(cepRaw && cepRaw !== '—');
+                    const cepDisplay = cepRaw || '—';
 
-                  {localidadeMetadata?.aglomerado && (
-                    <div className="p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 col-span-2">
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">Aglomerado</span>
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block" title={localidadeMetadata.aglomerado}>
-                        {localidadeMetadata.aglomerado}
-                      </span>
-                    </div>
-                  )}
+                    const aglomRaw = localidadeMetadata?.aglomerado || '';
+                    const isAglomInteractive = Boolean(aglomRaw && aglomRaw !== '—');
+
+                    const locCards = [
+                      {
+                        id: 'loc-municipio',
+                        label: 'Município',
+                        value: munDisplay,
+                        copyValue: munDisplay,
+                        isInteractive: isMunInteractive,
+                        colSpan: false
+                      },
+                      {
+                        id: 'loc-cep',
+                        label: 'CEP',
+                        value: cepDisplay,
+                        copyValue: cepRaw,
+                        isInteractive: isCepInteractive,
+                        colSpan: false
+                      },
+                      ...(aglomRaw ? [{
+                        id: 'loc-aglomerado',
+                        label: 'Aglomerado',
+                        value: aglomRaw,
+                        copyValue: aglomRaw,
+                        isInteractive: isAglomInteractive,
+                        colSpan: true
+                      }] : [])
+                    ];
+
+                    return locCards.map(card => {
+                      const isCopied = copiedCardId === card.id;
+
+                      return (
+                        <motion.button 
+                          key={card.id}
+                          type="button"
+                          onClick={(e) => handleCardClick(e, card.id, card.copyValue, card.label)}
+                          disabled={!card.isInteractive}
+                          whileTap={!prefersReducedMotion && card.isInteractive ? { scale: 0.96 } : undefined}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                          className={`relative overflow-hidden p-2.5 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xs border border-black/5 dark:border-white/5 text-left w-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF] ${
+                            card.colSpan ? 'col-span-2' : ''
+                          } ${
+                            card.isInteractive
+                              ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 active:bg-slate-100 dark:active:bg-white/10' 
+                              : 'cursor-default opacity-85'
+                          }`}
+                          title={card.isInteractive ? `Clique para copiar ${card.label}` : card.label}
+                        >
+                          {/* Pulso / Onda discreta originada do ponto de clique */}
+                          {!prefersReducedMotion && ripplePos?.id === card.id && (
+                            <motion.span
+                              key={`ripple-${card.id}-${ripplePos.x}-${ripplePos.y}`}
+                              initial={{ scale: 0, opacity: 0.45 }}
+                              animate={{ scale: 4.5, opacity: 0 }}
+                              transition={{ duration: 0.6, ease: "easeOut" }}
+                              className="absolute pointer-events-none rounded-full bg-[#007AFF]/20 dark:bg-[#007AFF]/30"
+                              style={{
+                                left: ripplePos.x - 20,
+                                top: ripplePos.y - 20,
+                                width: 40,
+                                height: 40,
+                              }}
+                            />
+                          )}
+
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block truncate" title={card.label}>
+                            {card.label}
+                          </span>
+
+                          {/* Contêiner de altura fixa com sobreposição dos dois estados (valor original vs 'Copiado') */}
+                          <div className="relative h-5 mt-0.5 w-full overflow-hidden">
+                            <AnimatePresence mode="wait" initial={false}>
+                              {isCopied ? (
+                                <motion.div
+                                  key="copied"
+                                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
+                                  animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -5 }}
+                                  transition={{ duration: 0.16, ease: "easeOut" }}
+                                  className="absolute inset-0 flex items-center gap-1.5 text-xs font-black text-[#007AFF] dark:text-[#64D2FF]"
+                                >
+                                  <motion.span
+                                    initial={prefersReducedMotion ? undefined : { scale: 0.5, rotate: -25 }}
+                                    animate={prefersReducedMotion ? undefined : { scale: 1, rotate: 0 }}
+                                    transition={{ type: "spring", stiffness: 600, damping: 24 }}
+                                    className="inline-flex items-center justify-center shrink-0"
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  </motion.span>
+                                  <span className="truncate tracking-tight font-black">Copiado</span>
+                                </motion.div>
+                              ) : (
+                                <motion.div
+                                  key="value"
+                                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -5 }}
+                                  animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
+                                  transition={{ duration: 0.16, ease: "easeOut" }}
+                                  className="absolute inset-0 flex items-center"
+                                >
+                                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block w-full" title={card.value}>
+                                    {card.value}
+                                  </span>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </motion.button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             ) : isCoordenadaSearch ? (
