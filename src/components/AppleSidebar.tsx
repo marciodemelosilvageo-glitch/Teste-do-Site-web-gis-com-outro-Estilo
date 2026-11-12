@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Search, 
   Layers, 
@@ -153,6 +153,23 @@ const APPLE_CATEGORIES = [
 
 const DEFAULT_USEFUL_CARD_IDS = ['popTotal', 'domTotal', 'mediaMoradores', 'areaKm2'];
 
+const normalizeLayerName = (name?: string): string => {
+  return (name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+};
+
+const LAYER_DEFAULT_CARD_IDS: Record<string, string[]> = {
+  'municipios': ['aisp', 'risp', 'areaDesenvolvimento', 'popTotal'],
+  'bairros': ['aisp', 'risp', 'areaDesenvolvimento', 'nomeMunicipio'],
+  'favelas e comunidades': ['aisp', 'risp', 'areaDesenvolvimento', 'nomeMunicipio'],
+  'nucleos urbanos': ['aisp', 'risp', 'areaDesenvolvimento', 'nomeMunicipio'],
+  'aglomerados rurais': ['aisp', 'risp', 'areaDesenvolvimento', 'nomeMunicipio'],
+  'comunidades rurais de teresina': ['zona', 'tipoDescritivo'],
+};
+
 export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   isCollapsed,
   onToggleCollapse,
@@ -226,63 +243,88 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const [activeCategorySearchId, setActiveCategorySearchId] = useState<CategorySearchType | null>(null);
   const lastSearchClickTimeRef = useRef<number>(0);
 
-  // Estado e persistência de Informações Úteis personalizáveis no localStorage
-  const [isCustomizerModalOpen, setIsCustomizerModalOpen] = useState<boolean>(false);
-  const usefulCardsStorageKey = useMemo(() => {
-    return currentActiveUser?.username ? `useful_cards_${currentActiveUser.username}` : 'useful_cards_default';
-  }, [currentActiveUser?.username]);
-
-  const [usefulCardIds, setUsefulCardIds] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const key = currentActiveUser?.username ? `useful_cards_${currentActiveUser.username}` : 'useful_cards_default';
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-    }
-    return DEFAULT_USEFUL_CARD_IDS;
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(usefulCardsStorageKey);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setUsefulCardIds(parsed);
-            return;
-          }
-        }
-      } catch (e) {}
-    }
-    setUsefulCardIds(DEFAULT_USEFUL_CARD_IDS);
-  }, [usefulCardsStorageKey]);
-
-  const handleSaveUsefulCards = (newIds: string[]) => {
-    setUsefulCardIds(newIds);
-    try {
-      localStorage.setItem(usefulCardsStorageKey, JSON.stringify(newIds));
-    } catch (e) {}
-    showToast('Informações úteis personalizadas com sucesso!');
-  };
-
-  const handleResetUsefulCards = () => {
-    setUsefulCardIds(DEFAULT_USEFUL_CARD_IDS);
-    try {
-      localStorage.removeItem(usefulCardsStorageKey);
-    } catch (e) {}
-    showToast('Restaurado o padrão das informações úteis.');
-  };
-
   // Feição ativa detalhada (última selecionada)
   const activeDetailFeature = useMemo(() => {
     if (selectedFeatures.length === 0) return null;
     return selectedFeatures[selectedFeatures.length - 1];
   }, [selectedFeatures]);
+
+  const activeLayerName = activeDetailFeature?.sourceName || '';
+  const normalizedLayer = useMemo(() => normalizeLayerName(activeLayerName), [activeLayerName]);
+  const userKey = useMemo(() => currentActiveUser?.username || 'default', [currentActiveUser?.username]);
+
+  // Helper de resolução de cartões padrão para uma camada
+  const getLayerDefaultIds = useCallback((normLayer: string) => {
+    return (normLayer && LAYER_DEFAULT_CARD_IDS[normLayer]) || DEFAULT_USEFUL_CARD_IDS;
+  }, []);
+
+  // Helper para carregar a configuração efetiva (prioridade: camada salva > padrão camada > global legado > padrão geral)
+  const getEffectiveCardIds = useCallback((uKey: string, normLayer: string) => {
+    if (typeof window === 'undefined') {
+      return (normLayer && LAYER_DEFAULT_CARD_IDS[normLayer]) || DEFAULT_USEFUL_CARD_IDS;
+    }
+    try {
+      // 1. Escolha salva para esta camada específica
+      if (normLayer) {
+        const layerSaved = localStorage.getItem(`useful_cards_${uKey}_${normLayer}`);
+        if (layerSaved) {
+          const parsed = JSON.parse(layerSaved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+
+      // 2. Se a camada possui um padrão pré-definido, adota o padrão da camada
+      if (normLayer && LAYER_DEFAULT_CARD_IDS[normLayer]) {
+        return LAYER_DEFAULT_CARD_IDS[normLayer];
+      }
+
+      // 3. Só para camadas sem padrão pré-definido: verificar escolha global legada antiga
+      const globalSaved = localStorage.getItem(`useful_cards_${uKey}`);
+      if (globalSaved) {
+        const parsed = JSON.parse(globalSaved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+
+    // 4. Padrão atual genérico
+    return DEFAULT_USEFUL_CARD_IDS;
+  }, []);
+
+  // Estado e persistência de Informações Úteis personalizáveis no localStorage
+  const [isCustomizerModalOpen, setIsCustomizerModalOpen] = useState<boolean>(false);
+  const [usefulCardIds, setUsefulCardIds] = useState<string[]>(() => {
+    return getEffectiveCardIds(userKey, normalizedLayer);
+  });
+
+  // Atualizar cartões quando mudar o usuário ou a camada da feição ativa
+  useEffect(() => {
+    setUsefulCardIds(getEffectiveCardIds(userKey, normalizedLayer));
+  }, [userKey, normalizedLayer, getEffectiveCardIds]);
+
+  const handleSaveUsefulCards = (newIds: string[]) => {
+    setUsefulCardIds(newIds);
+    try {
+      if (normalizedLayer) {
+        localStorage.setItem(`useful_cards_${userKey}_${normalizedLayer}`, JSON.stringify(newIds));
+      } else {
+        localStorage.setItem(`useful_cards_${userKey}`, JSON.stringify(newIds));
+      }
+    } catch (e) {}
+    showToast(activeLayerName ? `Informações úteis de ${activeLayerName} salvas com sucesso!` : 'Informações úteis personalizadas com sucesso!');
+  };
+
+  const handleResetUsefulCards = () => {
+    const defaultIds = getLayerDefaultIds(normalizedLayer);
+    setUsefulCardIds(defaultIds);
+    try {
+      if (normalizedLayer) {
+        localStorage.removeItem(`useful_cards_${userKey}_${normalizedLayer}`);
+      } else {
+        localStorage.removeItem(`useful_cards_${userKey}`);
+      }
+    } catch (e) {}
+    showToast(activeLayerName ? `Restaurado o padrão de ${activeLayerName}.` : 'Restaurado o padrão das informações úteis.');
+  };
 
   // Identificar se a feição selecionada pertence à camada de Localidades
   const isLocalidade = useMemo(() => {
@@ -429,6 +471,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     const nomeBairro = toTitleCase(props.NM_BAIRRO || props.Bairro || props.BAIRRO || '');
     const nomeDistrito = toTitleCase(props.NM_DIST || props.Distrito || props.DISTRITO || '');
     const nomeSubdistrito = toTitleCase(props.NM_SUBDIST || props.Subdistrito || props.subdistrito || props.Zona || props['Nome do subdistrito'] || '');
+    const zona = toTitleCase(props.Zona || props.zona || props.ZONA || props.NM_SUBDIST || props.Subdistrito || props['Nome do subdistrito'] || '');
     const nomeComunidade = toTitleCase(props.NM_FCU || (activeDetailFeature.sourceName === 'Comunidades Rurais de Teresina' ? props.Nome : '') || '');
     const nomeNucleo = toTitleCase(props.NM_NU || '');
     const nomeAglomerado = toTitleCase(props.NM_AGLOM || '');
@@ -485,6 +528,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       nomeBairro,
       nomeDistrito,
       nomeSubdistrito,
+      zona,
       nomeComunidade,
       nomeNucleo,
       nomeAglomerado,
@@ -540,13 +584,14 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       { id: 'taxaVacancia', label: 'Taxa de Vacância', value: d.taxaVacancia || '—', category: 'demografia' },
       { id: 'domColetivos', label: 'Dom. Coletivos', value: d.domColetivos ? d.domColetivos.toLocaleString('pt-BR') : '—', propertyKey: 'V0004', category: 'demografia' },
       { id: 'situacao', label: 'Situação', value: d.situacao || '—', propertyKey: 'SITUACAO', category: 'territorio' },
-      { id: 'tipoDescritivo', label: 'Tipo do Setor/Feição', value: d.tipoDescritivo || '—', propertyKey: 'Tipo do Setor', category: 'territorio' },
+      { id: 'tipoDescritivo', label: 'Tipo do Setor', value: d.tipoDescritivo || '—', propertyKey: 'Tipo do Setor', category: 'territorio' },
       { id: 'areaDesenvolvimento', label: 'Área de Desenvolvimento', value: d.areaDesenvolvimento || '—', propertyKey: 'Area de desenvolvimento', category: 'territorio' },
       { id: 'risp', label: 'RISP (Segurança)', value: d.risp || '—', propertyKey: 'Risp', category: 'seguranca' },
       { id: 'aisp', label: 'AISP (Segurança)', value: d.aisp || '—', propertyKey: 'Aisp', category: 'seguranca' },
       { id: 'nomeMunicipio', label: 'Município', value: d.nomeMunicipio || '—', propertyKey: 'NM_MUN', category: 'localizacao' },
       { id: 'nomeBairro', label: 'Bairro', value: d.nomeBairro || '—', propertyKey: 'NM_BAIRRO', category: 'localizacao' },
       { id: 'nomeDistrito', label: 'Distrito', value: d.nomeDistrito || '—', propertyKey: 'NM_DIST', category: 'localizacao' },
+      { id: 'zona', label: 'Zona', value: d.zona || d.nomeSubdistrito || '—', propertyKey: 'Zona', category: 'localizacao' },
       { id: 'nomeSubdistrito', label: 'Subdistrito / Zona', value: d.nomeSubdistrito || '—', propertyKey: 'NM_SUBDIST', category: 'localizacao' },
       { id: 'nomeRgInt', label: 'Região Intermediária', value: d.nomeRgInt || '—', propertyKey: 'NM_RGINT', category: 'localizacao' },
       { id: 'nomeRgI', label: 'Região Imediata', value: d.nomeRgI || '—', propertyKey: 'NM_RGI', category: 'localizacao' },
@@ -738,6 +783,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       if (id === 'tipoDescritivo') {
         hiddenKeys.add('cd_tipo');
         hiddenKeys.add('tipo do setor');
+        hiddenKeys.add('tipo');
+      }
+      if (id === 'zona') {
+        hiddenKeys.add('zona');
+        hiddenKeys.add('nm_subdist');
+        hiddenKeys.add('subdistrito');
+      }
+      if (id === 'nomeSubdistrito') {
+        hiddenKeys.add('nm_subdist');
+        hiddenKeys.add('subdistrito');
+        hiddenKeys.add('zona');
       }
       const opt = usefulCardsCatalog.options.find(o => o.id === id);
       if (opt?.propertyKey) {
@@ -1467,7 +1523,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </p>
                 )}
               </div>
-            ) : !isComunidadeRural ? (
+            ) : (
               /* Informações Úteis Demográficas para Feições Poligonais (Personalizáveis) */
               <div className="bg-black/5 dark:bg-white/5 rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -1578,7 +1634,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   })}
                 </div>
               </div>
-            ) : null}
+            )}
 
             {/* Seção de Coordenadas Geográficas com 6 dígitos decimais exatos */}
             {featureCoords && (
@@ -2125,6 +2181,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         onSave={handleSaveUsefulCards}
         onReset={handleResetUsefulCards}
         maxItems={8}
+        layerName={activeLayerName}
       />
     </aside>
   );

@@ -24,6 +24,7 @@ interface FeatureInfoCustomizerModalProps {
   onSave: (newSelectedIds: string[]) => void;
   onReset: () => void;
   maxItems?: number;
+  layerName?: string;
 }
 
 export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProps> = ({
@@ -33,7 +34,8 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
   selectedIds,
   onSave,
   onReset,
-  maxItems = 8
+  maxItems = 8,
+  layerName
 }) => {
   const [currentSelected, setCurrentSelected] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'selecionados' | 'catalogo'>('selecionados');
@@ -110,8 +112,8 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
               <SlidersHorizontal className="w-4 h-4" />
             </div>
             <div>
-              <h3 id="customizer-title" className="text-sm font-black text-slate-900 dark:text-white">
-                Personalizar Informações
+              <h3 id="customizer-title" className="text-sm font-black text-slate-900 dark:text-white truncate max-w-[280px]" title={layerName ? `Personalizar Informações • ${layerName}` : 'Personalizar Informações'}>
+                Personalizar Informações{layerName ? ` • ${layerName}` : ''}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 Escolha até {maxItems} cartões para a barra de detalhes
