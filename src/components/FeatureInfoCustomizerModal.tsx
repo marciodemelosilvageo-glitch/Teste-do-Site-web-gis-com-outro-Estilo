@@ -64,8 +64,6 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   // Toggle de seleção de um item
   const handleToggle = (id: string) => {
     setCurrentSelected(prev => {
@@ -152,6 +150,8 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
 
     return list;
   }, [currentSelected, historyIds, availableOptions, optionsMap]);
+
+  if (!isOpen) return null;
 
   return (
     <motion.div 

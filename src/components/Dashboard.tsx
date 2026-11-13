@@ -196,6 +196,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures, showToas
     };
   }, [validDashboardFeatures]);
 
+  // Resumo textual demográfico para cópia (calculado com todos os hooks antes dos returns condicionais)
+  const summaryText = useMemo(() => {
+    if (!hasData) return '';
+    return `📊 *Raio-X Territorial e Domiciliar - ${title}*
+👥 População Total: ${sumPop.toLocaleString('pt-BR')} habitantes
+📈 Média por Domicílio: ${densidade} moradores/dom.
+🏠 Total de Domicílios: ${sumDomTotal.toLocaleString('pt-BR')}
+  • Particulares Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${taxaOcupacao}%)
+  • Vagos / Uso Ocasional: ${sumVagos.toLocaleString('pt-BR')} (Vacância: ${taxaVac}%)
+  • Coletivos (Instituições): ${sumDomCol.toLocaleString('pt-BR')}
+${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebGIS Geocodificando`;
+  }, [hasData, title, sumPop, densidade, sumDomTotal, sumDomOcup, taxaOcupacao, sumVagos, taxaVac, sumDomCol, areaKm2]);
+
   if (isOnlyPlotPoints) {
     return (
       <div 
@@ -298,18 +311,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures, showToas
       </div>
     );
   }
-
-  // Resumo textual demográfico para cópia
-  const summaryText = useMemo(() => {
-    return `📊 *Raio-X Territorial e Domiciliar - ${title}*
-👥 População Total: ${sumPop.toLocaleString('pt-BR')} habitantes
-📈 Média por Domicílio: ${densidade} moradores/dom.
-🏠 Total de Domicílios: ${sumDomTotal.toLocaleString('pt-BR')}
-  • Particulares Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${taxaOcupacao}%)
-  • Vagos / Uso Ocasional: ${sumVagos.toLocaleString('pt-BR')} (Vacância: ${taxaVac}%)
-  • Coletivos (Instituições): ${sumDomCol.toLocaleString('pt-BR')}
-${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebGIS Geocodificando`;
-  }, [title, sumPop, densidade, sumDomTotal, sumDomOcup, taxaOcupacao, sumVagos, taxaVac, sumDomCol, areaKm2]);
 
   return (
     <section 

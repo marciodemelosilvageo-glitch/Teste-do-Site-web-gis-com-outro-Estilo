@@ -39,11 +39,7 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
   onSearchPolygonAddresses,
   onSearchLocalidadeAddresses
 }) => {
-  if (!selectedFeatures || selectedFeatures.length === 0) {
-    return null;
-  }
-
-  const count = selectedFeatures.length;
+  const count = selectedFeatures?.length || 0;
 
   const handleCopy = useCallback((text: string, label: string) => {
     try {
@@ -58,6 +54,9 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
 
   // Processamento dos dados para exibição
   const processedData = useMemo(() => {
+    if (!selectedFeatures || selectedFeatures.length === 0) {
+      return null;
+    }
     if (count === 1) {
       const feat = selectedFeatures[0];
       const props = feat.properties || {};
@@ -203,6 +202,10 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
       };
     }
   }, [selectedFeatures, count, allowedProperties]);
+
+  if (!selectedFeatures || selectedFeatures.length === 0) {
+    return null;
+  }
 
   return (
     <div id="info-table-container" className="w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-5 border border-slate-200/80 dark:border-slate-800">
