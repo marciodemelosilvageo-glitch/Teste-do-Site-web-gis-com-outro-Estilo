@@ -1317,10 +1317,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 setActiveTab(null);
               }}
               className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer active:scale-90"
-              title="Fechar painel"
-              aria-label="Fechar painel"
+              title={activeTab === 'details' ? "Recolher painel (a feição continua selecionada)" : "Recolher painel"}
+              aria-label={activeTab === 'details' ? "Recolher painel (a feição continua selecionada)" : "Recolher painel"}
             >
-              <X className="w-4 h-4" />
+              <PanelLeftClose className="w-4 h-4 text-[#007AFF]" />
             </button>
           </div>
 
@@ -1375,10 +1375,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   onRemoveFromSelection(activeDetailFeature.id);
                   setActiveTab(null);
                 }}
-                className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer"
-                title="Fechar detalhes"
+                className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 text-xs font-semibold transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95 focus-visible:ring-2 focus-visible:ring-[#007AFF] outline-none"
+                title="Remove esta feição da seleção e tira o destaque do mapa"
+                aria-label={selectedFeatures.length >= 2 ? "Desmarcar esta feição da seleção" : "Desmarcar feição"}
               >
-                <X className="w-4 h-4" />
+                <span>Desmarcar</span>
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
 

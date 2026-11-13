@@ -930,245 +930,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   // Estado de visibilidade individual das camadas presentes nas camadas ativas (true = visível no mapa, false = desativada temporariamente)
   const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>({});
 
-  // Refs para gerenciar o Balão Callout e a Linha Conectora (Haste) das Camadas de Polígonos
-  const polygonCalloutLineRef = useRef<L.Polyline | null>(null);
-  const polygonCalloutMarkerRef = useRef<L.CircleMarker | null>(null);
-  const polygonCalloutPopupRef = useRef<L.Popup | null>(null);
 
-  // Limpar balão callout, linha conectora e âncora de polígonos
-  const clearPolygonCallout = useCallback(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-    if (polygonCalloutLineRef.current && map.hasLayer(polygonCalloutLineRef.current)) {
-      map.removeLayer(polygonCalloutLineRef.current);
-      polygonCalloutLineRef.current = null;
-    }
-    if (polygonCalloutMarkerRef.current && map.hasLayer(polygonCalloutMarkerRef.current)) {
-      map.removeLayer(polygonCalloutMarkerRef.current);
-      polygonCalloutMarkerRef.current = null;
-    }
-    if (polygonCalloutPopupRef.current && map.hasLayer(polygonCalloutPopupRef.current)) {
-      map.removeLayer(polygonCalloutPopupRef.current);
-      polygonCalloutPopupRef.current = null;
-    }
-  }, []);
-
-  // Obter todas as coordenadas de um polígono / multipolígono
-  const getAllPolygonCoordinates = (layer: any): L.LatLng[] => {
-    const coords: L.LatLng[] = [];
-    if (typeof layer.getLatLngs === 'function') {
-      const latlngs = layer.getLatLngs();
-      const extract = (arr: any) => {
-        if (!arr) return;
-        if (arr instanceof L.LatLng) {
-          coords.push(arr);
-        } else if (typeof arr === 'object' && typeof arr.lat === 'number' && typeof arr.lng === 'number') {
-          coords.push(L.latLng(arr.lat, arr.lng));
-        } else if (Array.isArray(arr)) {
-          for (let i = 0; i < arr.length; i++) {
-            extract(arr[i]);
-          }
-        }
-      };
-      extract(latlngs);
-    }
-    return coords;
-  };
-
-  // Encontrar o ponto de ancoragem perfeitamente localizado NA BORDA do polígono (lado esquerdo ou direito)
-  const getPolygonBorderAnchor = (layer: any, map: L.Map, side: 'left' | 'right' = 'left', targetLatLng?: L.LatLng): L.LatLng => {
-    if (typeof layer.getBounds === 'function' && layer.getBounds().isValid()) {
-      const b = layer.getBounds();
-      const coords = getAllPolygonCoordinates(layer);
-      const refLat = targetLatLng ? targetLatLng.lat : (b.getNorth() + b.getSouth()) / 2;
-
-      if (coords.length > 0) {
-        let bestPt = coords[0];
-        let bestScore = Infinity;
-        const targetLng = side === 'left' ? b.getWest() : b.getEast();
-
-        for (const pt of coords) {
-          const lngDiff = Math.abs(pt.lng - targetLng) * 2;
-          const latDiff = Math.abs(pt.lat - refLat);
-          const score = lngDiff + latDiff;
-          if (score < bestScore) {
-            bestScore = score;
-            bestPt = pt;
-          }
-        }
-        return bestPt;
-      }
-
-      return side === 'left' 
-        ? L.latLng(refLat, b.getWest())
-        : L.latLng(refLat, b.getEast());
-    }
-
-    if (typeof (layer as any).getLatLng === 'function') {
-      return (layer as any).getLatLng();
-    }
-
-    return targetLatLng || map.getCenter();
-  };
-
-  // Abrir Balão Callout Lateral com Linha Conectora a partir da BORDA do Polígono até o CANTO do Popup
-  const openPolygonCallout = useCallback((layer: L.Layer, htmlContent: string, clickLatLng?: L.LatLng, fitPolygon: boolean = false) => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-
-    clearPolygonCallout();
-
-    // 1. Dar zoom / enquadrar a feição com margem ampla no lado esquerdo (280px) para acomodar o popup de 240px + linha de 45px
-    if (fitPolygon && typeof (layer as any).getBounds === 'function' && (layer as any).getBounds().isValid()) {
-      const bounds = (layer as any).getBounds();
-      map.fitBounds(bounds, {
-        paddingTopLeft: L.point(280, 50),
-        paddingBottomRight: L.point(50, 50),
-        maxZoom: 15,
-        animate: true,
-        duration: 0.3
-      });
-    }
-
-    // 2. Renderizar o Balão Callout e Linha Conectora
-    const renderCallout = () => {
-      if (!mapRef.current) return;
-
-      // Limpar linha e marcador anteriores se houver
-      if (polygonCalloutLineRef.current && map.hasLayer(polygonCalloutLineRef.current)) {
-        map.removeLayer(polygonCalloutLineRef.current);
-        polygonCalloutLineRef.current = null;
-      }
-      if (polygonCalloutMarkerRef.current && map.hasLayer(polygonCalloutMarkerRef.current)) {
-        map.removeLayer(polygonCalloutMarkerRef.current);
-        polygonCalloutMarkerRef.current = null;
-      }
-
-      // Determinar ancoragem na borda do polígono
-      let side: 'left' | 'right' = 'left';
-      let anchorLatLng = getPolygonBorderAnchor(layer, map, 'left', clickLatLng);
-      let anchorPt = map.latLngToContainerPoint(anchorLatLng);
-
-      // Se não houver pelo menos 300px livres à esquerda da feição, posiciona à direita
-      if (anchorPt.x < 300) {
-        side = 'right';
-        anchorLatLng = getPolygonBorderAnchor(layer, map, 'right', clickLatLng);
-        anchorPt = map.latLngToContainerPoint(anchorLatLng);
-      }
-
-      // Largura estimada do popup = 240px (metade = 120px). Distância da linha conectora = 45px.
-      const lineDistance = 45;
-      const popupHalfWidth = 120;
-
-      // Ponto no CANTO do Popup onde a linha tracejada se conecta:
-      // Se side === 'left': o canto inferior direito do popup fica em (anchorPt.x - lineDistance, anchorPt.y)
-      // Se side === 'right': o canto inferior esquerdo do popup fica em (anchorPt.x + lineDistance, anchorPt.y)
-      const popupCornerPt = L.point(
-        side === 'left' ? anchorPt.x - lineDistance : anchorPt.x + lineDistance,
-        anchorPt.y
-      );
-      const popupCornerLatLng = map.containerPointToLatLng(popupCornerPt);
-
-      // O centro do popup (onde o Leaflet ancora o balão para que o canto fique no final da linha):
-      const popupCenterPt = L.point(
-        side === 'left' ? popupCornerPt.x - popupHalfWidth : popupCornerPt.x + popupHalfWidth,
-        popupCornerPt.y
-      );
-      const popupCenterLatLng = map.containerPointToLatLng(popupCenterPt);
-
-      // 1. Popup posicionado no centro calculado (fica 100% fora do polígono, sem sobrepor)
-      if (!polygonCalloutPopupRef.current || !map.hasLayer(polygonCalloutPopupRef.current)) {
-        const popup = L.popup({
-          className: 'polygon-callout-balloon',
-          autoPan: false,
-          closeOnClick: false,
-          offset: L.point(0, 0)
-        })
-          .setLatLng(popupCenterLatLng)
-          .setContent(htmlContent)
-          .openOn(map);
-
-        polygonCalloutPopupRef.current = popup;
-
-        popup.on('remove', () => {
-          map.off('move', syncLineOnMove);
-          map.off('zoom', syncLineOnMove);
-          map.off('moveend', syncLineOnMove);
-          map.off('zoomend', syncLineOnMove);
-          clearPolygonCallout();
-        });
-      } else {
-        polygonCalloutPopupRef.current.setLatLng(popupCenterLatLng);
-      }
-
-      // 2. Medir o canto inferior exato do retângulo do popup no DOM
-      let exactCornerLatLng = popupCornerLatLng;
-      const popupEl = polygonCalloutPopupRef.current?.getElement()?.querySelector('.leaflet-popup-content-wrapper') as HTMLElement;
-      if (popupEl) {
-        const rect = popupEl.getBoundingClientRect();
-        const mapRect = map.getContainer().getBoundingClientRect();
-        if (side === 'left') {
-          // Canto inferior direito do popup
-          const cornerContainerPt = L.point(rect.right - mapRect.left, rect.bottom - mapRect.top);
-          exactCornerLatLng = map.containerPointToLatLng(cornerContainerPt);
-        } else {
-          // Canto inferior esquerdo do popup
-          const cornerContainerPt = L.point(rect.left - mapRect.left, rect.bottom - mapRect.top);
-          exactCornerLatLng = map.containerPointToLatLng(cornerContainerPt);
-        }
-      }
-
-      // 3. Linha conectora elegante e tracejada (da BORDA da feição até o CANTO INFERIOR do balão estilo Apple)
-      const connectorLine = L.polyline([anchorLatLng, exactCornerLatLng], {
-        color: '#007AFF',
-        weight: 2.5,
-        dashArray: '5, 5',
-        opacity: 0.95,
-        className: 'polygon-callout-connector'
-      }).addTo(map);
-      polygonCalloutLineRef.current = connectorLine;
-
-      // 4. Marcador âncora exatamente NA BORDA da feição (Apple Blue)
-      const anchorMarker = L.circleMarker(anchorLatLng, {
-        radius: 4.5,
-        fillColor: '#007AFF',
-        color: '#ffffff',
-        weight: 2,
-        fillOpacity: 1,
-        className: 'polygon-callout-anchor'
-      }).addTo(map);
-      polygonCalloutMarkerRef.current = anchorMarker;
-
-      // 5. Ajuste fino de frame para garantir ancoragem milimétrica no canto após montagem no DOM
-      requestAnimationFrame(() => {
-        if (!mapRef.current || !polygonCalloutLineRef.current || !polygonCalloutPopupRef.current) return;
-        const el = polygonCalloutPopupRef.current.getElement()?.querySelector('.leaflet-popup-content-wrapper') as HTMLElement;
-        if (el) {
-          const r = el.getBoundingClientRect();
-          const mr = map.getContainer().getBoundingClientRect();
-          const cPt = side === 'left' 
-            ? L.point(r.right - mr.left, r.bottom - mr.top)
-            : L.point(r.left - mr.left, r.bottom - mr.top);
-          const cLatLng = map.containerPointToLatLng(cPt);
-          polygonCalloutLineRef.current.setLatLngs([anchorLatLng, cLatLng]);
-        }
-      });
-    };
-
-    // Sincronizar linha e âncora em tempo real se o mapa mover ou der zoom
-    const syncLineOnMove = () => {
-      if (polygonCalloutPopupRef.current && polygonCalloutPopupRef.current.isOpen()) {
-        renderCallout();
-      }
-    };
-
-    renderCallout();
-
-    map.on('move', syncLineOnMove);
-    map.on('zoom', syncLineOnMove);
-    map.on('moveend', syncLineOnMove);
-    map.on('zoomend', syncLineOnMove);
-  }, [clearPolygonCallout]);
 
   // Estado da Legenda Cartográfica Interativa do Mapa (Estilo QGIS)
   const [isLegendOpen, setIsLegendOpen] = useState<boolean>(true);
@@ -2133,12 +1895,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       apple: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, { 
         maxZoom: 20,
         subdomains: ['a', 'b', 'c', 'd'],
-        attribution: '&copy; Apple Maps Style (CARTO Voyager)' 
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO' 
       }),
       appleDark: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, { 
         maxZoom: 20,
         subdomains: ['a', 'b', 'c', 'd'],
-        attribution: '&copy; Apple Maps Escuro Style (CARTO Dark)' 
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO' 
       }),
       googleHybrid: L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { 
         maxZoom: 20, 
@@ -2175,12 +1937,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         return;
       }
 
-      // Clique no mapa sem feição limpa a seleção e o balão callout de polígonos
+      // Clique no mapa sem feição limpa a seleção
       if (e.originalEvent && (e.originalEvent as any)._simulated) return;
       // Se a seleção atual é uma coordenada pesquisada (pino de botão direito), não limpar ao clicar no mapa
       const hasCoordSearch = selectedFeaturesRef.current.some(f => f.id === 'coord-search' || f.sourceName === 'Coordenadas');
       if (hasCoordSearch) return;
-      clearPolygonCallout();
       onSelectionChangeRef.current?.([]);
     });
 
@@ -2806,19 +2567,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         const displayValue = getTranslatedValue(source?.popupProperty || '', rawValue);
         const title = displayValue != null && String(displayValue).trim() !== '' ? String(displayValue) : getIdentifier(props);
 
-        const isArea = [
-          'Favelas e Comunidades',
-          'Bairros',
-          'Núcleos Urbanos',
-          'Aglomerados Rurais',
-          'Comunidades Rurais de Teresina',
-          'Municipios'
-        ].includes(sourceName);
-
-        if (isArea && (layer as any)._popupContentHtml) {
-          openPolygonCallout(layer, (layer as any)._popupContentHtml, undefined, false);
-        }
-
         onSelectionChangeRef.current?.([{
           id: String((layer as any)._leaflet_id),
           name: title,
@@ -2891,94 +2639,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const displayValue = getTranslatedValue(source.popupProperty, rawValue);
           const rawTitle = displayValue != null && String(displayValue).trim() !== '' ? String(displayValue) : getIdentifier(props);
           const title = toTitleCase(rawTitle);
-          const fieldLabel = propertyNames[source.popupProperty] || source.popupProperty || 'Identificador';
-          const subdistrito = props.SUBDISTRITO || props.Subdistrito || props.subdistrito || props.NM_SUBDIST || props['Nome do subdistrito'];
-          const bairro = props.BAIRRO || props.Bairro || props.bairro || props.NM_BAIRRO;
-          const aisp = props.AISP || props.Aisp || props.aisp;
-          const risp = props.RISP || props.Risp || props.risp;
-          const municipio = props.MUNICIPIO || props.Municipio || props.municipio || props['Nome do município'] || props.NM_MUNICIP;
-          const areaDesenvolvimento = props['Area de desenvolvimento'] || props['Área de desenvolvimento'] || props.AREA_DESENVOLVIMENTO || props.area_desenvolvimento;
-          const latitude = props.LATITUDE || props.Latitude || props.latitude || props.LAT || props.Lat || props.lat;
-          const longitude = props.LONGITUDE || props.Longitude || props.longitude || props.LON || props.Lon || props.lon || props.LNG || props.Lng || props.lng;
-          
-          let extraInfo = '';
-          
-          const titleStr = String(title).toUpperCase().trim();
-          const isTeresinaOrParnaiba = source.name === "Municipios" && (titleStr === "TERESINA" || titleStr === "PARNAÍBA" || titleStr === "PARNAIBA");
-          
-          const isAispLayer = source.name === "AISP";
-          const isFavelasLayer = source.name === "Favelas e Comunidades";
-          const isLocalidadesLayer = source.name === "Localidades (Piauí)";
-          
-          const layerDotColor = customStrokeColor || customColor || getLayerColor(source.name) || '#e11d48';
-
-          const escapeHtml = (str: string): string => {
-            return String(str)
-              .replace(/&/g, '&amp;')
-              .replace(/"/g, '&quot;')
-              .replace(/'/g, '&#39;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;');
-          };
-
-          const renderCopyableField = (label: string, val: string) => {
-            const safeVal = escapeHtml(String(val));
-            const safeLabel = escapeHtml(String(label));
-            return `
-              <div class="webgis-popup-attribute-item">
-                <span class="webgis-popup-attr-label">${label}</span>
-                <div class="webgis-popup-attr-val-box">
-                  <span 
-                    class="webgis-popup-attr-val webgis-copyable" 
-                    data-copy="${safeVal}" 
-                    data-label="${safeLabel}"
-                    onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
-                    onkeydown="window.handlePopupKeydown(this, event);"
-                    tabindex="0"
-                    role="button"
-                    title="Clique para copiar ${safeLabel}"
-                  >
-                    <span class="webgis-copy-original">${val}</span>
-                    <span class="webgis-copy-feedback">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      <span>Copiado</span>
-                    </span>
-                  </span>
-                </div>
-              </div>
-            `;
-          };
-          
-          if (aisp && !isTeresinaOrParnaiba && !isAispLayer && source.name !== "Áreas de Desenvolvimento" && source.name !== "RISP") {
-            extraInfo += renderCopyableField('AISP', aisp);
-          }
-          
-          if (risp && (isTeresinaOrParnaiba || isAispLayer || source.name === "Municipios")) {
-            extraInfo += renderCopyableField('RISP', risp);
-          }
-          
-          if (areaDesenvolvimento && source.name === "Municipios") {
-            extraInfo += renderCopyableField('Área Desenv.', toTitleCase(areaDesenvolvimento));
-          }
-          
-          if (subdistrito) {
-            const labelSubdistrito = source.name === "Aglomerados Rurais" ? "SUBDISTRITO" : "ZONA";
-            extraInfo += renderCopyableField(labelSubdistrito, toTitleCase(subdistrito));
-          }
-          
-          if (isFavelasLayer && bairro) {
-            extraInfo += renderCopyableField('BAIRRO', toTitleCase(bairro));
-          }
-          
-          if (isLocalidadesLayer) {
-            if (municipio) {
-              extraInfo += renderCopyableField('MUNICÍPIO', toTitleCase(municipio));
-            }
-            if (latitude && longitude) {
-              const coordStr = `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`;
-              extraInfo += renderCopyableField('COORDENADA', coordStr);
-            }
-          }
 
           // Atribuir e obter o ID único do Leaflet
           const layerId = String(L.Util.stamp(layer));
@@ -2990,86 +2650,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             sourceName: source.name,
             layer
           };
-
-          const isPolygon = feature?.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon');
-          const isAreaLayer = [
-            'Favelas e Comunidades',
-            'Bairros',
-            'Núcleos Urbanos',
-            'Aglomerados Rurais',
-            'Comunidades Rurais de Teresina',
-            'Municipios'
-          ].includes(source.name);
-
-          let searchPolygonBtnHtml = '';
-          if (isPolygon || isAreaLayer) {
-            const isComunidadesRurais = source.name === 'Comunidades Rurais de Teresina';
-            const btnLabel = isComunidadesRurais ? 'Busca Endereços' : 'Buscar Endereços CNEFE';
-            searchPolygonBtnHtml = `
-              <button 
-                type="button"
-                class="webgis-popup-cnefe-btn"
-                onclick="event.preventDefault(); event.stopPropagation(); if (window.searchAddressesInPolygonByLayerId) window.searchAddressesInPolygonByLayerId('${layerId}');"
-                title="Consultar e listar todos os endereços contidos neste polígono"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <span>${btnLabel}</span>
-              </button>
-            `;
-          }
-
-          let extraInfoHtml = '';
-          if (extraInfo.trim() !== '') {
-            extraInfoHtml = `
-              <div class="webgis-popup-attributes-grid">
-                ${extraInfo}
-              </div>
-            `;
-          }
-
-          // Pop-up HTML moderno e elegante com suporte a cópia e busca CNEFE
-          const popupContentHtml = `
-            <div class="webgis-popup-container">
-              <div class="webgis-popup-badge-row">
-                <div class="webgis-popup-badge">
-                  <span class="webgis-popup-dot" style="background-color: ${layerDotColor};"></span>
-                  <span>${source.name}</span>
-                </div>
-              </div>
-
-              <div class="webgis-popup-title-box">
-                <div class="webgis-popup-field-label">${fieldLabel}</div>
-                <div class="webgis-popup-title-row">
-                  <div 
-                    class="webgis-popup-title-val webgis-copyable"
-                    data-copy="${escapeHtml(String(title))}"
-                    data-label="${escapeHtml(String(fieldLabel))}"
-                    onclick="event.preventDefault(); event.stopPropagation(); window.copyPopupEl(this, event);"
-                    onkeydown="window.handlePopupKeydown(this, event);"
-                    tabindex="0"
-                    role="button"
-                    title="Clique para copiar ${escapeHtml(String(fieldLabel))}"
-                  >
-                    <span class="webgis-copy-original">${title}</span>
-                    <span class="webgis-copy-feedback">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      <span>Copiado</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              ${extraInfoHtml}
-              ${searchPolygonBtnHtml}
-            </div>
-          `;
-
-          (layer as any)._popupContentHtml = popupContentHtml;
-
-          // Se for camada de ponto (que não seja polígono nem Localidades com balão Apple Maps), mantém o popup padrão anexado
-          if (!isPolygon && !isAreaLayer && source.name !== "Localidades (Piauí)") {
-            layer.bindPopup(popupContentHtml);
-          }
 
           // Clique na feição
           // Botão direito na feição -> Dispara o evento de contextmenu no mapa para fixar o pino na coordenada exata
@@ -3112,22 +2692,15 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               // REGRA DE DESSELEÇÃO LIMPA E SEGURA:
               // Se há alguma localidade selecionada e o usuário clicou em uma feição
               // que NÃO é da camada de localidades (ex: Município, Bairro, etc.):
-              // O primeiro clique APENAS desseleciona a localidade e fecha qualquer balão!
-              // Não abre o balão nem seleciona o município/bairro diretamente.
+              // O primeiro clique APENAS desseleciona a localidade!
               const hasSelectedLocalidade = selectedFeaturesRef.current.some(
                 f => f.sourceName === "Localidades (Piauí)"
               );
               const isCurrentClickLocalidade = source.name === "Localidades (Piauí)";
 
               if (hasSelectedLocalidade && !isCurrentClickLocalidade) {
-                clearPolygonCallout();
                 onSelectionChangeRef.current?.([]);
                 return;
-              }
-
-              // Para feições poligonais, enquadra o polígono e abre o Balão Callout Lateral com linha conectora a partir da borda
-              if (isPolygon || isAreaLayer) {
-                openPolygonCallout(layer, popupContentHtml, ev.latlng, false);
               }
 
               const isCtrl = ev.originalEvent ? (ev.originalEvent.ctrlKey || ev.originalEvent.metaKey) : false;
@@ -3171,7 +2744,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
                   if (alreadySelected) {
                     applySelectedStyleToLayer(layer, false);
-                    clearPolygonCallout();
                     return [];
                   } else {
                     applySelectedStyleToLayer(layer, true);
@@ -4278,12 +3850,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     <div 
                       onMouseDown={(e) => e.stopPropagation()}
                       onTouchStart={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-12 w-[270px] p-2.5 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 z-[1001] animate-fadeIn space-y-2 text-left"
+                      className="absolute right-0 top-12 w-[270px] p-2 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 z-[1001] animate-fadeIn text-left"
                     >
-                      <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
-                        Estilo do Mapa (Apple Maps)
-                      </div>
-                      
                       <div className="grid grid-cols-2 gap-1.5 p-1 bg-black/5 dark:bg-white/5 rounded-2xl">
                         <button
                           type="button"
