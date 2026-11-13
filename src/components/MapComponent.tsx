@@ -4128,15 +4128,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleCancelMeasure}
-                className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 active:scale-95 flex items-center justify-center text-slate-500 hover:text-black dark:text-slate-300 dark:hover:text-white transition-all cursor-pointer"
-                title="Fechar medição"
-                aria-label="Fechar medição"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
             </div>
 
             {/* Dica / Status */}
@@ -4468,8 +4459,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                         ? 'bg-[#007AFF] text-white shadow-blue-500/30 ring-2 ring-blue-400/50' 
                         : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
                     } active:scale-90`}
-                    title={isMeasuringActive ? "Finalizar / Cancelar Medição (M)" : "Medir Distâncias e Áreas (M)"}
-                    aria-label="Medir Distâncias e Áreas"
+                    title={isMeasuringActive ? "Clique novamente para encerrar a medição" : "Medir Distâncias e Áreas (M)"}
+                    aria-label={isMeasuringActive ? "Clique novamente para encerrar a medição" : "Medir Distâncias e Áreas"}
                   >
                     <Ruler className={`w-4 h-4 ${isMeasuringActive ? 'text-white' : 'text-[#FF9500]'}`} />
                   </button>

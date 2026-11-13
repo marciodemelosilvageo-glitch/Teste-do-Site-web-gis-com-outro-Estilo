@@ -63,14 +63,9 @@ import {
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
 
-// Gerenciamento de Logos do Sistema (A logo da gerência fica preservada aqui)
-export const SYSTEM_LOGOS = {
-  gerencia: "https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/Nova%20logo.png",
-  teste: "https://raw.githubusercontent.com/marciodemelosilvageo-glitch/GeoCode/main/logo/ChatGPT%20Image%209%20de%20ago.%20de%202026%2C%2017_43_35.png"
-};
-
-// Logo ativa no cabeçalho e na tela de entrada do aplicativo
-const CURRENT_APP_LOGO = SYSTEM_LOGOS.gerencia;
+// Gerenciamento e Componente de Logos do Sistema (suporta modo claro e noturno)
+import { AppLogo, SYSTEM_LOGOS, CURRENT_APP_LOGO } from './components/AppLogo';
+export { SYSTEM_LOGOS, CURRENT_APP_LOGO };
 
 interface HeroGlobeProps {
   isDarkMode: boolean;
@@ -177,7 +172,7 @@ export default function App() {
   const [previousUserError, setPreviousUserError] = useState<string | null>(null);
   const [isPreviousUserSubmitting, setIsPreviousUserSubmitting] = useState<boolean>(false);
 
-  const [isUserLoginModalOpen, setIsUserLoginModalOpen] = useState<boolean>(false);
+  const [isLoginFormOpen, setIsLoginFormOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [userLoginInput, setUserLoginInput] = useState<string>('');
   const [userPasswordInput, setUserPasswordInput] = useState<string>('');
@@ -625,7 +620,7 @@ export default function App() {
 
   // Prevenir que o site e mapa de fundo rolem quando qualquer modal estiver aberto
   useEffect(() => {
-    const isAnyModalOpen = isAdminModalOpen || isHelpOpen || isUserLoginModalOpen || isProfileModalOpen;
+    const isAnyModalOpen = isAdminModalOpen || isHelpOpen || isProfileModalOpen;
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
@@ -637,7 +632,7 @@ export default function App() {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [isAdminModalOpen, isHelpOpen, isUserLoginModalOpen, isProfileModalOpen, hasEntered]);
+  }, [isAdminModalOpen, isHelpOpen, isProfileModalOpen, hasEntered]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -738,8 +733,8 @@ export default function App() {
           return;
         }
 
-        if (isUserLoginModalOpen) {
-          setIsUserLoginModalOpen(false);
+        if (isLoginFormOpen) {
+          setIsLoginFormOpen(false);
           return;
         }
         if (isSearchResultsVisible || searchQuery) {
@@ -777,7 +772,7 @@ export default function App() {
   }, [
     isAdminModalOpen,
     isHelpOpen,
-    isUserLoginModalOpen,
+    isLoginFormOpen,
     isSearchResultsVisible,
     searchQuery,
     selectedFeatures,
@@ -1339,7 +1334,7 @@ export default function App() {
     setUserPasswordInput('');
     setUserLoginError(null);
     setShowUserPassword(false);
-    setIsUserLoginModalOpen(true);
+    setIsLoginFormOpen(true);
   };
 
   const handleConfirmUserLogin = async (e: React.FormEvent) => {
@@ -1364,7 +1359,7 @@ export default function App() {
         setUserRole(assignedRole);
 
         setIsSimulatingUser(false);
-        setIsUserLoginModalOpen(false);
+        setIsLoginFormOpen(false);
         setHasEntered(true);
         setUserLoginInput('');
         setUserPasswordInput('');
@@ -1390,7 +1385,12 @@ export default function App() {
   };
 
   const handleOpenAdminLogin = () => {
-    setIsUserLoginModalOpen(true);
+    setHasEntered(false);
+    setIsLoginFormOpen(true);
+    setUserLoginInput('');
+    setUserPasswordInput('');
+    setUserLoginError(null);
+    setShowUserPassword(false);
   };
 
   const handleLogout = () => {
@@ -1406,7 +1406,7 @@ export default function App() {
     setIsSimulatingUser(false);
     setHasEntered(false);
     setIsAdminModalOpen(false);
-    setIsUserLoginModalOpen(false);
+    setIsLoginFormOpen(false);
     setIsProfileModalOpen(false);
     setVisitorNameInput('');
     setVisitorPasswordInput('');
@@ -2299,10 +2299,11 @@ export default function App() {
 
         {/* Card de Entrada Apple Style */}
         <motion.div 
+          layout
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-[460px] bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl rounded-[32px] p-7 sm:p-8 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_50px_-12px_rgba(0,0,0,0.7)] border border-black/[0.06] dark:border-white/[0.12] ring-1 ring-white/60 dark:ring-white/[0.05] flex flex-col items-center text-center space-y-6"
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-[460px] bg-white/80 dark:bg-[#1c1c1e]/85 backdrop-blur-3xl rounded-[32px] p-7 sm:p-8 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_50px_-12px_rgba(0,0,0,0.7)] border border-black/[0.06] dark:border-white/[0.12] ring-1 ring-white/60 dark:ring-white/[0.05] flex flex-col items-center text-center space-y-5"
         >
           {/* Logo Principal + Globo 3D Interativo */}
           <motion.div
@@ -2315,23 +2316,34 @@ export default function App() {
               {/* Globo 3D Interativo posicionado ao lado da logo (otimizado com lazy, idle callback e memo) */}
               <HeroGlobe isDarkMode={isDarkMode} />
 
-              {/* Logo Oficial SSP-PI */}
-              <img 
-                src={CURRENT_APP_LOGO} 
-                alt="Logo" 
-                className="h-14 sm:h-18 w-auto max-w-[210px] sm:max-w-[240px] object-contain drop-shadow-md hover:scale-[1.02] transition-transform duration-300 pointer-events-none" 
-              />
+              {/* Logo Oficial SSP-PI (com suporte a tema claro e escuro) */}
+              <AppLogo isDarkMode={isDarkMode} variant="welcome" />
             </div>
 
             <div className="mt-3.5 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300 border border-black/[0.04] dark:border-white/[0.06] text-xs font-medium tracking-wide">
               <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF] animate-pulse" />
               <span>Sistema de Informações Geográficas</span>
             </div>
+
+            {/* Subtítulo Institucional */}
+            <p className="mt-2.5 text-xs sm:text-[13px] text-slate-500 dark:text-zinc-400 max-w-sm sm:max-w-md mx-auto text-center leading-relaxed">
+              Explore camadas de dados geoespaciais, faça consultas avançadas e analise informações municipais em uma interface interativa de alto desempenho.
+            </p>
           </motion.div>
 
-          {/* Opções de Acesso: Lembrete de Conta Anterior & Visitante */}
-          <div className="w-full space-y-3.5 pt-1">
-            {/* Card de Memória / Lembrete de Conta Anterior */}
+          {/* Alternância suave entre Área de Visitante e Formulário de Login */}
+          <div className="w-full">
+            <AnimatePresence mode="wait" initial={false}>
+              {!isLoginFormOpen ? (
+                <motion.div
+                  key="visitor-section"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full space-y-3.5 pt-1"
+                >
+                  {/* Card de Memória / Lembrete de Conta Anterior */}
             {lastPreviousUser && (
               <div className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-3.5 text-left space-y-2.5 shadow-sm animate-fadeIn">
                 <div className="flex items-center justify-between">
@@ -2637,17 +2649,131 @@ export default function App() {
               </motion.button>
             </div>
             
-            {/* Botão de Login Institucional Discreto */}
-            <div className="pt-1.5">
-              <button
-                type="button"
-                onClick={handleOpenUserLogin}
-                className="w-full py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-600 dark:text-zinc-300 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <KeyRound className="w-3.5 h-3.5 text-[#007AFF]" />
-                <span>Login com Usuário Cadastrado</span>
-              </button>
-            </div>
+                  {/* Botão de Login Institucional Discreto */}
+                  <div className="pt-1.5">
+                    <button
+                      type="button"
+                      onClick={handleOpenUserLogin}
+                      className="w-full py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-slate-600 dark:text-zinc-300 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-[#007AFF]" />
+                      <span>Fazer login</span>
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="login-form-section"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full space-y-3.5 pt-1 text-left"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] dark:border-white/[0.08]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] flex items-center justify-center font-bold">
+                        <UserCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                          Login de Usuário
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                          Acesse com sua credencial cadastrada
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLoginFormOpen(false);
+                        setUserLoginError(null);
+                      }}
+                      className="text-xs text-[#007AFF] hover:underline font-semibold cursor-pointer"
+                    >
+                      Voltar
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleConfirmUserLogin} className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5 pl-0.5">
+                        Usuário / Login:
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-2.5 text-slate-400 dark:text-zinc-500 font-mono text-xs font-bold">@</span>
+                        <input 
+                          type="text"
+                          value={userLoginInput}
+                          onChange={(e) => {
+                            setUserLoginInput(e.target.value);
+                            if (userLoginError) setUserLoginError(null);
+                          }}
+                          placeholder="seu.usuario"
+                          autoFocus
+                          className="w-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15 font-mono font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5 pl-0.5">
+                        Senha de Acesso:
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type={showUserPassword ? "text" : "password"}
+                          value={userPasswordInput}
+                          onChange={(e) => {
+                            setUserPasswordInput(e.target.value);
+                            if (userLoginError) setUserLoginError(null);
+                          }}
+                          placeholder="Digite sua senha..."
+                          className="w-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15 font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowUserPassword(!showUserPassword)}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {userLoginError && (
+                      <div className="p-3 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 rounded-xl text-xs font-semibold flex items-center gap-2 animate-shake">
+                        <X className="w-4 h-4 shrink-0 text-red-500" />
+                        <span>{userLoginError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLoginFormOpen(false);
+                          setUserLoginError(null);
+                        }}
+                        className="flex-1 py-2.5 bg-black/[0.04] hover:bg-black/[0.08] dark:bg-white/[0.08] dark:hover:bg-white/[0.12] text-slate-700 dark:text-zinc-200 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Voltar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isUserLoginSubmitting}
+                        className="flex-1 py-2.5 bg-[#007AFF] hover:bg-[#0071eb] text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-[#007AFF]/25 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isUserLoginSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        <span>{isUserLoginSubmitting ? 'Entrando...' : 'Entrar'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Footer discreto */}
@@ -2655,112 +2781,6 @@ export default function App() {
             Plataforma Geoespacial &bull; {new Date().getFullYear()}
           </p>
         </motion.div>
-
-        {/* Modal de Login de Usuário Cadastrado (Estilo Apple) */}
-        {isUserLoginModalOpen && (
-          <div 
-            className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-black/50 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
-            onClick={() => setIsUserLoginModalOpen(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.12] rounded-[28px] shadow-2xl max-w-sm w-full p-6 text-left space-y-5"
-            >
-              <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] flex items-center justify-center font-bold">
-                    <UserCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Login de Usuário
-                    </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                      Acesse com sua credencial cadastrada
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsUserLoginModalOpen(false)}
-                  className="w-7 h-7 rounded-full bg-black/[0.05] dark:bg-white/[0.1] hover:bg-black/[0.1] dark:hover:bg-white/[0.15] text-slate-500 dark:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleConfirmUserLogin} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5 pl-0.5">
-                    Usuário / Login:
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 text-slate-400 dark:text-zinc-500 font-mono text-xs font-bold">@</span>
-                    <input 
-                      type="text"
-                      value={userLoginInput}
-                      onChange={(e) => setUserLoginInput(e.target.value)}
-                      placeholder="seu.usuario"
-                      autoFocus
-                      className="w-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15 font-mono font-medium"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5 pl-0.5">
-                    Senha de Acesso:
-                  </label>
-                  <div className="relative">
-                    <input 
-                      type={showUserPassword ? "text" : "password"}
-                      value={userPasswordInput}
-                      onChange={(e) => setUserPasswordInput(e.target.value)}
-                      placeholder="Digite sua senha..."
-                      className="w-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/15 font-medium"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowUserPassword(!showUserPassword)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
-                    >
-                      {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {userLoginError && (
-                  <div className="p-3 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 rounded-xl text-xs font-semibold flex items-center gap-2 animate-shake">
-                    <X className="w-4 h-4 shrink-0 text-red-500" />
-                    <span>{userLoginError}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsUserLoginModalOpen(false)}
-                    className="flex-1 py-2.5 bg-black/[0.04] hover:bg-black/[0.08] dark:bg-white/[0.08] dark:hover:bg-white/[0.12] text-slate-700 dark:text-zinc-200 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isUserLoginSubmitting}
-                    className="flex-1 py-2.5 bg-[#007AFF] hover:bg-[#0071eb] text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-[#007AFF]/25 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    {isUserLoginSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    <span>{isUserLoginSubmitting ? 'Entrando...' : 'Entrar'}</span>
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
       </div>
     );
   }
@@ -3006,8 +3026,12 @@ export default function App() {
               else handleOpenAdminLogin();
             }}
             onOpenProfileModal={() => {
-              if (currentActiveUser) setIsProfileModalOpen(true);
-              else setIsUserLoginModalOpen(true);
+              if (currentActiveUser) {
+                setIsProfileModalOpen(true);
+              } else {
+                handleLogout();
+                setIsLoginFormOpen(true);
+              }
             }}
             onLogout={handleLogout}
             onOpenHelp={() => setSidebarTab(prev => prev === 'help' ? null : 'help')}
