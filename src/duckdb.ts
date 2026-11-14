@@ -640,6 +640,16 @@ export const CATEGORY_CONFIGS: Record<string, CategorySearchConfig> = {
     ],
     useWordBoundaryPetExclusion: true,
     color: '#8B5CF6',
+  },
+  hospitais: {
+    id: 'hospitais',
+    name: 'Hospitais',
+    badgeLabel: 'CNEFE Saúde • Estabelecimentos',
+    species: ['Estabelecimento de saúde'],
+    keywords: [],
+    exclusions: ['veterinari', 'agro', 'petshop', 'pet shop', 'animal', 'animais'],
+    useWordBoundaryPetExclusion: true,
+    color: '#DC2626',
   }
 };
 
@@ -649,6 +659,29 @@ export const CATEGORY_CONFIGS: Record<string, CategorySearchConfig> = {
  */
 export function buildCategoryWhereClauses(config: CategorySearchConfig): string[] {
   const clauses: string[] = [];
+
+  // Tratamento específico e robusto para Hospitais / Estabelecimentos de Saúde
+  if (config.id === 'hospitais') {
+    clauses.push(`(
+      "especie" = 'Estabelecimento de saúde'
+      OR strip_accents(lower(COALESCE(CAST("especie" AS VARCHAR), ''))) LIKE '%saude%'
+      OR (
+        "estabelecimento" IS NOT NULL AND 
+        strip_accents(lower(COALESCE(CAST("estabelecimento" AS VARCHAR), ''))) LIKE '%hospital%'
+      )
+    )`);
+    // Excluir veterinárias e petshops
+    if (config.exclusions && config.exclusions.length > 0) {
+      config.exclusions.forEach(ex => {
+        const escEx = escapeSqlLikePattern(normalizeString(ex));
+        clauses.push(`strip_accents(lower(COALESCE(CAST("estabelecimento" AS VARCHAR), ''))) NOT LIKE '%${escEx}%'`);
+      });
+    }
+    if (config.useWordBoundaryPetExclusion) {
+      clauses.push(`regexp_matches(strip_accents(lower(COALESCE(CAST("estabelecimento" AS VARCHAR), ''))), '(^|\\s)pet(\\s|$)') = false`);
+    }
+    return clauses;
+  }
 
   // Filtro estrito de espécie(s) autorizada(s)
   const speciesList = config.species.map(s => `'${escapeSqlLiteral(s)}'`).join(', ');
@@ -747,6 +780,130 @@ export async function buscarEnderecosPorCategoria(
     return { results: rawResults, totalEncontrado, config };
   } catch (e) {
     console.error(`Erro na busca de endereços por categoria (${categoryId}) no DuckDB:`, e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
+
+/**
+ * Busca endereços de uma categoria temática específica (ou todos) dentro de um conjunto de polígonos GeoJSON.
+ * As feições são processadas em sequência reutilizando uma única conexão DuckDB.
+ * O filtro de categoria é aplicado no SQL antes do LIMIT e antes da filtragem espacial Turf.
+ */
+export async function buscarEnderecosPorCategoriaEmPoligonos(
+  categoryId: string,
+  features: any[],
+  limit: number = 5000
+): Promise<{ results: any[]; totalEncontrado: number }> {
+  if (!features || features.length === 0) {
+    return { results: [], totalEncontrado: 0 };
+  }
+
+  const isAll = !categoryId || categoryId === 'todos';
+  const config = !isAll ? CATEGORY_CONFIGS[categoryId] : null;
+  if (!isAll && !config) {
+    throw new Error(`Configuração não encontrada para a categoria: ${categoryId}`);
+  }
+
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    const safeLimit = Math.max(1, Math.min(20000, Number(limit) || 5000));
+    const allCandidateRows: any[] = [];
+
+    // Processar feições em sequência reutilizando a mesma conexão
+    for (const feat of features) {
+      const geometry = feat.geometry || feat;
+      const [minLng, minLat, maxLng, maxLat] = getPolygonBoundingBox(geometry);
+
+      if (!isFinite(minLng) || !isFinite(minLat) || !isFinite(maxLng) || !isFinite(maxLat)) {
+        continue;
+      }
+
+      const whereClauses: string[] = [
+        `latitude IS NOT NULL AND longitude IS NOT NULL`,
+        `TRY_CAST(latitude AS DOUBLE) >= ${minLat - 0.0001}`,
+        `TRY_CAST(latitude AS DOUBLE) <= ${maxLat + 0.0001}`,
+        `TRY_CAST(longitude AS DOUBLE) >= ${minLng - 0.0001}`,
+        `TRY_CAST(longitude AS DOUBLE) <= ${maxLng + 0.0001}`
+      ];
+
+      if (config) {
+        whereClauses.push(...buildCategoryWhereClauses(config));
+      }
+
+      const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+
+      // Consulta no SQL com a bounding box espacial + filtros da categoria antes de qualquer LIMIT
+      const sql = `
+        SELECT *
+        FROM enderecos
+        ${whereSql}
+        LIMIT 20000;
+      `;
+
+      const result = await conn.query(sql);
+      const rows = result.toArray();
+      const rawResults = rows.map(r => r.toJSON());
+
+      // Filtragem espacial exata ponto-a-ponto com Turf
+      const turfFeature = feat.type === 'Feature' ? feat : {
+        type: 'Feature',
+        geometry: geometry,
+        properties: feat.properties || {}
+      };
+
+      for (const row of rawResults) {
+        const lat = parseFloat(row.latitude);
+        const lng = parseFloat(row.longitude);
+        if (isNaN(lat) || isNaN(lng)) continue;
+        try {
+          const pt = point([lng, lat]);
+          if (booleanPointInPolygon(pt, turfFeature as any)) {
+            allCandidateRows.push(row);
+          }
+        } catch {
+          // Ignora erro em geometria inválida
+        }
+      }
+    }
+
+    // Deduplicação dos resultados por codigo_unico (ou chave composta de coordenadas/endereço)
+    const seenKeys = new Set<string>();
+    const uniqueResults: any[] = [];
+
+    for (const row of allCandidateRows) {
+      const key = String(row.codigo_unico || `${row.latitude}_${row.longitude}_${row.numero_logradouro}_${row.endereco}`);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueResults.push(row);
+      }
+    }
+
+    // Ordenação consistente
+    uniqueResults.sort((a, b) => {
+      const munComp = (a.municipio || '').localeCompare(b.municipio || '');
+      if (munComp !== 0) return munComp;
+      const endComp = (a.endereco || '').localeCompare(b.endereco || '');
+      if (endComp !== 0) return endComp;
+      const numA = parseInt(a.numero_logradouro, 10) || 0;
+      const numB = parseInt(b.numero_logradouro, 10) || 0;
+      return numA - numB;
+    });
+
+    const paginated = uniqueResults.slice(0, safeLimit);
+
+    return {
+      results: paginated,
+      totalEncontrado: uniqueResults.length
+    };
+  } catch (e) {
+    console.error(`Erro na busca de endereços por categoria (${categoryId}) em polígonos:`, e);
     throw e;
   } finally {
     if (conn) {

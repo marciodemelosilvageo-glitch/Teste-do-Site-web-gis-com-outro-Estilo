@@ -683,3 +683,65 @@ export const formatArea = (sqMeters: number): { formatted: string; secondary?: s
     secondary: sqMeters >= 1000 ? `${(sqMeters / 10000).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ha` : undefined
   };
 };
+
+/**
+ * Verifica se uma feição é um polígono territorial elegível para busca temática de endereços CNEFE.
+ * Exclui localidades pontuais, pontos de plotagem GPS/endereços, medições e comunidades rurais.
+ */
+export const isEligiblePolygonFeature = (f: any): boolean => {
+  if (!f) return false;
+  if (typeof f.id === 'string' && f.id.startsWith('plot-')) return false;
+  const src = normalizeString(f.sourceName || '');
+  if (
+    src.includes('localidade') ||
+    src.includes('comunidades rurais') ||
+    src.includes('comunidade rural') ||
+    src.includes('enderecos plotados') ||
+    src.includes('medicao')
+  ) {
+    return false;
+  }
+  const props = f.properties || {};
+  if (
+    props.id_Localidades != null ||
+    props.id_localidades != null ||
+    (props.Localidade && !props.NM_BAIRRO && !props.NM_MUN)
+  ) {
+    return false;
+  }
+  return true;
+};
+
+export interface HomogeneousLayerResult {
+  sameLayer: boolean;
+  layerName: string;
+  eligibleFeatures: any[];
+}
+
+/**
+ * Avalia se o conjunto de feições selecionadas pertence homogeneamente à mesma camada poligonal.
+ */
+export const getHomogeneousLayerSelection = (selectedFeatures: any[]): HomogeneousLayerResult => {
+  if (!selectedFeatures || selectedFeatures.length === 0) {
+    return { sameLayer: false, layerName: '', eligibleFeatures: [] };
+  }
+
+  const eligibleFeatures = selectedFeatures.filter(isEligiblePolygonFeature);
+  if (eligibleFeatures.length === 0 || eligibleFeatures.length !== selectedFeatures.length) {
+    return { sameLayer: false, layerName: '', eligibleFeatures };
+  }
+
+  const firstNormSource = normalizeString(eligibleFeatures[0].sourceName || '');
+  if (!firstNormSource) {
+    return { sameLayer: false, layerName: '', eligibleFeatures };
+  }
+
+  const allSame = eligibleFeatures.every(f => normalizeString(f.sourceName || '') === firstNormSource);
+
+  return {
+    sameLayer: allSame,
+    layerName: allSame ? (eligibleFeatures[0].sourceName || '') : '',
+    eligibleFeatures
+  };
+};
+

@@ -45,12 +45,13 @@ import {
   Fuel,
   Hotel,
   Wine,
-  Hospital
+  Hospital,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
 import { dataSources, propertyNames, situationMap, typeMap } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty, isEligiblePolygonFeature } from '../utils';
 import { Dashboard } from './Dashboard';
 import { CopyableText } from './CopyableText';
 import { ExportDashboard } from './ExportDashboard';
@@ -58,6 +59,7 @@ import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './Ho
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { FeatureInfoCustomizerModal, CustomCardOption } from './FeatureInfoCustomizerModal';
 import { RecentSearchItem, getCategoryConfig } from '../categories';
+import { CategorySearchMenu } from './CategorySearchMenu';
 import { AppLogo } from './AppLogo';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
@@ -95,6 +97,7 @@ interface AppleSidebarProps {
   isMultiSelectMode: boolean;
   onToggleMultiSelect: () => void;
   onSearchPolygonAddresses: (feat: SelectedFeature) => void;
+  onSearchCategoryInFeatures?: (categoryId: string, features: SelectedFeature[] | SelectedFeature) => void;
   onSearchLocalidadeAddresses?: (localidade: string, municipio: string) => void;
   onSearchHospitais?: () => void;
   onSearchHospitaisByMunicipio?: (municipio: string) => void;
@@ -202,6 +205,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   isMultiSelectMode,
   onToggleMultiSelect,
   onSearchPolygonAddresses,
+  onSearchCategoryInFeatures,
   onSearchLocalidadeAddresses,
   onSearchHospitais,
   onSearchHospitaisByMunicipio,
@@ -1471,19 +1475,55 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <span>Focar</span>
                 </button>
 
-                {/* Botão Buscar Endereços no Polígono */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSearchPolygonAddresses(activeDetailFeature);
-                    onOpenCnefeBottomBar?.();
-                  }}
-                  className="py-2.5 px-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center"
-                  title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
-                >
-                  <Home className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-                  <span className="leading-tight px-0.5">Buscar endereços</span>
-                </button>
+                {/* Botão Buscar Endereços no Polígono (com Seta de Categorias se for polígono territorial elegível) */}
+                {isEligiblePolygonFeature(activeDetailFeature) && onSearchCategoryInFeatures ? (
+                  <div className="relative flex rounded-2xl bg-black/5 dark:bg-white/10 text-slate-800 dark:text-slate-200 transition-all overflow-visible">
+                    <button
+                      type="button"
+                      disabled={isHospitalSearching}
+                      onClick={() => {
+                        onSearchPolygonAddresses(activeDetailFeature);
+                        onOpenCnefeBottomBar?.();
+                      }}
+                      className="flex-1 py-2.5 pl-1.5 pr-0.5 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] rounded-l-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50"
+                      title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
+                    >
+                      {isHospitalSearching ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
+                      ) : (
+                        <Home className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                      )}
+                      <span className="leading-tight px-0.5">Buscar endereços</span>
+                    </button>
+
+                    <div className="w-[1px] my-2 bg-black/10 dark:bg-white/10 shrink-0" />
+
+                    <CategorySearchMenu
+                      disabled={isHospitalSearching}
+                      isLoading={isHospitalSearching}
+                      onSelectCategory={(catId) => onSearchCategoryInFeatures(catId, activeDetailFeature)}
+                      align="center"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isHospitalSearching}
+                    onClick={() => {
+                      onSearchPolygonAddresses(activeDetailFeature);
+                      onOpenCnefeBottomBar?.();
+                    }}
+                    className="py-2.5 px-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50"
+                    title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
+                  >
+                    {isHospitalSearching ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
+                    ) : (
+                      <Home className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                    )}
+                    <span className="leading-tight px-0.5">Buscar endereços</span>
+                  </button>
+                )}
 
                 {/* Botão Exportar */}
                 <button
@@ -2150,7 +2190,14 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {/* ============================================================== */}
         {activeTab === 'dashboard' && (
           <div className="animate-fadeIn">
-            <Dashboard selectedFeatures={selectedFeatures} showToast={showToast} />
+            <Dashboard 
+              selectedFeatures={selectedFeatures} 
+              showToast={showToast} 
+              onSearchCategoryInFeatures={onSearchCategoryInFeatures}
+              onSearchPolygonAddresses={onSearchPolygonAddresses}
+              onOpenCnefeBottomBar={onOpenCnefeBottomBar}
+              isSearching={isHospitalSearching}
+            />
           </div>
         )}
 

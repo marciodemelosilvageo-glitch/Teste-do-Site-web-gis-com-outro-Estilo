@@ -9,14 +9,21 @@ import {
   Sparkles,
   Layers,
   Activity,
-  ArrowUpRight
+  ArrowUpRight,
+  Loader2
 } from 'lucide-react';
 import { SelectedFeature } from '../types';
 import { CopyableText } from './CopyableText';
+import { getHomogeneousLayerSelection } from '../utils';
+import { CategorySearchMenu } from './CategorySearchMenu';
 
 interface DashboardProps {
   selectedFeatures: SelectedFeature[];
   showToast?: (msg: string) => void;
+  onSearchCategoryInFeatures?: (categoryId: string, features: SelectedFeature[] | SelectedFeature) => void;
+  onSearchPolygonAddresses?: (feat: SelectedFeature) => void;
+  onOpenCnefeBottomBar?: () => void;
+  isSearching?: boolean;
 }
 
 // Helper para obter valores numéricos com tolerância a vírgulas e tipos
@@ -47,7 +54,19 @@ const formatTitle = (text: string): string => {
     .join(' ');
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ selectedFeatures, showToast }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ 
+  selectedFeatures, 
+  showToast,
+  onSearchCategoryInFeatures,
+  onSearchPolygonAddresses,
+  onOpenCnefeBottomBar,
+  isSearching = false
+}) => {
+
+  // Homogeneidade da camada selecionada para busca por categoria
+  const { sameLayer, layerName, eligibleFeatures } = useMemo(() => {
+    return getHomogeneousLayerSelection(selectedFeatures);
+  }, [selectedFeatures]);
 
   // Hook executado incondicionalmente no topo do componente (conforme regras do React)
   const isOnlyLocalidades = useMemo(() => {
@@ -367,6 +386,56 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
           </div>
         </div>
       </div>
+
+      {/* 1.1 BOTÃO COM SETA: BUSCA DE ENDEREÇOS POR TIPO NAS FEIÇÕES UNIDAS (APENAS MESMA CAMADA) */}
+      {sameLayer && eligibleFeatures.length >= 2 && onSearchCategoryInFeatures && (
+        <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-xs flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0">
+              <Home className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                Buscar Endereços nas {eligibleFeatures.length} Áreas
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                CNEFE • {layerName || 'Mesma camada'}
+              </p>
+            </div>
+          </div>
+
+          {/* Botão dividido: Buscar todos | Seta de Categorias */}
+          <div className="relative flex items-stretch bg-black/5 dark:bg-white/10 rounded-xl shrink-0 overflow-visible">
+            <button
+              type="button"
+              disabled={isSearching}
+              onClick={() => onSearchCategoryInFeatures('todos', eligibleFeatures)}
+              className="px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 rounded-l-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              title={`Buscar todos os endereços nestas ${eligibleFeatures.length} áreas`}
+            >
+              {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" /> : null}
+              <span>Buscar</span>
+            </button>
+
+            <div className="w-[1px] my-1.5 bg-black/10 dark:bg-white/10 shrink-0" />
+
+            <CategorySearchMenu
+              disabled={isSearching}
+              isLoading={isSearching}
+              onSelectCategory={(catId) => onSearchCategoryInFeatures(catId, eligibleFeatures)}
+              align="right"
+              buttonClassName="rounded-r-xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Dica contextual quando feições selecionadas são de camadas diferentes */}
+      {!sameLayer && count >= 2 && !isOnlyLocalidades && !isOnlyPlotPoints && (
+        <div className="p-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 text-[11px] text-slate-400 text-center font-medium">
+          💡 Selecione feições da mesma camada para buscar endereços por tipo.
+        </div>
+      )}
 
       {/* 2. HERO CARD: POPULAÇÃO TOTAL (Apple Style Glassmorphic) */}
       <div 

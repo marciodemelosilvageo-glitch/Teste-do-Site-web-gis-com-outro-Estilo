@@ -28,7 +28,7 @@ import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
-import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
+import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, buscarEnderecosPorCategoriaEmPoligonos, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 import { RecentSearchItem, detectCategoryFromData } from './categories';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
@@ -880,6 +880,128 @@ export default function App() {
     } catch (err) {
       console.error('Erro na busca CNEFE por polígono:', err);
       showToast('Erro ao consultar endereços do CNEFE para este polígono.');
+    }
+  };
+
+  // Busca espacial temática de estabelecimentos (ou todos os endereços) por categoria dentro de uma ou mais feições
+  const handleSearchCategoryInFeatures = async (categoryId: string, features: any[] | any) => {
+    try {
+      if (isHospitalSearching) return;
+
+      const featList = Array.isArray(features) ? features : [features];
+      if (featList.length === 0) {
+        showToast('Nenhuma feição selecionada para a busca.');
+        return;
+      }
+
+      // Limitar a no máximo 50 feições com aviso amigável
+      let targetFeatures = featList;
+      if (targetFeatures.length > 50) {
+        showToast('⚠️ Limite de 50 feições por busca. Processando as 50 primeiras.');
+        targetFeatures = targetFeatures.slice(0, 50);
+      }
+
+      // Extrai a geometria GeoJSON de cada feição (mesma lógica de handleSearchPolygonAddresses)
+      const validGeoJsonList: Array<{ geoJson: any; title: string; sourceName: string }> = [];
+      for (const feat of targetFeatures) {
+        let geoJsonFeature: any = null;
+        if (feat.layer) {
+          if (typeof feat.layer.toGeoJSON === 'function') {
+            geoJsonFeature = feat.layer.toGeoJSON();
+          } else if (feat.layer.feature) {
+            geoJsonFeature = feat.layer.feature;
+          }
+        }
+        if (!geoJsonFeature && feat.feature) {
+          geoJsonFeature = feat.feature;
+        }
+        if (!geoJsonFeature && feat) {
+          geoJsonFeature = feat;
+        }
+
+        if (geoJsonFeature) {
+          const title = feat.name || feat.title || (feat.properties ? getIdentifier(feat.properties) : 'Área');
+          validGeoJsonList.push({
+            geoJson: geoJsonFeature,
+            title,
+            sourceName: feat.sourceName || ''
+          });
+        }
+      }
+
+      if (validGeoJsonList.length === 0) {
+        showToast('Geometria do(s) polígono(s) não identificada.');
+        return;
+      }
+
+      setIsHospitalSearching(true);
+
+      const isAll = !categoryId || categoryId === 'todos';
+      const config = !isAll ? CATEGORY_CONFIGS[categoryId] : null;
+      const catName = config ? config.name : (isAll ? 'Endereços' : categoryId);
+
+      // Título dinâmico: "Farmácias • Bairro X" ou "Farmácias • N bairros"
+      let dynamicTitle = '';
+      if (validGeoJsonList.length === 1) {
+        dynamicTitle = `${catName} • ${validGeoJsonList[0].title}`;
+      } else {
+        const rawSource = (validGeoJsonList[0].sourceName || '').toLowerCase();
+        let entityName = 'áreas';
+        if (rawSource.includes('bairro')) entityName = 'bairros';
+        else if (rawSource.includes('municip')) entityName = 'municípios';
+        else if (rawSource.includes('setor')) entityName = 'setores';
+        else if (rawSource.includes('favela') || rawSource.includes('comunidade')) entityName = 'comunidades';
+        dynamicTitle = `${catName} • ${validGeoJsonList.length} ${entityName}`;
+      }
+
+      showToast(`🔍 Buscando ${catName.toLowerCase()} em ${dynamicTitle}...`);
+
+      const res = await buscarEnderecosPorCategoriaEmPoligonos(
+        categoryId,
+        validGeoJsonList.map(v => v.geoJson),
+        5000
+      );
+
+      if (!res.results || res.results.length === 0) {
+        showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado em "${dynamicTitle}".`);
+        return;
+      }
+
+      // Não plota no mapa de imediato, conforme padrão
+      setSearchCoordinates(null);
+
+      setCnefeExternalResult({
+        results: res.results,
+        totalEncontrado: res.totalEncontrado,
+        title: dynamicTitle,
+        sourceLayerName: validGeoJsonList[0].sourceName || catName,
+        timestamp: Date.now(),
+        searchTerm: catName
+      });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
+
+      logActivity(
+        'ENDERECO',
+        `Busca CNEFE: ${dynamicTitle}`,
+        userRole,
+        `${res.totalEncontrado} estabelecimentos encontrados`
+      );
+
+      showToast(`📍 ${res.totalEncontrado} ${catName.toLowerCase()} encontrado(s) em "${dynamicTitle}"!`);
+
+      // Scroll suave para o painel de endereços CNEFE
+      setTimeout(() => {
+        const el = document.getElementById('ibge-search-panel');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } catch (err) {
+      console.error('Erro na busca de estabelecimentos por polígono:', err);
+      showToast('Erro ao consultar estabelecimentos no CNEFE.');
+    } finally {
+      setIsHospitalSearching(false);
     }
   };
 
@@ -3143,6 +3265,7 @@ export default function App() {
               showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
             }}
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
+            onSearchCategoryInFeatures={handleSearchCategoryInFeatures}
             onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
             onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
             onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
