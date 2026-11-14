@@ -9,9 +9,12 @@ import {
   ChevronLeft,
   ArrowRight,
   Layers,
-  Check,
   Loader2,
-  Filter
+  Filter,
+  Database,
+  Archive,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { SelectedFeature } from '../types';
 import { dataSources } from '../data';
@@ -19,7 +22,10 @@ import {
   getIdentifier, 
   exportSelectionToCSV, 
   exportSelectionToKML, 
-  sanitizeFilename 
+  sanitizeFilename,
+  getGeometryKind,
+  LAYER_GEOMETRY_KINDS,
+  downloadFile
 } from '../utils';
 import { logActivity } from '../services/adminService';
 import { exportSelectedFeatures, ExportPreferences, ExportFormat } from '../exportActions';
@@ -36,15 +42,76 @@ interface ExportDashboardProps {
 // Cache em memória para os arquivos GeoJSON completos das camadas
 const layerGeoJsonCache: Record<string, any> = {};
 
+interface FormatCardConfig {
+  id: ExportFormat;
+  label: string;
+  ext: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+  note?: string;
+  onlyPoint?: boolean;
+}
+
+const ALL_FORMAT_CONFIGS: FormatCardConfig[] = [
+  {
+    id: 'gpkg',
+    label: 'GeoPackage (GPKG)',
+    ext: '.GPKG',
+    desc: 'Padrão moderno OGC em SQLite para QGIS, ArcGIS e Python com geometrias e atributos integrais.',
+    icon: Database
+  },
+  {
+    id: 'shapefile',
+    label: 'Shapefile (SHP / ZIP)',
+    ext: '.ZIP',
+    desc: 'Pacote compactado com .shp, .shx, .dbf, .prj e .cpg (WGS 84 / EPSG:4326).',
+    note: 'Nota: nomes de colunas são limitados a 10 caracteres no padrão DBF.',
+    icon: Archive
+  },
+  {
+    id: 'csv',
+    label: 'Planilha Excel (CSV)',
+    ext: '.CSV',
+    desc: 'Tabela de coordenadas e atributos com UTF-8 BOM para Excel, LibreOffice e Sheets.',
+    icon: FileSpreadsheet,
+    onlyPoint: true
+  },
+  {
+    id: 'kmz',
+    label: 'Google Earth Compactado (KMZ)',
+    ext: '.KMZ',
+    desc: 'Arquivo KML comprimido de alta velocidade para abertura no Google Earth Pro e softwares GIS.',
+    icon: Globe
+  },
+  {
+    id: 'kml',
+    label: 'Google Earth (KML)',
+    ext: '.KML',
+    desc: 'Estrutura XML vetorial para visualização tridimensional e projetos no Google Earth e QGIS.',
+    icon: Globe
+  },
+  {
+    id: 'geojson',
+    label: 'GeoJSON Vetorial',
+    ext: '.GEOJSON',
+    desc: 'Formato aberto padrão web com estrutura vetorial pura para ArcGIS, QGIS, Leaflet e Mapbox.',
+    icon: FileCode
+  }
+];
+
 export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   selectedFeatures,
-  showToast,
   onBackToDetails,
   preferences,
   onUpdatePreferences
 }) => {
   const count = selectedFeatures?.length || 0;
-  const currentFormat: ExportFormat = preferences?.format || 'csv';
+  const currentFormat: ExportFormat = preferences?.format || 'geojson';
+
+  // Detecção do tipo de geometria da seleção ativa
+  const filteredGeometryKind = useMemo(() => {
+    return getGeometryKind(selectedFeatures);
+  }, [selectedFeatures]);
 
   // Modo: 'filtered' (feições selecionadas) ou 'full_layer' (camada completa)
   const [exportMode, setExportMode] = useState<'filtered' | 'full_layer'>(
@@ -56,9 +123,10 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     dataSources[0]?.name || 'Municipios'
   );
 
-  // Estado de carregamento ao baixar camada completa
+  // Estado de carregamento e erro inline (sem toasts)
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [downloadFormat, setDownloadFormat] = useState<string | null>(null);
+  const [downloadFormat, setDownloadFormat] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Lista de camadas disponíveis para download completo
   const availableLayers = useMemo(() => {
@@ -76,38 +144,50 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     return availableLayers.find(l => l.name === selectedLayerName) || availableLayers[0];
   }, [availableLayers, selectedLayerName]);
 
-  // ==============================================================
-  // FUNÇÕES DE EXPORTAÇÃO FILTRADA (FEIÇÕES SELECIONADAS)
-  // ==============================================================
-  const handleExportFilteredCSV = useCallback(() => {
-    const res = exportSelectedFeatures('csv', selectedFeatures, 'user');
-    if (res.ok) {
-      showToast(`Exportando ${res.count} feição(ões) em planilha CSV compatível com Excel...`);
-    } else if (res.error) {
-      showToast(res.error);
-    }
-  }, [selectedFeatures, showToast]);
+  // Detecção do tipo de geometria da camada completa selecionada
+  const fullLayerGeometryKind = useMemo(() => {
+    return LAYER_GEOMETRY_KINDS[currentLayer.name] || 'polygon';
+  }, [currentLayer]);
 
-  const handleExportFilteredKML = useCallback(() => {
-    const res = exportSelectedFeatures('kml', selectedFeatures, 'user');
-    if (res.ok) {
-      showToast(`Exportando ${res.count} feição(ões) em arquivo KML para Google Earth e QGIS...`);
-    } else if (res.error) {
-      showToast(res.error);
-    }
-  }, [selectedFeatures, showToast]);
+  // Formatos visíveis para a seleção filtrada (CSV apenas se for ponto)
+  const visibleFilteredFormats = useMemo(() => {
+    return ALL_FORMAT_CONFIGS.filter(cfg => {
+      if (cfg.onlyPoint && filteredGeometryKind !== 'point') return false;
+      return true;
+    });
+  }, [filteredGeometryKind]);
 
-  const handleExportFilteredGeoJSON = useCallback(() => {
-    const res = exportSelectedFeatures('geojson', selectedFeatures, 'user');
-    if (res.ok) {
-      showToast(`Exportando ${res.count} feição(ões) em formato GeoJSON vetorial...`);
-    } else if (res.error) {
-      showToast(res.error);
-    }
-  }, [selectedFeatures, showToast]);
+  // Formatos visíveis para a camada completa (CSV apenas se for ponto)
+  const visibleFullLayerFormats = useMemo(() => {
+    return ALL_FORMAT_CONFIGS.filter(cfg => {
+      if (cfg.onlyPoint && fullLayerGeometryKind !== 'point') return false;
+      return true;
+    });
+  }, [fullLayerGeometryKind]);
 
   // ==============================================================
-  // FUNÇÕES DE EXPORTAÇÃO DA CAMADA COMPLETA
+  // EXPORTAÇÃO FILTRADA (FEIÇÕES SELECIONADAS)
+  // ==============================================================
+  const handleExportFiltered = useCallback(async (format: ExportFormat) => {
+    setExportError(null);
+    setIsDownloading(true);
+    setDownloadFormat(format);
+
+    try {
+      const res = await exportSelectedFeatures(format, selectedFeatures, 'user');
+      if (!res.ok) {
+        setExportError(res.error || 'Erro ao exportar feições.');
+      }
+    } catch (err: any) {
+      setExportError(err?.message || 'Erro ao processar download.');
+    } finally {
+      setIsDownloading(false);
+      setDownloadFormat(null);
+    }
+  }, [selectedFeatures]);
+
+  // ==============================================================
+  // EXPORTAÇÃO DA CAMADA COMPLETA
   // ==============================================================
   const fetchLayerData = async (url: string) => {
     if (layerGeoJsonCache[url]) {
@@ -122,71 +202,121 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     return data;
   };
 
-  const handleExportFullLayer = useCallback(async (format: 'geojson' | 'csv' | 'kml') => {
+  const handleExportFullLayer = useCallback(async (format: ExportFormat) => {
     if (!currentLayer) return;
+    setExportError(null);
     setIsDownloading(true);
     setDownloadFormat(format);
 
     try {
-      showToast(`Preparando download da camada "${currentLayer.friendlyName}" (${format.toUpperCase()})...`);
       const geojson = await fetchLayerData(currentLayer.url);
       const safeFilename = sanitizeFilename(currentLayer.friendlyName || currentLayer.name);
+      const features = (geojson.features || []).map((f: any) => ({ feature: f }));
 
       if (format === 'geojson') {
         const jsonStr = JSON.stringify(geojson, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/geo+json;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `Camada_${safeFilename}.geojson`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        downloadFile(`Camada_${safeFilename}.geojson`, jsonStr, 'application/geo+json;charset=utf-8;');
       } else if (format === 'csv') {
-        const features = (geojson.features || []).map((f: any) => ({ feature: f }));
+        if (fullLayerGeometryKind !== 'point') {
+          setExportError('O formato CSV não está disponível para camadas de polígonos.');
+          return;
+        }
         exportSelectionToCSV(`Camada_${safeFilename}.csv`, features);
       } else if (format === 'kml') {
-        const features = (geojson.features || []).map((f: any) => ({ feature: f }));
         exportSelectionToKML(`Camada_${safeFilename}.kml`, features);
+      } else if (format === 'kmz') {
+        const { exportToKMZ } = await import('../kmzExport');
+        await exportToKMZ(`Camada_${safeFilename}.kmz`, features);
+      } else if (format === 'gpkg') {
+        const { exportToGeoPackage } = await import('../geoPackageExport');
+        await exportToGeoPackage(`Camada_${safeFilename}.gpkg`, features, safeFilename);
+      } else if (format === 'shapefile') {
+        const { exportToShapefile } = await import('../shapefileExport');
+        await exportToShapefile(`Camada_${safeFilename}.zip`, features, safeFilename);
       }
 
       logActivity('EXPORTACAO', `Exportou camada completa "${currentLayer.name}" no formato ${format.toUpperCase()}`, 'user');
-      showToast(`Camada "${currentLayer.friendlyName}" exportada com sucesso!`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast(`Erro ao exportar a camada "${currentLayer.friendlyName}". Tente novamente.`);
+      setExportError(`Erro ao exportar a camada "${currentLayer.friendlyName}": ${err?.message || 'Tente novamente.'}`);
     } finally {
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [currentLayer, showToast]);
+  }, [currentLayer, fullLayerGeometryKind]);
 
-  // Nomes de camadas únicas se houver seleção
-  const selectedLayerNames = Array.from(new Set(selectedFeatures.map(f => f.sourceName).filter(Boolean)));
-  const primaryFeatureName = selectedFeatures[0]?.name || selectedFeatures[0]?.properties?.Nome || selectedFeatures[0]?.properties?.NM_MUN || 'Feição Selecionada';
+  // Identificador da feição principal
+  const primaryFeatureName = useMemo(() => {
+    if (!selectedFeatures || selectedFeatures.length === 0) return '';
+    const first = selectedFeatures[0];
+    return first.name || getIdentifier(first.properties) || 'Feição selecionada';
+  }, [selectedFeatures]);
+
+  const selectedLayerNames = useMemo(() => {
+    const names = new Set<string>();
+    selectedFeatures.forEach(f => {
+      if (f.sourceName) names.add(f.sourceName);
+    });
+    return Array.from(names);
+  }, [selectedFeatures]);
+
+  // Formato efetivo exibido no seletor de download rápido (fallback de CSV para geojson quando for polígono)
+  const effectiveQuickFormat = (currentFormat === 'csv' && filteredGeometryKind === 'polygon') ? 'geojson' : currentFormat;
 
   return (
-    <div className="space-y-3.5 pb-6 animate-fadeIn">
-      {/* Botão de retorno rápido para Detalhes se tiver origem na feição */}
-      {onBackToDetails && count > 0 && (
+    <div className="space-y-4">
+      {/* Botão de Voltar para os Detalhes da Feição */}
+      {count > 0 && onBackToDetails && (
         <button
           type="button"
           onClick={onBackToDetails}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#007AFF] hover:underline cursor-pointer group mb-0.5"
+          className="w-full py-2 px-3 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
-          <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-          <span>Voltar aos detalhes</span>
+          <ChevronLeft className="w-4 h-4" />
+          <span>Voltar para Detalhes da Feição</span>
         </button>
       )}
 
-      {/* Seção Download Rápido (configuração de preferência do usuário) */}
-      <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 shadow-xs space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-              preferences?.quickDownload
-                ? 'bg-blue-500/10 text-[#007AFF] dark:bg-blue-400/20 dark:text-[#64D2FF]'
-                : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400'
-            }`}>
-              <Download className="w-4 h-4" />
+      {/* Header Central de Exportação */}
+      <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-transparent border border-blue-500/20 shadow-xs">
+        <div className="w-8 h-8 rounded-xl bg-[#007AFF] text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/25">
+          <Download className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="font-black text-sm text-slate-900 dark:text-white truncate">
+            Central de Exportação de Dados
+          </h3>
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+            Formatos espaciais e tabulares oficiais (WGS 84 / EPSG:4326)
+          </p>
+        </div>
+      </div>
+
+      {/* Alerta Inline de Erro Fixo (Sem Toasts) */}
+      {exportError && (
+        <div className="p-3 bg-red-500/10 dark:bg-red-950/30 border border-red-500/20 dark:border-red-800/40 rounded-2xl flex items-start gap-2.5 text-xs text-red-600 dark:text-red-400 animate-fadeIn shadow-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+          <div className="flex-1 min-w-0">
+            <span className="font-bold block text-xs">Erro na exportação</span>
+            <span className="text-[11px] opacity-90 block leading-relaxed">{exportError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExportError(null)}
+            className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-red-500 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer"
+            aria-label="Fechar erro"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Bloco de Download Rápido (Preferência do Usuário) */}
+      <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/10 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
+              <Download className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0">
               <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
@@ -194,7 +324,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
               </h4>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                 {preferences?.quickDownload
-                  ? `Baixa ${currentFormat.toUpperCase()} direto ao tocar em Exportar nos detalhes`
+                  ? `Baixa ${effectiveQuickFormat.toUpperCase()} direto ao tocar em Exportar nos detalhes`
                   : 'Ao tocar em Exportar nos detalhes, abre esta aba'}
               </p>
             </div>
@@ -210,7 +340,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
               const currentQuick = Boolean(preferences?.quickDownload);
               onUpdatePreferences?.({
                 quickDownload: !currentQuick,
-                format: preferences?.format || 'csv'
+                format: effectiveQuickFormat
               });
             }}
             className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
@@ -233,21 +363,24 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
               Formato Padrão para Download Rápido
             </span>
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/5 dark:bg-white/10 rounded-xl">
-              {(['csv', 'kml', 'geojson'] as const).map(fmt => {
-                const isSelected = currentFormat === fmt;
+            <div className={`grid ${filteredGeometryKind === 'point' ? 'grid-cols-6' : 'grid-cols-5'} gap-1 p-1 bg-black/5 dark:bg-white/10 rounded-xl`}>
+              {((filteredGeometryKind === 'point'
+                ? ['csv', 'gpkg', 'shapefile', 'kmz', 'kml', 'geojson']
+                : ['gpkg', 'shapefile', 'kmz', 'kml', 'geojson']
+              ) as ExportFormat[]).map(fmt => {
+                const isSelected = effectiveQuickFormat === fmt;
                 return (
                   <button
                     key={fmt}
                     type="button"
                     onClick={() => onUpdatePreferences?.({ format: fmt })}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer text-center ${
+                    className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all uppercase cursor-pointer text-center truncate ${
                       isSelected
-                        ? 'bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs'
+                        ? 'bg-white dark:bg-[#2c2c2e] text-[#007AFF] dark:text-[#64D2FF] shadow-xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    {fmt}
+                    {fmt === 'shapefile' ? 'shp' : fmt}
                   </button>
                 );
               })}
@@ -256,7 +389,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
         )}
       </div>
 
-      {/* Se houver feição selecionada, permite alternar entre Filtro Selecionado e Camada Completa */}
+      {/* Seletor de Modo: Seleção Filtrada vs Camada Completa */}
       {count > 0 && (
         <div className="flex items-center p-1 bg-black/5 dark:bg-white/10 rounded-2xl gap-1">
           <button
@@ -334,97 +467,61 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
           </div>
 
           {/* Título da Seção */}
-          <div className="px-1 pt-1">
+          <div className="px-1 pt-1 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Formatos de Download Filtrado
+            </span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              Tipo: {filteredGeometryKind === 'point' ? 'Pontos' : 'Polígonos'}
             </span>
           </div>
 
           {/* Grade Vertical de Formatos de Exportação Filtrada */}
           <div className="space-y-2">
-            {/* Opção 1: Planilha Excel CSV */}
-            <button
-              type="button"
-              onClick={handleExportFilteredCSV}
-              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs"
-            >
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                <FileSpreadsheet className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    Planilha Excel (CSV)
-                  </h4>
-                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
-                    .CSV
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
-                  Tabela formatada com UTF-8 BOM para abrir sem erros de acentuação no Excel, LibreOffice e Sheets.
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
-                  <span>Baixar arquivo CSV filtrado</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </button>
+            {visibleFilteredFormats.map(fmt => {
+              const IconComp = fmt.icon;
+              const isFmtDownloading = isDownloading && downloadFormat === fmt.id;
 
-            {/* Opção 2: Google Earth / QGIS (KML) */}
-            <button
-              type="button"
-              onClick={handleExportFilteredKML}
-              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs"
-            >
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                <Globe className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    Google Earth (KML)
-                  </h4>
-                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
-                    .KML
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
-                  Geometrias completas dos polígonos e pontos com visualização tridimensional no Google Earth e QGIS.
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
-                  <span>Baixar arquivo KML filtrado</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </button>
-
-            {/* Opção 3: GeoJSON Vetorial */}
-            <button
-              type="button"
-              onClick={handleExportFilteredGeoJSON}
-              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs"
-            >
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                <FileCode className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    GeoJSON Vetorial
-                  </h4>
-                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
-                    .GEOJSON
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
-                  Formato aberto padrão web com estrutura vetorial pura para ArcGIS, QGIS, Leaflet e Mapbox.
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
-                  <span>Baixar arquivo GeoJSON filtrado</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </button>
+              return (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  disabled={isDownloading}
+                  onClick={() => handleExportFiltered(fmt.id)}
+                  className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                    {isFmtDownloading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
+                    ) : (
+                      <IconComp className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        {fmt.label}
+                      </h4>
+                      <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
+                        {fmt.ext}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
+                      {fmt.desc}
+                    </p>
+                    {fmt.note && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-1">
+                        {fmt.note}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
+                      <span>{isFmtDownloading ? 'Processando arquivo...' : `Baixar arquivo ${fmt.ext} filtrado`}</span>
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
@@ -451,32 +548,32 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
                 </div>
               </div>
 
-              <span className="bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 border border-black/10 dark:border-white/10 font-bold px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider shrink-0">
-                Base Inteira
+              <span className="text-[10px] font-bold bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0">
+                Oficial IBGE
               </span>
             </div>
 
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-              Escolha uma camada abaixo para fazer o download completo de todos os seus elementos e atributos territoriais.
-            </p>
-
-            {/* Seletor de Camada Estilo Apple */}
-            <div className="space-y-1.5 pt-1">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Selecione a Camada:
+            {/* Seletor de Camada */}
+            <div className="space-y-1">
+              <label htmlFor="layer-select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                Escolha a Camada para Download
               </label>
               <div className="relative">
                 <select
+                  id="layer-select"
                   value={selectedLayerName}
                   onChange={(e) => setSelectedLayerName(e.target.value)}
-                  className="w-full bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-slate-500 transition-all cursor-pointer shadow-xs"
+                  className="w-full py-2.5 pl-3 pr-8 rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none"
                 >
-                  {availableLayers.map((layer) => (
-                    <option key={layer.name} value={layer.name}>
-                      {layer.friendlyName}
+                  {availableLayers.map(l => (
+                    <option key={l.name} value={l.name}>
+                      {l.friendlyName}
                     </option>
                   ))}
                 </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  ▼
+                </div>
               </div>
             </div>
           </div>
@@ -493,104 +590,50 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
           {/* Grade Vertical de Formatos da Camada Completa */}
           <div className="space-y-2">
-            {/* 1. GeoJSON Vetorial Completo */}
-            <button
-              type="button"
-              disabled={isDownloading}
-              onClick={() => handleExportFullLayer('geojson')}
-              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                {isDownloading && downloadFormat === 'geojson' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileCode className="w-4 h-4" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    GeoJSON Vetorial Completo
-                  </h4>
-                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
-                    .GEOJSON
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
-                  Arquivo vetorial integral com todas as coordenadas, limites e propriedades de cada elemento da camada.
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
-                  <span>{isDownloading && downloadFormat === 'geojson' ? 'Processando download...' : 'Baixar Camada Completa (GeoJSON)'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </button>
+            {visibleFullLayerFormats.map(fmt => {
+              const IconComp = fmt.icon;
+              const isFmtDownloading = isDownloading && downloadFormat === fmt.id;
 
-            {/* 2. Planilha Excel CSV Completa */}
-            <button
-              type="button"
-              disabled={isDownloading}
-              onClick={() => handleExportFullLayer('csv')}
-              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                {isDownloading && downloadFormat === 'csv' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="w-4 h-4" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    Planilha Excel Completa (CSV)
-                  </h4>
-                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
-                    .CSV
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
-                  Tabela completa de atributos com UTF-8 BOM para abrir perfeitamente no Excel, LibreOffice e Sheets.
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
-                  <span>{isDownloading && downloadFormat === 'csv' ? 'Processando download...' : 'Baixar Tabela Completa (CSV)'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </button>
-
-            {/* 3. Google Earth KML Completo */}
-            <button
-              type="button"
-              disabled={isDownloading}
-              onClick={() => handleExportFullLayer('kml')}
-              className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                {isDownloading && downloadFormat === 'kml' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Globe className="w-4 h-4" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    Google Earth Completo (KML)
-                  </h4>
-                  <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
-                    .KML
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
-                  Todos os polígonos e limites com visualização tridimensional no Google Earth Pro e projetos QGIS.
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
-                  <span>{isDownloading && downloadFormat === 'kml' ? 'Processando download...' : 'Baixar KML Completo'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </button>
+              return (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  disabled={isDownloading}
+                  onClick={() => handleExportFullLayer(fmt.id)}
+                  className="w-full p-3 bg-white dark:bg-[#2c2c2e] hover:bg-slate-50 dark:hover:bg-[#343438] border border-black/10 dark:border-white/10 rounded-2xl transition-all text-left flex items-start gap-3 group cursor-pointer active:scale-[0.98] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                    {isFmtDownloading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
+                    ) : (
+                      <IconComp className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        {fmt.label}
+                      </h4>
+                      <span className="text-[9px] font-bold bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">
+                        {fmt.ext}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug font-medium">
+                      {fmt.desc}
+                    </p>
+                    {fmt.note && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-1">
+                        {fmt.note}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 pt-1.5 group-hover:text-[#007AFF] dark:group-hover:text-[#007AFF] transition-colors">
+                      <span>{isFmtDownloading ? 'Processando download...' : `Baixar Camada Completa (${fmt.ext})`}</span>
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           {/* Dica de Filtro */}
@@ -598,21 +641,13 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             <Info className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
             <div>
               <strong className="text-slate-700 dark:text-slate-200">Como exportar apenas uma feição filtrada?</strong>
-              <p className="mt-0.5">
-                Clique diretamente em qualquer elemento no mapa (como um bairro ou município). Esta tela passará automaticamente para o <strong>modo filtrado</strong>, baixando apenas a feição selecionada.
+              <p className="pt-0.5">
+                Clique em qualquer bairro, município ou setor no mapa para selecioná-lo. Esta aba se ajustará automaticamente para exportar apenas as feições selecionadas.
               </p>
             </div>
           </div>
         </>
       )}
-
-      {/* Nota Informativa Apple Glass */}
-      <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 flex items-start gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-        <Info className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
-        <span>
-          Os dados exportados contêm todas as coordenadas geométricas e colunas analíticas autorizadas para o seu perfil de usuário.
-        </span>
-      </div>
     </div>
   );
 };

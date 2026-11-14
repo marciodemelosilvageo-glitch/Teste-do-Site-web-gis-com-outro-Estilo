@@ -320,9 +320,69 @@ export const getFeatureCenter = (layer: L.Layer | null | undefined): L.LatLng | 
   return null;
 };
 
-// Download de arquivos com suporte a UTF-8 BOM
-export const downloadFile = (filename: string, content: string, mimeType: string): void => {
-  const blob = new Blob([content], { type: mimeType });
+export type GeometryKind = 'point' | 'polygon' | 'mixed' | 'none';
+
+export const LAYER_GEOMETRY_KINDS: Record<string, 'point' | 'polygon'> = {
+  "Municipios": "polygon",
+  "Bairros": "polygon",
+  "AISP": "polygon",
+  "Aglomerados Rurais": "polygon",
+  "Áreas de Desenvolvimento": "polygon",
+  "Comunidades Rurais de Teresina": "polygon",
+  "Favelas e Comunidades": "polygon",
+  "Localidades (Piauí)": "point",
+  "Núcleos Urbanos": "polygon",
+  "RISP": "polygon",
+  "Endereços plotados": "point"
+};
+
+/**
+ * Detecta o tipo de geometria predominante no conjunto de feições:
+ * 'point': apenas pontos;
+ * 'polygon': apenas polígonos/multipolígonos;
+ * 'mixed': geometrias mistas ou de outros tipos;
+ * 'none': vazio.
+ */
+export const getGeometryKind = (features: any[]): GeometryKind => {
+  if (!features || features.length === 0) return 'none';
+  let hasPoint = false;
+  let hasPolygon = false;
+  let hasOther = false;
+
+  for (const f of features) {
+    let geomType = '';
+    if (f?.geometry?.type) {
+      geomType = f.geometry.type;
+    } else if (f?.layer?.feature?.geometry?.type) {
+      geomType = f.layer.feature.geometry.type;
+    } else if (typeof f?.layer?.toGeoJSON === 'function') {
+      geomType = f.layer.toGeoJSON()?.geometry?.type || '';
+    } else if (f?.feature?.geometry?.type) {
+      geomType = f.feature.geometry.type;
+    } else if (f?.id && String(f.id).startsWith('plot-')) {
+      geomType = 'Point';
+    } else if (f?.sourceName && LAYER_GEOMETRY_KINDS[f.sourceName]) {
+      geomType = LAYER_GEOMETRY_KINDS[f.sourceName] === 'point' ? 'Point' : 'Polygon';
+    }
+
+    const t = geomType.toLowerCase();
+    if (t === 'point' || t === 'multipoint') {
+      hasPoint = true;
+    } else if (t === 'polygon' || t === 'multipolygon') {
+      hasPolygon = true;
+    } else if (t) {
+      hasOther = true;
+    }
+  }
+
+  if (hasPoint && !hasPolygon && !hasOther) return 'point';
+  if (hasPolygon && !hasPoint && !hasOther) return 'polygon';
+  if ((hasPoint && hasPolygon) || hasOther) return 'mixed';
+  return 'none';
+};
+
+// Download de Blob no navegador
+export const downloadBlob = (filename: string, blob: Blob): void => {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.href = url;
@@ -333,6 +393,12 @@ export const downloadFile = (filename: string, content: string, mimeType: string
   setTimeout(() => {
     URL.revokeObjectURL(url);
   }, 2000);
+};
+
+// Download de arquivos com suporte a UTF-8 BOM, Blob e binários Uint8Array
+export const downloadFile = (filename: string, content: string | Blob | Uint8Array, mimeType: string): void => {
+  const blob = content instanceof Blob ? content : new Blob([content as any], { type: mimeType });
+  downloadBlob(filename, blob);
 };
 
 // Exportar feições selecionadas para formato CSV compatível com Excel (com UTF-8 BOM)

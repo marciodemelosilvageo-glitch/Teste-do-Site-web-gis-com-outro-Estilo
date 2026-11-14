@@ -56,7 +56,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
 import { dataSources, propertyNames, situationMap, typeMap } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty, isEligiblePolygonFeature } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCodeOrSystemProperty, isEligiblePolygonFeature, getGeometryKind } from '../utils';
 import { Dashboard } from './Dashboard';
 import { CopyableText } from './CopyableText';
 import { ExportDashboard } from './ExportDashboard';
@@ -325,6 +325,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     setExportButtonState('preparing');
     setExportLiveStatus('Preparando download...');
 
+    // Se o formato salvo for CSV e a seleção for polígono, fallback seguro para geojson
+    const geomKind = getGeometryKind(selectedFeatures);
+    let targetFormat = format;
+    if (targetFormat === 'csv' && geomKind === 'polygon') {
+      targetFormat = 'geojson';
+    }
+
     // Aguardar 2 frames para a interface pintar o estado "preparando" antes da serialização
     await new Promise<void>(resolve => {
       requestAnimationFrame(() => {
@@ -335,7 +342,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     });
 
     try {
-      const res = exportSelectedFeatures(format, selectedFeatures, userRole);
+      const res = await exportSelectedFeatures(targetFormat, selectedFeatures, userRole);
       if (!res.ok) {
         setExportButtonState('error');
         setExportLiveStatus(res.error || 'Erro ao exportar feições');
@@ -368,7 +375,12 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
     // Se o download rápido estiver ativo e com formato definido, baixa na hora
     if (exportPrefs.quickDownload === true && exportPrefs.format) {
-      executeQuickDownload(exportPrefs.format);
+      const geomKind = getGeometryKind(selectedFeatures);
+      let targetFormat = exportPrefs.format;
+      if (targetFormat === 'csv' && geomKind === 'polygon') {
+        targetFormat = 'geojson';
+      }
+      executeQuickDownload(targetFormat);
       return;
     }
 
@@ -380,7 +392,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
     // Se a preferência ainda não estiver definida, alterna exibição da pergunta embutida
     setShowFormatPrompt(prev => !prev);
-  }, [exportPrefs, executeQuickDownload, setActiveTab]);
+  }, [exportPrefs, executeQuickDownload, setActiveTab, selectedFeatures]);
 
   const handleSelectDefaultFormatAndDownload = useCallback((fmt: ExportFormat) => {
     updateExportPrefs({ quickDownload: true, format: fmt });
@@ -1674,7 +1686,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                         : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
                     }`}
-                    title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${exportPrefs.format.toUpperCase()}` : "Exportar feição"}
+                    title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
                   >
                     {exportButtonState === 'preparing' ? (
                       <>
@@ -1785,7 +1797,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                       ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                       : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
                   }`}
-                  title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${exportPrefs.format.toUpperCase()}` : "Exportar feição"}
+                  title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
                 >
                   {exportButtonState === 'preparing' ? (
                     <>
@@ -1849,8 +1861,11 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(['csv', 'kml', 'geojson'] as const).map(fmt => (
+                  <div className={`grid ${getGeometryKind(selectedFeatures) === 'point' ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5`}>
+                    {(getGeometryKind(selectedFeatures) === 'point'
+                      ? (['csv', 'gpkg', 'geojson', 'kml'] as const)
+                      : (['gpkg', 'geojson', 'kml'] as const)
+                    ).map(fmt => (
                       <button
                         key={fmt}
                         type="button"

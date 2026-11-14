@@ -5,11 +5,12 @@ import {
   sanitizeFilename, 
   exportSelectionToCSV, 
   exportSelectionToKML, 
-  downloadFile 
+  downloadFile,
+  getGeometryKind
 } from './utils';
 import { logActivity, UserRole } from './services/adminService';
 
-export type ExportFormat = 'csv' | 'kml' | 'geojson';
+export type ExportFormat = 'csv' | 'kml' | 'geojson' | 'gpkg' | 'kmz' | 'shapefile';
 
 export interface ExportPreferences {
   quickDownload?: boolean;
@@ -32,7 +33,7 @@ export const getExportPreferences = (uKey: string): ExportPreferences => {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
         const quickDownload = typeof parsed.quickDownload === 'boolean' ? parsed.quickDownload : undefined;
-        const validFormats: ExportFormat[] = ['csv', 'kml', 'geojson'];
+        const validFormats: ExportFormat[] = ['csv', 'kml', 'geojson', 'gpkg', 'kmz', 'shapefile'];
         const format = validFormats.includes(parsed.format) ? (parsed.format as ExportFormat) : undefined;
         return { quickDownload, format };
       }
@@ -71,11 +72,11 @@ export const useExportPreferences = (userKey: string) => {
  * Valida a existência de feições antes de disparar qualquer exportação (sem usar alert())
  * e devolve um resultado seguro { ok, count, format, filename?, error? }.
  */
-export const exportSelectedFeatures = (
+export const exportSelectedFeatures = async (
   format: ExportFormat,
   selectedFeatures: SelectedFeature[],
   userRole: string = 'user'
-): ExportResult => {
+): Promise<ExportResult> => {
   if (!selectedFeatures || selectedFeatures.length === 0) {
     return {
       ok: false,
@@ -93,6 +94,16 @@ export const exportSelectedFeatures = (
 
   try {
     if (format === 'csv') {
+      const geomKind = getGeometryKind(selectedFeatures);
+      if (geomKind !== 'point') {
+        return {
+          ok: false,
+          count: 0,
+          format,
+          error: 'O formato CSV é exclusivo para camadas de ponto (não disponível para polígonos).'
+        };
+      }
+
       const rawFeatures = selectedFeatures.map(f => f.layer).filter(Boolean);
       if (rawFeatures.length === 0) {
         return { ok: false, count: 0, format, error: 'Sem geometrias para exportar em CSV.' };
@@ -111,6 +122,18 @@ export const exportSelectedFeatures = (
       const filename = `selecao_${safeId}.kml`;
       exportSelectionToKML(filename, rawFeatures);
       logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para KML`, safeRole, `Identificador: ${id}`);
+      return { ok: true, count, format, filename };
+    }
+
+    if (format === 'kmz') {
+      const rawFeatures = selectedFeatures.map(f => f.layer).filter(Boolean);
+      if (rawFeatures.length === 0) {
+        return { ok: false, count: 0, format, error: 'Sem geometrias para exportar em KMZ.' };
+      }
+      const filename = `selecao_${safeId}.kmz`;
+      const { exportToKMZ } = await import('./kmzExport');
+      await exportToKMZ(filename, rawFeatures);
+      logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para KMZ`, safeRole, `Identificador: ${id}`);
       return { ok: true, count, format, filename };
     }
 
@@ -133,6 +156,30 @@ export const exportSelectedFeatures = (
       const jsonStr = JSON.stringify(featureCollection, null, 2);
       downloadFile(filename, jsonStr, 'application/geo+json;charset=utf-8;');
       logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para GeoJSON`, safeRole, `Identificador: ${id}`);
+      return { ok: true, count, format, filename };
+    }
+
+    if (format === 'gpkg') {
+      const rawFeatures = selectedFeatures.map(f => f.layer).filter(Boolean);
+      if (rawFeatures.length === 0) {
+        return { ok: false, count: 0, format, error: 'Sem geometrias para exportar em GeoPackage.' };
+      }
+      const filename = `selecao_${safeId}.gpkg`;
+      const { exportToGeoPackage } = await import('./geoPackageExport');
+      await exportToGeoPackage(filename, rawFeatures, `selecao_${safeId}`);
+      logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para GeoPackage`, safeRole, `Identificador: ${id}`);
+      return { ok: true, count, format, filename };
+    }
+
+    if (format === 'shapefile') {
+      const rawFeatures = selectedFeatures.map(f => f.layer).filter(Boolean);
+      if (rawFeatures.length === 0) {
+        return { ok: false, count: 0, format, error: 'Sem geometrias para exportar em Shapefile.' };
+      }
+      const filename = `selecao_${safeId}.zip`;
+      const { exportToShapefile } = await import('./shapefileExport');
+      await exportToShapefile(filename, rawFeatures, `selecao_${safeId}`);
+      logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para Shapefile`, safeRole, `Identificador: ${id}`);
       return { ok: true, count, format, filename };
     }
 

@@ -908,14 +908,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     };
   }, [isExportMenuOpen]);
 
-  // Exportar medição em GeoJSON, KML ou CSV
-  const handleExportMeasure = useCallback((format: 'geojson' | 'kml' | 'csv') => {
+  // Exportar medição em GeoJSON, KML ou GeoPackage (sem CSV para polígono medido)
+  const handleExportMeasure = useCallback(async (format: 'geojson' | 'kml' | 'gpkg') => {
     if (!activeMeasureInfo) return;
     const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
-    if (!feat) {
-      showToast('Não foi possível gerar a geometria do polígono medido.');
-      return;
-    }
+    if (!feat) return;
     try {
       const filename = getMeasureExportFilename(format);
       if (format === 'geojson') {
@@ -924,21 +921,18 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           features: [feat]
         };
         downloadFile(filename, JSON.stringify(fc, null, 2), 'application/geo+json;charset=utf-8');
-        showToast(`Polígono exportado em GeoJSON (${filename})`);
       } else if (format === 'kml') {
         exportSelectionToKML(filename, [{ feature: feat }]);
-        showToast(`Polígono exportado em KML (${filename})`);
-      } else if (format === 'csv') {
-        exportSelectionToCSV(filename, [{ feature: feat }]);
-        showToast(`Polígono exportado em CSV (${filename})`);
+      } else if (format === 'gpkg') {
+        const { exportToGeoPackage } = await import('../geoPackageExport');
+        await exportToGeoPackage(filename, [{ feature: feat }], 'medicao_poligono');
       }
     } catch (err) {
       console.error('Erro ao exportar polígono medido:', err);
-      showToast('Erro ao exportar polígono medido.');
     } finally {
       setIsExportMenuOpen(false);
     }
-  }, [activeMeasureInfo, showToast]);
+  }, [activeMeasureInfo]);
 
   // Manipulação de arrasto (mouse e touch) do card
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -3655,19 +3649,19 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleExportMeasure('gpkg')}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="font-semibold">GeoPackage</span>
+                          <span className="text-[10px] text-slate-400">QGIS</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleExportMeasure('kml')}
                           className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
                         >
                           <span className="font-semibold">KML</span>
                           <span className="text-[10px] text-slate-400">Earth</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExportMeasure('csv')}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span className="font-semibold">CSV</span>
-                          <span className="text-[10px] text-slate-400">Excel</span>
                         </button>
                       </div>
                     )}
