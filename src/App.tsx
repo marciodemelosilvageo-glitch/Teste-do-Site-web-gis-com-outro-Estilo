@@ -27,7 +27,7 @@ import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
-import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
+import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase, getUserPosition } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, buscarEnderecosPorCategoriaEmPoligonos, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 import { RecentSearchItem, detectCategoryFromData } from './categories';
 
@@ -669,9 +669,22 @@ export default function App() {
     removeMeasurePoint: (index: number) => void;
   } | null>(null);
 
-  // Notificações flutuantes (toasts) desativadas a pedido do usuário
-  const showToast = useCallback((_msg: string) => {
-    // Intencionalmente desativado a pedido do usuário para não exibir mensagens flutuantes na interface
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Exibir toast temporário de feedback com tempo suficiente de leitura
+  const showToast = useCallback((msg: string, duration: number = 4000) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(msg);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, duration);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
   }, []);
 
   // Salvar Combinação de Camadas Favoritas (Item 5: Produtividade)
@@ -1173,177 +1186,168 @@ export default function App() {
     }
   };
 
-  // Executa busca de Hospitais por Raio GPS ao redor da localização do usuário
-  const handleExecuteHospitalSearchByRadius = (raioMetros: number) => {
-    try {
-      setIsHospitalSearching(true);
-
-      if (!('geolocation' in navigator)) {
-        showToast('Geolocalização não é suportada por este dispositivo.');
-        setIsHospitalSearching(false);
-        return;
+  // Mensagens amigáveis para falhas de geolocalização com orientação ao usuário
+  const getGeolocationErrorMessage = (geoErr: any) => {
+    if (geoErr && typeof geoErr === 'object' && 'code' in geoErr) {
+      if (geoErr.code === 1) {
+        return 'Permissão de GPS negada. Por favor, permita a localização no seu navegador.';
       }
-
-      const raioKm = (raioMetros / 1000).toLocaleString('pt-BR');
-      showToast(`📍 Obtendo localização GPS para buscar em raio de ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`}...`);
-
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { latitude, longitude } = pos.coords;
-            showToast(`🏥 Buscando hospitais em raio de ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`} no CNEFE...`);
-
-            const res = await buscarEnderecosPorRaio(
-              latitude,
-              longitude,
-              raioMetros,
-              'Estabelecimento de saúde',
-              3000
-            );
-
-            if (!res.results || res.results.length === 0) {
-              showToast(`Nenhum estabelecimento de saúde encontrado a até ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`}.`);
-              return;
-            }
-
-            // Não plota no mapa de imediato, conforme solicitado
-            setSearchCoordinates(null);
-
-            setCnefeExternalResult({
-              results: res.results,
-              totalEncontrado: res.totalEncontrado,
-              title: `Hospitais em raio de ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`} da sua localização`,
-              sourceLayerName: 'Estabelecimentos de Saúde (Raio GPS)',
-              timestamp: Date.now(),
-              searchTerm: 'Estabelecimento de saúde'
-            });
-            setIsCnefeBottomBarOpen(true);
-            setIsCnefeBottomBarExpanded(true);
-
-            logActivity(
-              'ENDERECO',
-              `Busca CNEFE: Saúde por Raio (${raioMetros}m)`,
-              userRole,
-              `${res.totalEncontrado} estabelecimentos encontrados`
-            );
-
-            showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde encontrados a até ${raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`}!`);
-
-            setTimeout(() => {
-              const el = document.getElementById('ibge-search-panel');
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 150);
-          } catch (innerErr) {
-            console.error('Erro na pesquisa por raio no CNEFE:', innerErr);
-            showToast('Erro ao consultar estabelecimentos de saúde por raio.');
-          } finally {
-            setIsHospitalSearching(false);
-          }
-        },
-        (geoErr) => {
-          setIsHospitalSearching(false);
-          console.warn('Erro ao obter GPS:', geoErr);
-          if (geoErr.code === 1) {
-            showToast('Permissão de GPS negada. Por favor, permita a localização no seu navegador.');
-          } else {
-            showToast('Não foi possível obter a sua localização GPS atual.');
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
-    } catch (err) {
-      setIsHospitalSearching(false);
-      console.error('Erro ao processar localização para a busca:', err);
-      showToast('Erro ao iniciar localização.');
+      if (geoErr.code === 2) {
+        return 'Sua localização atual está indisponível. Ative a localização do sistema ou selecione a busca por município.';
+      }
+      if (geoErr.code === 3) {
+        return 'Tempo esgotado ao obter sua localização. Ative o GPS/Wi-Fi ou selecione a busca por município.';
+      }
     }
+    return 'Não foi possível obter a sua localização. Tente a busca por município.';
   };
 
-  // Executa busca por Categoria por Raio GPS ao redor da localização do usuário (Farmácias, Restaurantes, Postos, Hotéis)
-  const handleExecuteCategorySearchByRadius = (categoryId: string, raioMetros: number) => {
+  // Executa busca de Hospitais por Raio GPS ao redor da localização do usuário
+  const handleExecuteHospitalSearchByRadius = async (raioMetros: number) => {
     try {
-      const config = CATEGORY_CONFIGS[categoryId];
-      const catName = config?.name || 'Estabelecimentos';
-
       setIsHospitalSearching(true);
 
       if (!('geolocation' in navigator)) {
-        showToast('Geolocalização não é suportada por este dispositivo.');
-        setIsHospitalSearching(false);
+        showToast('Geolocalização não é suportada por este dispositivo.', 5000);
         return;
       }
 
       const raioKm = (raioMetros / 1000).toLocaleString('pt-BR');
       const distLabel = raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`;
-      showToast(`📍 Obtendo localização GPS para buscar ${catName.toLowerCase()} em raio de ${distLabel}...`);
+      showToast(`📍 Obtendo localização para buscar hospitais em raio de ${distLabel}...`, 4000);
 
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { latitude, longitude } = pos.coords;
-            showToast(`🔍 Buscando ${catName.toLowerCase()} em raio de ${distLabel} no CNEFE...`);
+      let coords: { latitude: number; longitude: number };
+      try {
+        coords = await getUserPosition();
+      } catch (geoErr) {
+        console.warn('Erro ao obter GPS:', geoErr);
+        showToast(getGeolocationErrorMessage(geoErr), 5000);
+        return;
+      }
 
-            const res = await buscarEnderecosPorCategoriaEmRaio(
-              categoryId,
-              latitude,
-              longitude,
-              raioMetros,
-              3000
-            );
+      showToast(`🏥 Buscando estabelecimentos de saúde em raio de ${distLabel} no CNEFE...`, 4000);
 
-            if (!res.results || res.results.length === 0) {
-              showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado a até ${distLabel}.`);
-              return;
-            }
-
-            // Não plota no mapa de imediato, conforme solicitado
-            setSearchCoordinates(null);
-
-            setCnefeExternalResult({
-              results: res.results,
-              totalEncontrado: res.totalEncontrado,
-              title: `${catName} em raio de ${distLabel} da sua localização`,
-              sourceLayerName: `${catName} (Raio GPS)`,
-              timestamp: Date.now(),
-              searchTerm: config?.keywords?.[0] || catName
-            });
-            setIsCnefeBottomBarOpen(true);
-            setIsCnefeBottomBarExpanded(true);
-
-            logActivity(
-              'ENDERECO',
-              `Busca CNEFE: ${catName} por Raio (${raioMetros}m)`,
-              userRole,
-              `${res.totalEncontrado} estabelecimentos encontrados`
-            );
-
-            showToast(`📍 ${res.totalEncontrado} estabelecimentos de ${catName.toLowerCase()} encontrados a até ${distLabel}!`);
-
-            setTimeout(() => {
-              const el = document.getElementById('ibge-search-panel');
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 150);
-          } catch (innerErr) {
-            console.error(`Erro na pesquisa por raio de ${catName} no CNEFE:`, innerErr);
-            showToast(`Erro ao consultar ${catName.toLowerCase()} por raio.`);
-          } finally {
-            setIsHospitalSearching(false);
-          }
-        },
-        (geoErr) => {
-          setIsHospitalSearching(false);
-          console.warn('Erro ao obter GPS:', geoErr);
-          if (geoErr.code === 1) {
-            showToast('Permissão de GPS negada. Por favor, permita a localização no seu navegador.');
-          } else {
-            showToast('Não foi possível obter a sua localização GPS atual.');
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      const res = await buscarEnderecosPorRaio(
+        coords.latitude,
+        coords.longitude,
+        raioMetros,
+        'Estabelecimento de saúde',
+        3000
       );
-    } catch (err) {
+
+      if (!res.results || res.results.length === 0) {
+        showToast(`Nenhum estabelecimento de saúde encontrado a até ${distLabel}.`, 5000);
+        return;
+      }
+
+      // Não plota no mapa de imediato, conforme solicitado
+      setSearchCoordinates(null);
+
+      setCnefeExternalResult({
+        results: res.results,
+        totalEncontrado: res.totalEncontrado,
+        title: `Hospitais em raio de ${distLabel} da sua localização`,
+        sourceLayerName: 'Estabelecimentos de Saúde (Raio GPS)',
+        timestamp: Date.now(),
+        searchTerm: 'Estabelecimento de saúde'
+      });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
+
+      logActivity(
+        'ENDERECO',
+        `Busca CNEFE: Saúde por Raio (${raioMetros}m)`,
+        userRole,
+        `${res.totalEncontrado} estabelecimentos encontrados`
+      );
+
+      showToast(`🏥 ${res.totalEncontrado} estabelecimentos de saúde encontrados a até ${distLabel}!`, 5000);
+
+      setTimeout(() => {
+        const el = document.getElementById('ibge-search-panel');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    } catch (innerErr) {
+      console.error('Erro na pesquisa por raio no CNEFE:', innerErr);
+      showToast('Erro ao consultar estabelecimentos de saúde por raio.', 5000);
+    } finally {
       setIsHospitalSearching(false);
-      console.error('Erro ao processar localização para a busca:', err);
-      showToast('Erro ao iniciar localização.');
+    }
+  };
+
+  // Executa busca por Categoria por Raio GPS ao redor da localização do usuário (Farmácias, Restaurantes, Postos, Hotéis)
+  const handleExecuteCategorySearchByRadius = async (categoryId: string, raioMetros: number) => {
+    const config = CATEGORY_CONFIGS[categoryId];
+    const catName = config?.name || 'Estabelecimentos';
+
+    try {
+      setIsHospitalSearching(true);
+
+      if (!('geolocation' in navigator)) {
+        showToast('Geolocalização não é suportada por este dispositivo.', 5000);
+        return;
+      }
+
+      const raioKm = (raioMetros / 1000).toLocaleString('pt-BR');
+      const distLabel = raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`;
+      showToast(`📍 Obtendo localização para buscar ${catName.toLowerCase()} em raio de ${distLabel}...`, 4000);
+
+      let coords: { latitude: number; longitude: number };
+      try {
+        coords = await getUserPosition();
+      } catch (geoErr) {
+        console.warn('Erro ao obter GPS:', geoErr);
+        showToast(getGeolocationErrorMessage(geoErr), 5000);
+        return;
+      }
+
+      showToast(`🔍 Buscando ${catName.toLowerCase()} em raio de ${distLabel} no CNEFE...`, 4000);
+
+      const res = await buscarEnderecosPorCategoriaEmRaio(
+        categoryId,
+        coords.latitude,
+        coords.longitude,
+        raioMetros,
+        3000
+      );
+
+      if (!res.results || res.results.length === 0) {
+        showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado a até ${distLabel}.`, 5000);
+        return;
+      }
+
+      // Não plota no mapa de imediato, conforme solicitado
+      setSearchCoordinates(null);
+
+      setCnefeExternalResult({
+        results: res.results,
+        totalEncontrado: res.totalEncontrado,
+        title: `${catName} em raio de ${distLabel} da sua localização`,
+        sourceLayerName: `${catName} (Raio GPS)`,
+        timestamp: Date.now(),
+        searchTerm: config?.keywords?.[0] || catName
+      });
+      setIsCnefeBottomBarOpen(true);
+      setIsCnefeBottomBarExpanded(true);
+
+      logActivity(
+        'ENDERECO',
+        `Busca CNEFE: ${catName} por Raio (${raioMetros}m)`,
+        userRole,
+        `${res.totalEncontrado} estabelecimentos encontrados`
+      );
+
+      showToast(`📍 ${res.totalEncontrado} estabelecimentos de ${catName.toLowerCase()} encontrados a até ${distLabel}!`, 5000);
+
+      setTimeout(() => {
+        const el = document.getElementById('ibge-search-panel');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    } catch (innerErr) {
+      console.error(`Erro na pesquisa por raio de ${catName} no CNEFE:`, innerErr);
+      showToast(`Erro ao consultar ${catName.toLowerCase()} por raio.`, 5000);
+    } finally {
+      setIsHospitalSearching(false);
     }
   };
 
@@ -3671,7 +3675,23 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* NOTIFICAÇÃO TOAST TEMPORÁRIA DESATIVADA */}
+      {/* NOTIFICAÇÃO TOAST TEMPORÁRIA (SEMPRE NO TOPO DE QUALQUER MODAL / PAINEL) */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: 30, x: '-50%', scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
+            exit={{ opacity: 0, y: 20, x: '-50%', scale: 0.9 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 dark:bg-slate-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl z-[99999] font-bold text-xs sm:text-sm flex items-center gap-3 border border-slate-700/80 backdrop-blur-md max-w-[92vw] text-center pointer-events-none"
+          >
+            <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+              <Info className="w-3.5 h-3.5" />
+            </div>
+            <span className="tracking-tight leading-snug">{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
 
 

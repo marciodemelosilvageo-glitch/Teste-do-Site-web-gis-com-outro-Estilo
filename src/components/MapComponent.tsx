@@ -19,7 +19,7 @@ import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition } from '../utils';
 import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
@@ -1360,6 +1360,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lng: longitude, accuracy });
+        setLastKnownUserPosition({ latitude, longitude, accuracy, timestamp: Date.now() });
         setStatusText("Localização GPS atualizada.");
 
         const map = mapRef.current;

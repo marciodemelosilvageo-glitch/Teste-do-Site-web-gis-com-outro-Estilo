@@ -745,3 +745,126 @@ export const getHomogeneousLayerSelection = (selectedFeatures: any[]): Homogeneo
   };
 };
 
+export interface UserPosition {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  timestamp?: number;
+}
+
+export interface GeolocationResult {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+}
+
+let inMemoryUserPosition: UserPosition | null = null;
+
+export const setLastKnownUserPosition = (pos: UserPosition | null) => {
+  inMemoryUserPosition = pos;
+  if (typeof window !== 'undefined' && pos) {
+    try {
+      sessionStorage.setItem('webgis_user_position', JSON.stringify(pos));
+    } catch {}
+  }
+};
+
+export const getLastKnownUserPosition = (): UserPosition | null => {
+  if (inMemoryUserPosition) {
+    const age = Date.now() - (inMemoryUserPosition.timestamp || 0);
+    // Válido por até 10 minutos
+    if (age < 10 * 60 * 1000) {
+      return inMemoryUserPosition;
+    }
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = sessionStorage.getItem('webgis_user_position');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') {
+          const age = Date.now() - (parsed.timestamp || 0);
+          if (age < 10 * 60 * 1000) {
+            inMemoryUserPosition = parsed;
+            return parsed;
+          }
+        }
+      }
+    } catch {}
+  }
+  return null;
+};
+
+/**
+ * Obtém a posição geográfica do usuário de forma robusta e otimizada:
+ * (a) Usa imediatamente uma posição recente se já conhecida pelo mapa ou cache (0 ms);
+ * (b) 1ª tentativa com enableHighAccuracy: false, timeout: 8s, maximumAge: 5min (rápida em PCs/Wi-Fi);
+ * (c) Se falhar por timeout ou indisponibilidade, 2ª tentativa com enableHighAccuracy: true e timeout: 15s;
+ * (d) Rejeita imediatamente em caso de permissão negada (código 1).
+ */
+export const getUserPosition = async (fallbackKnown?: UserPosition | null): Promise<GeolocationResult> => {
+  // (a) Posição recente conhecida
+  const known = fallbackKnown || getLastKnownUserPosition();
+  if (known && isFinite(known.latitude) && isFinite(known.longitude)) {
+    return {
+      latitude: known.latitude,
+      longitude: known.longitude,
+      accuracy: known.accuracy || 100
+    };
+  }
+
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+    const err = new Error('Geolocalização não é suportada por este dispositivo.');
+    (err as any).code = 0;
+    throw err;
+  }
+
+  const queryGeolocation = (options: PositionOptions): Promise<GeolocationResult> => {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const result: GeolocationResult = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          };
+          setLastKnownUserPosition({
+            ...result,
+            timestamp: Date.now()
+          });
+          resolve(result);
+        },
+        (err) => reject(err),
+        options
+      );
+    });
+  };
+
+  // (b) 1ª tentativa: baixa precisão (rápida, IP/Wi-Fi/Rede), timeout 8s, cache 5 minutos
+  try {
+    return await queryGeolocation({
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 300000
+    });
+  } catch (err: any) {
+    // Permissão negada explicitamente pelo usuário: não repetir
+    if (err && err.code === 1) {
+      throw err;
+    }
+
+    // (c) 2ª tentativa: se falhar por timeout (3) ou indisponível (2), tentar com alta precisão e 15s
+    try {
+      return await queryGeolocation({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000
+      });
+    } catch (secondErr: any) {
+      // (d) Rejeita se ambas as tentativas falharem
+      throw secondErr;
+    }
+  }
+};
+
+
