@@ -464,6 +464,10 @@ interface MapComponentProps {
   isStage2Open?: boolean;
   isSidebarCollapsed?: boolean;
   isAddressSearching?: boolean;
+  searchSelectedFeatureId?: string | null;
+  isDetailsTabOpen?: boolean;
+  onOpenDetailsTab?: () => void;
+  onClearSearchSelectedFeatureId?: () => void;
 }
 
 // Montagem padronizada do polígono medido com anel fechado e propriedades
@@ -800,7 +804,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   isBottomBarMaximized = false,
   isStage2Open = false,
   isSidebarCollapsed = false,
-  isAddressSearching = false
+  isAddressSearching = false,
+  searchSelectedFeatureId = null,
+  isDetailsTabOpen = false,
+  onOpenDetailsTab,
+  onClearSearchSelectedFeatureId
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -816,6 +824,26 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   useEffect(() => {
     onSelectionChangeRef.current = onSelectionChange;
   }, [onSelectionChange]);
+
+  const searchSelectedFeatureIdRef = useRef<string | null>(searchSelectedFeatureId);
+  useEffect(() => {
+    searchSelectedFeatureIdRef.current = searchSelectedFeatureId;
+  }, [searchSelectedFeatureId]);
+
+  const isDetailsTabOpenRef = useRef<boolean>(isDetailsTabOpen);
+  useEffect(() => {
+    isDetailsTabOpenRef.current = isDetailsTabOpen;
+  }, [isDetailsTabOpen]);
+
+  const onOpenDetailsTabRef = useRef(onOpenDetailsTab);
+  useEffect(() => {
+    onOpenDetailsTabRef.current = onOpenDetailsTab;
+  }, [onOpenDetailsTab]);
+
+  const onClearSearchSelectedFeatureIdRef = useRef(onClearSearchSelectedFeatureId);
+  useEffect(() => {
+    onClearSearchSelectedFeatureIdRef.current = onClearSearchSelectedFeatureId;
+  }, [onClearSearchSelectedFeatureId]);
 
   // Controle de transição suave da barra lateral Apple Maps (evita invalidateSize repetido a cada frame)
   const isSidebarAnimatingRef = useRef(false);
@@ -2214,6 +2242,9 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       // Se a seleção atual é uma coordenada pesquisada (pino de botão direito), não limpar ao clicar no mapa
       const hasCoordSearch = selectedFeaturesRef.current.some(f => f.id === 'coord-search' || f.sourceName === 'Coordenadas');
       if (hasCoordSearch) return;
+      if (searchSelectedFeatureIdRef.current) {
+        onClearSearchSelectedFeatureIdRef.current?.();
+      }
       onSelectionChangeRef.current?.([]);
     });
 
@@ -2839,6 +2870,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         const displayValue = getTranslatedValue(source?.popupProperty || '', rawValue);
         const title = displayValue != null && String(displayValue).trim() !== '' ? String(displayValue) : getIdentifier(props);
 
+        applySelectedStyleToLayer(layer, true);
+
         onSelectionChangeRef.current?.([{
           id: String((layer as any)._leaflet_id),
           name: title,
@@ -3008,6 +3041,26 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                   }
                 } else {
                   // Seleção simples: desmarca as anteriores com segurança
+                  const isFromSearch = Boolean(
+                    searchSelectedFeatureIdRef.current && (
+                      searchSelectedFeatureIdRef.current === String(layer._leaflet_id) ||
+                      prevSelected.some(item => item.id === searchSelectedFeatureIdRef.current)
+                    )
+                  );
+
+                  if (alreadySelected && isFromSearch && !isDetailsTabOpenRef.current) {
+                    // Primeiro clique na feição que veio da busca quando a aba ainda não é 'details':
+                    // Abre a aba de Detalhes da Feição e mantém a feição selecionada
+                    onClearSearchSelectedFeatureIdRef.current?.();
+                    onOpenDetailsTabRef.current?.();
+                    applySelectedStyleToLayer(layer, true);
+                    return prevSelected;
+                  }
+
+                  if (searchSelectedFeatureIdRef.current) {
+                    onClearSearchSelectedFeatureIdRef.current?.();
+                  }
+
                   prevSelected.forEach(item => {
                     if (item.layer) {
                       applySelectedStyleToLayer(item.layer, false);

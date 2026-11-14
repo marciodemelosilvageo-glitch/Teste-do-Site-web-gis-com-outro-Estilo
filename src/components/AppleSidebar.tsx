@@ -2517,7 +2517,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                                   lastSearchClickTimeRef.current = Date.now();
                                   setOpenedFromSearch(true);
                                   onResultItemClick(groupName, item);
-                                  setActiveTab('details');
                                 }}
                                 className="w-full p-2.5 text-left hover:bg-[#007AFF]/10 flex items-center gap-2 transition-colors cursor-pointer"
                               >

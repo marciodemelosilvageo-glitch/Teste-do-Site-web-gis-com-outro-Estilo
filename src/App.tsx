@@ -500,10 +500,25 @@ export default function App() {
   // Referência para controlar se o Raio-X foi aberto automaticamente por seleção múltipla (2+ feições)
   const isAutoOpenedDashboardRef = useRef<boolean>(false);
 
+  // Referência e estado para controlar quando a seleção de feição foi disparada pela lista de resultados de busca
+  // Nesse cenário, o mapa centraliza e seleciona silenciosamente sem trocar de aba (permanece na aba de busca 'search').
+  const isSilentSearchSelectionRef = useRef<boolean>(false);
+  const lastSilentSearchTimestampRef = useRef<number>(0);
+  const [searchSelectedFeatureId, setSearchSelectedFeatureId] = useState<string | null>(null);
+
   // Manipulador manual de troca de abas para resetar o gatilho automático se o usuário navegar por conta própria
   const handleSetActiveTab = useCallback((tabOrFn: React.SetStateAction<SidebarTab>) => {
     isAutoOpenedDashboardRef.current = false;
     setSidebarTab(tabOrFn);
+  }, []);
+
+  const handleOpenDetailsTab = useCallback(() => {
+    isAutoOpenedDashboardRef.current = false;
+    setSidebarTab('details');
+  }, []);
+
+  const handleClearSearchSelectedFeatureId = useCallback(() => {
+    setSearchSelectedFeatureId(null);
   }, []);
 
   // Abrir aba de Detalhes ou Raio-X no estilo Apple Maps quando feições forem selecionadas no mapa:
@@ -512,6 +527,13 @@ export default function App() {
   // - Se o usuário abriu manualmente o Raio-X, mantém nele.
   // - Feições sem dashboard (plot-, Localidades, Comunidades Rurais) abrem "details".
   useEffect(() => {
+    // Se a seleção partiu de um clique na lista de resultados da busca, mantemos a aba atual ('search')
+    const isSilent = isSilentSearchSelectionRef.current && (Date.now() - lastSilentSearchTimestampRef.current < 2500);
+    if (isSilent) {
+      isSilentSearchSelectionRef.current = false;
+      return;
+    }
+
     if (selectedFeatures.length > 0) {
       const dashboardFeatures = selectedFeatures.filter(f => {
         if (f.id?.startsWith('plot-')) return false;
@@ -2173,6 +2195,7 @@ export default function App() {
     setTotalResultsCount(0);
     setIsSearchResultsVisible(false);
     setSearchCoordinates(null);
+    setSearchSelectedFeatureId(null);
     setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
     if ((window as any).removeRightClickPin) {
       (window as any).removeRightClickPin();
@@ -2185,6 +2208,10 @@ export default function App() {
     if (!mapInstance) return;
 
     if (layerName === "Coordenadas") {
+      isSilentSearchSelectionRef.current = true;
+      lastSilentSearchTimestampRef.current = Date.now();
+      setSearchSelectedFeatureId('coord-search');
+
       const lat = parseFloat(item.polygonLayer.feature.properties.Latitude);
       const lng = parseFloat(item.polygonLayer.feature.properties.Longitude);
       setSearchCoordinates([{ 
@@ -2220,9 +2247,13 @@ export default function App() {
     if (!mapActionsRef.current) return;
 
     try {
-      // 1. Garantir que a camada do item esteja ativada no mapa
       const targetPoly = item.polygonLayer;
-      
+      const targetId = targetPoly ? String((targetPoly as any)._leaflet_id || '') : null;
+      isSilentSearchSelectionRef.current = true;
+      lastSilentSearchTimestampRef.current = Date.now();
+      setSearchSelectedFeatureId(targetId);
+
+      // 1. Garantir que a camada do item esteja ativada no mapa
       const loadedGeoJson = await mapActionsRef.current.loadLayerByName(layerName);
       if (!mapInstance.hasLayer(loadedGeoJson)) {
         loadedGeoJson.addTo(mapInstance);
@@ -2257,6 +2288,8 @@ export default function App() {
       showToast(`Centralizado em: ${getIdentifier(targetPoly.feature?.properties, layerName)}`);
       logActivity('BUSCA', `Clicou no resultado: "${getIdentifier(targetPoly.feature?.properties, layerName)}"`, userRole, `Camada: ${layerName}`);
     } catch (err) {
+      isSilentSearchSelectionRef.current = false;
+      setSearchSelectedFeatureId(null);
       console.error(err);
       showToast('Erro ao focar na feição selecionada.');
     }
@@ -2264,6 +2297,7 @@ export default function App() {
 
   // Remover feição individual da lista de selecionados
   const handleRemoveFromSelection = (id: string) => {
+    setSearchSelectedFeatureId(null);
     const target = selectedFeatures.find(f => f.id === id);
     if (target) {
       const lyr = target.layer as any;
@@ -2293,6 +2327,7 @@ export default function App() {
   };
 
   const handleClearSelection = () => {
+    setSearchSelectedFeatureId(null);
     selectedFeatures.forEach(f => {
       const lyr = f.layer as any;
       if (lyr && typeof lyr.setStyle === 'function') {
@@ -3393,6 +3428,7 @@ export default function App() {
                 const nextFeatures = typeof features === 'function' ? features(prev) : features;
                 if (nextFeatures.length === 0) {
                   // Quando desmarca a feição, fecha a barra de detalhes da feição
+                  setSearchSelectedFeatureId(null);
                   setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
                   if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
                     setSearchCoordinates(null);
@@ -3438,6 +3474,10 @@ export default function App() {
             allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}
             searchCoordinates={searchCoordinates}
             onPlottedPointClick={handlePlottedPointClick}
+            searchSelectedFeatureId={searchSelectedFeatureId}
+            isDetailsTabOpen={sidebarTab === 'details'}
+            onOpenDetailsTab={handleOpenDetailsTab}
+            onClearSearchSelectedFeatureId={handleClearSearchSelectedFeatureId}
             onMeasureChange={(latlngs) => {
               setMeasureHistory(latlngs);
               if (latlngs && latlngs.length >= 2) {
