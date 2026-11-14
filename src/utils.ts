@@ -338,7 +338,6 @@ export const downloadFile = (filename: string, content: string, mimeType: string
 // Exportar feições selecionadas para formato CSV compatível com Excel (com UTF-8 BOM)
 export const exportSelectionToCSV = (filename: string, features: any[]): void => {
   if (!features || features.length === 0) {
-    alert('Não há dados selecionados para exportar.');
     return;
   }
   const allKeys = new Set<string>();

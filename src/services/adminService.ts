@@ -1930,7 +1930,6 @@ export const exportActivityLogsToCSV = (): void => {
   const logs = getActivityLogs();
   const sessions = getUserSessions();
   if (logs.length === 0) {
-    alert('Nenhum log registrado para exportar.');
     return;
   }
 

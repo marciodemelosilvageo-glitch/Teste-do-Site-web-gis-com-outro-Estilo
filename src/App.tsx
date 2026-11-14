@@ -669,22 +669,9 @@ export default function App() {
     removeMeasurePoint: (index: number) => void;
   } | null>(null);
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Exibir toast temporário de feedback com tempo suficiente de leitura
-  const showToast = useCallback((msg: string, duration: number = 4000) => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setToastMessage(msg);
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, duration);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    };
+  // Notificações flutuantes (toasts) desativadas a pedido do usuário
+  const showToast = useCallback((_msg: string, _duration?: number) => {
+    // Intencionalmente desativado a pedido do usuário para não exibir mensagens flutuantes na interface
   }, []);
 
   // Salvar Combinação de Camadas Favoritas (Item 5: Produtividade)
@@ -3675,23 +3662,7 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* NOTIFICAÇÃO TOAST TEMPORÁRIA (SEMPRE NO TOPO DE QUALQUER MODAL / PAINEL) */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: 30, x: '-50%', scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
-            exit={{ opacity: 0, y: 20, x: '-50%', scale: 0.9 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 dark:bg-slate-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl z-[99999] font-bold text-xs sm:text-sm flex items-center gap-3 border border-slate-700/80 backdrop-blur-md max-w-[92vw] text-center pointer-events-none"
-          >
-            <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
-              <Info className="w-3.5 h-3.5" />
-            </div>
-            <span className="tracking-tight leading-snug">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* NOTIFICAÇÃO TOAST TEMPORÁRIA DESATIVADA */}
 
 
 
