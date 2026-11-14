@@ -134,7 +134,64 @@ export function attachRowKeys(items: any[]): any[] {
   }));
 }
 
-export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({ 
+interface IbgeTableRowProps {
+  row: any;
+  index: number;
+  visibleTableColumns: Array<{ key: string; label: string }>;
+  columnWidths: Record<string, number>;
+  onPlotAddress: (address: any) => void;
+}
+
+const IbgeTableRow = React.memo<IbgeTableRowProps>(({
+  row,
+  index,
+  visibleTableColumns,
+  columnWidths,
+  onPlotAddress,
+}) => {
+  // Memoizar também o cálculo dos valores exibidos por linha para não reexecutar getFormattedDisplayValue a cada render
+  const formattedCells = useMemo(() => {
+    return visibleTableColumns.map(col => {
+      const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
+      const displayVal = getFormattedDisplayValue(row, col.key);
+      return {
+        key: col.key,
+        width,
+        displayVal
+      };
+    });
+  }, [row, visibleTableColumns, columnWidths]);
+
+  const handleClick = useCallback(() => {
+    onPlotAddress(row);
+  }, [onPlotAddress, row]);
+
+  return (
+    <tr 
+      onClick={handleClick}
+      className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
+      title="Clique para navegar e destacar este endereço no mapa"
+    >
+      <td className="px-3 py-2.5 text-center text-slate-400 dark:text-slate-500 font-bold sticky left-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10] shadow-r border-r border-black/5 dark:border-white/10 select-none text-[11px]">
+        {index + 1}
+      </td>
+      {formattedCells.map(cell => (
+        <td 
+          key={cell.key} 
+          style={{ width: `${cell.width}px`, minWidth: `${cell.width}px`, maxWidth: `${cell.width}px` }}
+          className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate" 
+          title={cell.displayVal || '-'}
+        >
+          {cell.displayVal || <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
+        </td>
+      ))}
+    </tr>
+  );
+});
+
+IbgeTableRow.displayName = 'IbgeTableRow';
+
+const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({ 
   onPlotAddress, 
   onPlotAllAddresses, 
   onClearPlot,
@@ -1355,31 +1412,14 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
                       </thead>
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
                         {processedResults.map((row, i) => (
-                          <tr 
-                            key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`} 
-                            onClick={() => onPlotAddress(row)}
-                            className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
-                            title="Clique para navegar e destacar este endereço no mapa"
-                          >
-                            <td className="px-3 py-2.5 text-center text-slate-400 dark:text-slate-500 font-bold sticky left-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10] shadow-r border-r border-black/5 dark:border-white/10 select-none text-[11px]">
-                              {i + 1}
-                            </td>
-                            {visibleTableColumns.map(col => {
-                              const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                              const displayVal = getFormattedDisplayValue(row, col.key);
-
-                              return (
-                                <td 
-                                  key={col.key} 
-                                  style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                  className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium truncate" 
-                                  title={displayVal || '-'}
-                                >
-                                  {displayVal || <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
-                                </td>
-                              );
-                            })}
-                          </tr>
+                          <IbgeTableRow
+                            key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`}
+                            row={row}
+                            index={i}
+                            visibleTableColumns={visibleTableColumns}
+                            columnWidths={columnWidths}
+                            onPlotAddress={onPlotAddress}
+                          />
                         ))}
                       </tbody>
                     </table>
@@ -1428,3 +1468,6 @@ export const IbgeSearchPanel: React.FC<IbgeSearchPanelProps> = ({
     </section>
   );
 };
+
+export const IbgeSearchPanel = React.memo(IbgeSearchPanelComponent);
+IbgeSearchPanel.displayName = 'IbgeSearchPanel';

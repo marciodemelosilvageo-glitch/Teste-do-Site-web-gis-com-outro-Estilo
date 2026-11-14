@@ -2104,3 +2104,24 @@ html.dark .apple-selected-label {
     filter: none !important;
   }
 }
+
+/* ==========================================================================
+   OTIMIZAÇÕES DE PERFORMANCE NO ARRASTO DA BARRA INFERIOR CNEFE (60 FPS)
+   ========================================================================== */
+html[data-cnefe-dragging="true"] .cnefe-bottom-bar-container {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: #ffffff !important;
+}
+
+html.dark[data-cnefe-dragging="true"] .cnefe-bottom-bar-container,
+.dark html[data-cnefe-dragging="true"] .cnefe-bottom-bar-container {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: #1c1c1e !important;
+}
+
+/* Desativa transições durante o arrasto da barra para sincronismo 1:1 sem atraso elástico */
+html[data-cnefe-dragging="true"] .cnefe-drag-no-transition {
+  transition: none !important;
+}

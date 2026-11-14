@@ -3448,7 +3448,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
         {!isPrintMode ? (
           <div 
-            className="absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
+            className="cnefe-drag-no-transition absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
             style={{
               left: isStage2Open ? 'calc(390px + 14px)' : '14px',
               bottom: !isBottomBarOpen 
@@ -3644,7 +3644,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {/* Apple Maps Legal Bar no Canto Inferior Direito */}
         {!isPrintMode && (
           <div 
-            className="absolute right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out"
+            className="cnefe-drag-no-transition absolute right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out"
             style={{
               bottom: !isBottomBarOpen 
                 ? '8px' 

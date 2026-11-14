@@ -101,6 +101,7 @@ interface AppleSidebarProps {
   onSearchCategoryByMunicipio?: (categoryId: string, municipio: string) => void;
   onSearchHospitaisByRadius?: (raioMetros: number) => void;
   cnefeMunicipios?: string[];
+  onEnsureMunicipiosLoaded?: () => void;
   isHospitalSearching?: boolean;
   
   // Camadas
@@ -206,6 +207,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onSearchCategoryByMunicipio,
   onSearchHospitaisByRadius,
   cnefeMunicipios,
+  onEnsureMunicipiosLoaded,
   isHospitalSearching,
   activeLayers,
   setActiveLayers,
@@ -243,6 +245,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const [openedFromSearch, setOpenedFromSearch] = useState<boolean>(false);
   const [activeCategorySearchId, setActiveCategorySearchId] = useState<CategorySearchType | null>(null);
   const lastSearchClickTimeRef = useRef<number>(0);
+
+  // Carregar lista de municípios sob demanda apenas ao abrir busca por categoria
+  useEffect(() => {
+    if (activeCategorySearchId) {
+      onEnsureMunicipiosLoaded?.();
+    }
+  }, [activeCategorySearchId, onEnsureMunicipiosLoaded]);
 
   // Feição ativa detalhada (última selecionada)
   const activeDetailFeature = useMemo(() => {

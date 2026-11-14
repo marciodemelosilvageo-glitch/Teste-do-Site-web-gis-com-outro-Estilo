@@ -456,15 +456,39 @@ export default function App() {
   const [isHospitalSearching, setIsHospitalSearching] = useState(false);
   const [cnefeMunicipios, setCnefeMunicipios] = useState<string[]>([]);
 
-  // Carregar lista de municípios do CNEFE para o modal de busca
-  useEffect(() => {
-    listarMunicipios().then(muns => {
+  // Carregamento sob demanda dos municípios CNEFE (apenas quando solicitado pela busca por categoria)
+  const hasRequestedCnefeMunicipiosRef = useRef<boolean>(false);
+
+  const ensureCnefeMunicipiosLoaded = useCallback(async () => {
+    if (hasRequestedCnefeMunicipiosRef.current) return;
+    hasRequestedCnefeMunicipiosRef.current = true;
+
+    // 1. Tentar ler do cache persistido no localStorage primeiro
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('webgis_cached_municipios');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCnefeMunicipios(parsed);
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Se não houver cache, buscar no DuckDB
+    try {
+      const muns = await listarMunicipios();
       if (muns && muns.length > 0) {
         setCnefeMunicipios(muns);
+        try {
+          localStorage.setItem('webgis_cached_municipios', JSON.stringify(muns));
+        } catch (e) {}
       }
-    }).catch(err => {
-      console.warn('Não foi possível carregar municípios antecipadamente:', err);
-    });
+    } catch (err) {
+      console.warn('Não foi possível carregar lista de municípios sob demanda:', err);
+    }
   }, []);
   const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
   const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
@@ -2077,7 +2101,7 @@ export default function App() {
     return details;
   };
 
-  const getDetectedCategoryOrigem = (pointOrigem?: string, row?: any): string | undefined => {
+  const getDetectedCategoryOrigem = useCallback((pointOrigem?: string, row?: any): string | undefined => {
     if (pointOrigem && pointOrigem.startsWith('tipo-')) return pointOrigem;
     const fromRow = detectCategoryFromData(row, pointOrigem);
     if (fromRow) return fromRow;
@@ -2086,7 +2110,7 @@ export default function App() {
     const fromContext = detectCategoryFromData(row, `${term} ${layer}`);
     if (fromContext) return fromContext;
     return pointOrigem;
-  };
+  }, [cnefeExternalResult]);
 
   const handlePlottedPointClick = (index: number, point: any, marker: any) => {
     const raw = point.rawAddress || {};
@@ -2131,7 +2155,7 @@ export default function App() {
     setSidebarTab('details');
   };
 
-  const handlePlotAddress = (row: any) => {
+  const handlePlotAddress = useCallback((row: any) => {
     const lat = parseFloat(row.latitude || row.LATITUDE);
     const lng = parseFloat(row.longitude || row.LONGITUDE);
     
@@ -2196,9 +2220,9 @@ export default function App() {
     
     // Rolar a tela para o topo para ver o mapa
     // map is already visible on screen
-  };
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem]);
 
-  const handlePlotAllAddresses = (results: any[]) => {
+  const handlePlotAllAddresses = useCallback((results: any[]) => {
     const validCoords = results
       .map(row => {
         const lat = parseFloat(row.latitude || row.LATITUDE);
@@ -2236,16 +2260,45 @@ export default function App() {
     logActivity('ENDERECO', `Plotou ${validCoords.length} endereços simultâneos no mapa`, userRole);
     showToast(`Plotando ${validCoords.length} endereços no mapa...`);
     // map is already visible on screen
-  };
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem]);
 
-  const handleClearPlot = () => {
+  const handleClearPlot = useCallback(() => {
     setSearchCoordinates(null);
     setCnefeExternalResult(null);
     setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
     setSidebarTab(prev => (prev === 'details' ? null : prev));
     logActivity('ENDERECO', 'Limpou marcadores e resultados de endereços do mapa', userRole);
     showToast('Pesquisa e marcadores de endereços limpos.');
-  };
+  }, [userRole, showToast]);
+
+  // Callbacks memoizados da Barra Inferior CNEFE para garantir que o React.memo evite re-renders
+  const handleOpenCnefeBottomBar = useCallback(() => {
+    setIsCnefeBottomBarOpen(true);
+  }, []);
+
+  const handleCloseCnefeBottomBar = useCallback(() => {
+    setIsCnefeBottomBarOpen(false);
+  }, []);
+
+  const handleToggleExpandCnefeBottomBar = useCallback(() => {
+    setIsCnefeBottomBarExpanded(prev => {
+      const next = !prev;
+      if (!next) {
+        setIsCnefeBottomBarMaximized(false);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleMaximizeCnefeBottomBar = useCallback(() => {
+    setIsCnefeBottomBarMaximized(prev => !prev);
+  }, []);
+
+  const handleClearExternalResult = useCallback(() => {
+    setCnefeExternalResult(null);
+    setSearchCoordinates(null);
+    setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
+  }, []);
 
   const handleKeyDown = (e: any) => {
     if (e.key === 'Enter') {
@@ -3006,6 +3059,7 @@ export default function App() {
             onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
             onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
             cnefeMunicipios={cnefeMunicipios}
+            onEnsureMunicipiosLoaded={ensureCnefeMunicipiosLoaded}
             isHospitalSearching={isHospitalSearching}
             onOpenCnefeBottomBar={() => {
               setIsCnefeBottomBarOpen(true);
@@ -3139,27 +3193,15 @@ export default function App() {
             isOpen={isCnefeBottomBarOpen}
             isStage2Open={!!sidebarTab}
             isExpanded={isCnefeBottomBarExpanded}
-            onOpen={() => setIsCnefeBottomBarOpen(true)}
-            onClose={() => setIsCnefeBottomBarOpen(false)}
-            onToggleExpand={() => {
-              setIsCnefeBottomBarExpanded(prev => {
-                const next = !prev;
-                if (!next) {
-                  setIsCnefeBottomBarMaximized(false);
-                }
-                return next;
-              });
-            }}
+            onOpen={handleOpenCnefeBottomBar}
+            onClose={handleCloseCnefeBottomBar}
+            onToggleExpand={handleToggleExpandCnefeBottomBar}
             isMaximized={isCnefeBottomBarMaximized}
-            onToggleMaximize={() => setIsCnefeBottomBarMaximized(prev => !prev)}
+            onToggleMaximize={handleToggleMaximizeCnefeBottomBar}
             onPlotAddress={handlePlotAddress}
             onPlotAllAddresses={handlePlotAllAddresses}
             onClearPlot={handleClearPlot}
-            onClearExternalResult={() => {
-              setCnefeExternalResult(null);
-              setSearchCoordinates(null);
-              setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
-            }}
+            onClearExternalResult={handleClearExternalResult}
             externalPolygonResult={cnefeExternalResult}
             allowedColumns={effectiveSession?.addressColumnsPermissions}
             hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
