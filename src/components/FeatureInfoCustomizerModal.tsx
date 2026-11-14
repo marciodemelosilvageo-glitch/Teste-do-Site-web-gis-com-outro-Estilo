@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, Reorder, useDragControls } from 'motion/react';
 import { 
   X, 
   Check, 
-  ArrowUp, 
-  ArrowDown, 
   RotateCcw, 
-  SlidersHorizontal
+  SlidersHorizontal,
+  GripVertical
 } from 'lucide-react';
 
 export interface CustomCardOption {
@@ -28,6 +27,93 @@ interface FeatureInfoCustomizerModalProps {
   layerName?: string;
 }
 
+interface ReorderCardItemProps {
+  id: string;
+  opt: CustomCardOption;
+  index: number;
+  total: number;
+  onRemove: () => void;
+  onMoveKeyboard: (dir: -1 | 1) => void;
+  onDragStart: (e: React.PointerEvent) => void;
+  prefersReducedMotion: boolean;
+}
+
+const ReorderCardItem: React.FC<ReorderCardItemProps> = ({
+  id,
+  opt,
+  index,
+  total,
+  onRemove,
+  onMoveKeyboard,
+  onDragStart,
+  prefersReducedMotion
+}) => {
+  const dragControls = useDragControls();
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.altKey && e.key === 'ArrowUp') {
+      e.preventDefault();
+      onMoveKeyboard(-1);
+    } else if (e.altKey && e.key === 'ArrowDown') {
+      e.preventDefault();
+      onMoveKeyboard(1);
+    }
+  };
+
+  return (
+    <Reorder.Item
+      value={id}
+      id={`reorder-item-${id}`}
+      dragListener={false}
+      dragControls={dragControls}
+      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 38 }}
+      className="p-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 flex items-center justify-between gap-2 select-none relative"
+      style={{ touchAction: 'pan-y' }}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Alça de arrasto focável (touch-action: none e cursor grab) */}
+        <button
+          id={`drag-handle-${id}`}
+          type="button"
+          tabIndex={0}
+          role="button"
+          aria-label={`Reordenar ${opt.label}. Posição ${index + 1} de ${total}. Pressione Alt+Seta Acima ou Alt+Seta Abaixo para mover.`}
+          onPointerDown={(e) => {
+            onDragStart(e);
+            dragControls.start(e);
+          }}
+          onKeyDown={handleKeyDown}
+          className="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center cursor-grab active:cursor-grabbing focus:outline-hidden focus:ring-2 focus:ring-blue-500 shrink-0 transition-colors"
+          style={{ touchAction: 'none' }}
+          title="Segure e arraste para reordenar (ou use Alt+Setas)"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+
+        <span className="w-5 h-5 rounded-full bg-black/5 dark:bg-white/10 text-[10px] font-black text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+          {index + 1}
+        </span>
+        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+          {opt.label}
+        </span>
+      </div>
+
+      <div className="flex items-center shrink-0">
+        <button
+          type="button"
+          disabled={total <= 1}
+          onClick={onRemove}
+          className="w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer transition-colors"
+          title="Remover dos cartões"
+          aria-label={`Remover ${opt.label}`}
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </Reorder.Item>
+  );
+};
+
 export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProps> = ({
   isOpen,
   onClose,
@@ -41,6 +127,12 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
 }) => {
   const [currentSelected, setCurrentSelected] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'selecionados' | 'catalogo'>('selecionados');
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string>('');
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const pointerYRef = useRef<number>(0);
+  const autoScrollAnimationRef = useRef<number | null>(null);
 
   const prefersReducedMotion = typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -64,7 +156,67 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Toggle de seleção de um item
+  // Auto-rolagem inteligente quando arrastando perto das bordas superior/inferior
+  const startAutoScrollLoop = () => {
+    if (autoScrollAnimationRef.current !== null) return;
+
+    const step = () => {
+      if (!isDraggingRef.current || !scrollContainerRef.current) {
+        autoScrollAnimationRef.current = null;
+        return;
+      }
+
+      const container = scrollContainerRef.current;
+      const rect = container.getBoundingClientRect();
+      const py = pointerYRef.current;
+      const edgeZone = 48; // px
+
+      const distFromTop = py - rect.top;
+      const distFromBottom = rect.bottom - py;
+
+      if (distFromTop < edgeZone && distFromTop > -30) {
+        const intensity = Math.min(1, Math.max(0.1, (edgeZone - distFromTop) / edgeZone));
+        container.scrollTop -= intensity * 12;
+      } else if (distFromBottom < edgeZone && distFromBottom > -30) {
+        const intensity = Math.min(1, Math.max(0.1, (edgeZone - distFromBottom) / edgeZone));
+        container.scrollTop += intensity * 12;
+      }
+
+      autoScrollAnimationRef.current = requestAnimationFrame(step);
+    };
+
+    autoScrollAnimationRef.current = requestAnimationFrame(step);
+  };
+
+  const stopAutoScrollLoop = () => {
+    if (autoScrollAnimationRef.current !== null) {
+      cancelAnimationFrame(autoScrollAnimationRef.current);
+      autoScrollAnimationRef.current = null;
+    }
+    isDraggingRef.current = false;
+  };
+
+  useEffect(() => {
+    const handleWindowPointerMove = (e: PointerEvent) => {
+      pointerYRef.current = e.clientY;
+    };
+    const handleWindowPointerUp = () => {
+      stopAutoScrollLoop();
+    };
+
+    window.addEventListener('pointermove', handleWindowPointerMove, { passive: true });
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerUp);
+      stopAutoScrollLoop();
+    };
+  }, []);
+
+  // Toggle de seleção de um item no catálogo ou remoção
   const handleToggle = (id: string) => {
     setCurrentSelected(prev => {
       if (prev.includes(id)) {
@@ -77,27 +229,34 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
     });
   };
 
-  // Mover item para cima na ordenação
-  const handleMoveUp = (index: number) => {
-    if (index <= 0) return;
+  const optionsMap = useMemo(() => {
+    return new Map(availableOptions.map(opt => [opt.id, opt]));
+  }, [availableOptions]);
+
+  // Reordenação via teclado (Alt+SetaCima / Alt+SetaBaixo) com retenção de foco e aria-live
+  const handleMoveItemKeyboard = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= currentSelected.length) return;
+    const itemToMove = currentSelected[index];
+    const opt = optionsMap.get(itemToMove);
+
     setCurrentSelected(prev => {
       const next = [...prev];
-      const temp = next[index - 1];
-      next[index - 1] = next[index];
+      const temp = next[targetIndex];
+      next[targetIndex] = next[index];
       next[index] = temp;
       return next;
     });
-  };
 
-  // Mover item para baixo na ordenação
-  const handleMoveDown = (index: number) => {
-    if (index >= currentSelected.length - 1) return;
-    setCurrentSelected(prev => {
-      const next = [...prev];
-      const temp = next[index + 1];
-      next[index + 1] = next[index];
-      next[index] = temp;
-      return next;
+    if (opt) {
+      setLiveAnnouncement(`${opt.label} movido para a posição ${targetIndex + 1} de ${currentSelected.length}.`);
+    }
+
+    requestAnimationFrame(() => {
+      const handleEl = document.getElementById(`drag-handle-${itemToMove}`);
+      if (handleEl) {
+        handleEl.focus();
+      }
     });
   };
 
@@ -110,10 +269,6 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
     onReset();
     onClose();
   };
-
-  const optionsMap = useMemo(() => {
-    return new Map(availableOptions.map(opt => [opt.id, opt]));
-  }, [availableOptions]);
 
   // Catálogo de Campos ordenado: 1) Selecionados ativos; 2) Histórico recente; 3) Demais campos
   const orderedCatalogOptions = useMemo(() => {
@@ -129,7 +284,7 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
       }
     });
 
-    // 2) Histórico do usuário (do mais recente ao mais antigo)
+    // 2) Histórico da camada do usuário (do mais recente ao mais antigo)
     if (historyIds && historyIds.length > 0) {
       historyIds.forEach(id => {
         const opt = optionsMap.get(id);
@@ -216,75 +371,52 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
         </button>
       </div>
 
-      {/* Conteúdo Rolável */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-2">
+      {/* Conteúdo Rolável com suporte a auto-scroll suave durante arrasto */}
+      <div 
+        ref={scrollContainerRef} 
+        className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-2"
+      >
         {activeTab === 'selecionados' ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold px-1 mb-1">
-              <span>Itens visíveis (arrume a ordem)</span>
+              <span>Arraste pela alça para ordenar</span>
               <span>{currentSelected.length} de {maxItems}</span>
             </div>
 
-            <AnimatePresence mode="popLayout" initial={false}>
+            {/* Região aria-live para leitores de tela */}
+            <div className="sr-only" aria-live="polite" aria-atomic="true">
+              {liveAnnouncement}
+            </div>
+
+            <Reorder.Group
+              axis="y"
+              values={currentSelected}
+              onReorder={setCurrentSelected}
+              className="space-y-1.5"
+              layoutScroll
+            >
               {currentSelected.map((id, index) => {
                 const opt = optionsMap.get(id);
                 if (!opt) return null;
                 return (
-                  <motion.div
+                  <ReorderCardItem
                     key={id}
-                    layout={!prefersReducedMotion ? "position" : undefined}
-                    initial={!prefersReducedMotion ? { opacity: 0, scale: 0.95 } : false}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={!prefersReducedMotion ? { opacity: 0, scale: 0.95 } : { opacity: 0 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 500,
-                      damping: 38
+                    id={id}
+                    opt={opt}
+                    index={index}
+                    total={currentSelected.length}
+                    onRemove={() => handleToggle(id)}
+                    onMoveKeyboard={(dir) => handleMoveItemKeyboard(index, dir)}
+                    onDragStart={(e) => {
+                      isDraggingRef.current = true;
+                      pointerYRef.current = e.clientY;
+                      startAutoScrollLoop();
                     }}
-                    className="p-2.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 flex items-center justify-between gap-2"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-5 h-5 rounded-full bg-black/5 dark:bg-white/10 text-[10px] font-black text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-                        {index + 1}
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                        {opt.label}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        disabled={index === 0}
-                        onClick={() => handleMoveUp(index)}
-                        className="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-slate-600 dark:text-slate-300 cursor-pointer transition-colors"
-                        title="Mover para cima"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === currentSelected.length - 1}
-                        onClick={() => handleMoveDown(index)}
-                        className="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-slate-600 dark:text-slate-300 cursor-pointer transition-colors"
-                        title="Mover para baixo"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={currentSelected.length <= 1}
-                        onClick={() => handleToggle(id)}
-                        className="w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer ml-1 transition-colors"
-                        title="Remover dos cartões"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </motion.div>
+                    prefersReducedMotion={!!prefersReducedMotion}
+                  />
                 );
               })}
-            </AnimatePresence>
+            </Reorder.Group>
           </div>
         ) : (
           <div className="space-y-1.5">

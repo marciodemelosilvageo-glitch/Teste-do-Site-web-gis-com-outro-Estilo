@@ -274,7 +274,28 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     return (normLayer && LAYER_DEFAULT_CARD_IDS[normLayer]) || DEFAULT_USEFUL_CARD_IDS;
   }, []);
 
-  // Helper para carregar a configuração efetiva (prioridade: camada salva > padrão camada > global legado > padrão geral)
+  // Helper de carregamento de histórico por camada (com fallback inicial para histórico legado global)
+  const getLayerHistoryIds = useCallback((uKey: string, normLayer: string): string[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      if (normLayer) {
+        const rawLayer = localStorage.getItem(`useful_cards_history_${uKey}_${normLayer}`);
+        if (rawLayer) {
+          const parsed = JSON.parse(rawLayer);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+      // Ponto de partida inicial se não existir histórico próprio da camada (sem apagar nem modificar)
+      const rawGlobal = localStorage.getItem(`useful_cards_history_${uKey}`);
+      if (rawGlobal) {
+        const parsed = JSON.parse(rawGlobal);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  }, []);
+
+  // Helper para carregar a configuração efetiva (prioridade: camada salva > padrão camada > padrão geral; NUNCA herda escolha de outra camada da chave global)
   const getEffectiveCardIds = useCallback((uKey: string, normLayer: string) => {
     if (typeof window === 'undefined') {
       return (normLayer && LAYER_DEFAULT_CARD_IDS[normLayer]) || DEFAULT_USEFUL_CARD_IDS;
@@ -287,14 +308,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           const parsed = JSON.parse(layerSaved);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
+
+        // 2. Se a camada possui um padrão pré-definido, adota o padrão da camada
+        if (LAYER_DEFAULT_CARD_IDS[normLayer]) {
+          return LAYER_DEFAULT_CARD_IDS[normLayer];
+        }
+
+        // 3. Camada sem padrão pré-definido: usa padrão geral (NUNCA herda escolha de outra camada da chave global)
+        return DEFAULT_USEFUL_CARD_IDS;
       }
 
-      // 2. Se a camada possui um padrão pré-definido, adota o padrão da camada
-      if (normLayer && LAYER_DEFAULT_CARD_IDS[normLayer]) {
-        return LAYER_DEFAULT_CARD_IDS[normLayer];
-      }
-
-      // 3. Só para camadas sem padrão pré-definido: verificar escolha global legada antiga
+      // 4. Só para feições sem nenhuma camada identificada: verificar escolha global legada antiga
       const globalSaved = localStorage.getItem(`useful_cards_${uKey}`);
       if (globalSaved) {
         const parsed = JSON.parse(globalSaved);
@@ -302,82 +326,75 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       }
     } catch (e) {}
 
-    // 4. Padrão atual genérico
+    // 5. Padrão atual genérico
     return DEFAULT_USEFUL_CARD_IDS;
   }, []);
 
   // Estado e persistência de Informações Úteis personalizáveis no localStorage
   const [isCustomizerModalOpen, setIsCustomizerModalOpen] = useState<boolean>(false);
+  const [customizerLayer, setCustomizerLayer] = useState<{ norm: string; name: string } | null>(null);
   const [usefulCardIds, setUsefulCardIds] = useState<string[]>(() => {
     return getEffectiveCardIds(userKey, normalizedLayer);
   });
 
-  // Histórico de cartões personalizados pelo usuário (persistido em localStorage)
+  // Histórico de cartões personalizados pelo usuário por camada (persistido em localStorage)
   const [historyIds, setHistoryIds] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(`useful_cards_history_${userKey}`);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch {}
-    }
-    return [];
+    return getLayerHistoryIds(userKey, normalizedLayer);
   });
 
-  // Atualizar histórico quando o usuário ativo mudar
+  // Atualizar histórico quando o usuário ativo ou a camada ativa mudar
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(`useful_cards_history_${userKey}`);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            setHistoryIds(parsed);
-            return;
-          }
-        }
-      } catch {}
-    }
-    setHistoryIds([]);
-  }, [userKey]);
+    setHistoryIds(getLayerHistoryIds(userKey, normalizedLayer));
+  }, [userKey, normalizedLayer, getLayerHistoryIds]);
 
   // Atualizar cartões quando mudar o usuário ou a camada da feição ativa
   useEffect(() => {
     setUsefulCardIds(getEffectiveCardIds(userKey, normalizedLayer));
   }, [userKey, normalizedLayer, getEffectiveCardIds]);
 
+  // Se a camada ativa mudar com o modal aberto, fechar o modal (sem salvar) e avisar com toast curto
+  useEffect(() => {
+    if (isCustomizerModalOpen && customizerLayer) {
+      if (normalizedLayer !== customizerLayer.norm) {
+        setIsCustomizerModalOpen(false);
+        setCustomizerLayer(null);
+        showToast('Personalização cancelada: a camada selecionada foi alterada.');
+      }
+    }
+  }, [normalizedLayer, isCustomizerModalOpen, customizerLayer, showToast]);
+
   // Fechar o modal de personalização se a aba de detalhes for fechada ou alterada
   useEffect(() => {
     if (activeTab !== 'details' && isCustomizerModalOpen) {
       setIsCustomizerModalOpen(false);
+      setCustomizerLayer(null);
     }
   }, [activeTab, isCustomizerModalOpen]);
 
   const handleSaveUsefulCards = (newIds: string[]) => {
-    setUsefulCardIds(newIds);
+    const targetNorm = customizerLayer ? customizerLayer.norm : normalizedLayer;
+    const targetName = customizerLayer ? customizerLayer.name : activeLayerName;
+
+    // Atualizar estado em tela se a camada gravada for a camada atualmente ativa
+    if (targetNorm === normalizedLayer) {
+      setUsefulCardIds(newIds);
+    }
+
     try {
-      if (normalizedLayer) {
-        localStorage.setItem(`useful_cards_${userKey}_${normalizedLayer}`, JSON.stringify(newIds));
+      if (targetNorm) {
+        localStorage.setItem(`useful_cards_${userKey}_${targetNorm}`, JSON.stringify(newIds));
       } else {
         localStorage.setItem(`useful_cards_${userKey}`, JSON.stringify(newIds));
       }
     } catch (e) {}
 
-    // Atualizar histórico de escolhas do usuário (mais recentes na frente, sem duplicatas, máx 30)
+    // Atualizar histórico de escolhas do usuário daquela camada específica
     try {
-      const currentHistory: string[] = (() => {
-        try {
-          const raw = localStorage.getItem(`useful_cards_history_${userKey}`);
-          if (raw) {
-            const p = JSON.parse(raw);
-            if (Array.isArray(p)) return p;
-          }
-        } catch {}
-        return [];
-      })();
+      const historyKey = targetNorm
+        ? `useful_cards_history_${userKey}_${targetNorm}`
+        : `useful_cards_history_${userKey}`;
 
+      const currentHistory = getLayerHistoryIds(userKey, targetNorm);
       const combined = [...newIds, ...currentHistory];
       const deduplicated: string[] = [];
       const seen = new Set<string>();
@@ -388,24 +405,32 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         }
         if (deduplicated.length >= 30) break;
       }
-      localStorage.setItem(`useful_cards_history_${userKey}`, JSON.stringify(deduplicated));
-      setHistoryIds(deduplicated);
+      localStorage.setItem(historyKey, JSON.stringify(deduplicated));
+      if (targetNorm === normalizedLayer) {
+        setHistoryIds(deduplicated);
+      }
     } catch (e) {}
 
-    showToast(activeLayerName ? `Informações úteis de ${activeLayerName} salvas com sucesso!` : 'Informações úteis personalizadas com sucesso!');
+    showToast(targetName ? `Informações úteis de ${targetName} salvas com sucesso!` : 'Informações úteis personalizadas com sucesso!');
   };
 
   const handleResetUsefulCards = () => {
-    const defaultIds = getLayerDefaultIds(normalizedLayer);
-    setUsefulCardIds(defaultIds);
+    const targetNorm = customizerLayer ? customizerLayer.norm : normalizedLayer;
+    const targetName = customizerLayer ? customizerLayer.name : activeLayerName;
+    const defaultIds = getLayerDefaultIds(targetNorm);
+
+    if (targetNorm === normalizedLayer) {
+      setUsefulCardIds(defaultIds);
+    }
+
     try {
-      if (normalizedLayer) {
-        localStorage.removeItem(`useful_cards_${userKey}_${normalizedLayer}`);
+      if (targetNorm) {
+        localStorage.removeItem(`useful_cards_${userKey}_${targetNorm}`);
       } else {
         localStorage.removeItem(`useful_cards_${userKey}`);
       }
     } catch (e) {}
-    showToast(activeLayerName ? `Restaurado o padrão de ${activeLayerName}.` : 'Restaurado o padrão das informações úteis.');
+    showToast(targetName ? `Restaurado o padrão de ${targetName}.` : 'Restaurado o padrão das informações úteis.');
   };
 
   // Identificar se a feição selecionada pertence à camada de Localidades
@@ -1751,7 +1776,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setIsCustomizerModalOpen(true)}
+                    onClick={() => {
+                      setCustomizerLayer({ norm: normalizedLayer, name: activeLayerName });
+                      setIsCustomizerModalOpen(true);
+                    }}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
                     title="Personalizar quais informações aparecem nos cartões"
                   >
@@ -2389,14 +2417,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             {isCustomizerModalOpen && (
               <FeatureInfoCustomizerModal
                 isOpen={isCustomizerModalOpen}
-                onClose={() => setIsCustomizerModalOpen(false)}
+                onClose={() => {
+                  setIsCustomizerModalOpen(false);
+                  setCustomizerLayer(null);
+                }}
                 availableOptions={usefulCardsCatalog.options}
-                selectedIds={usefulCardIds}
-                historyIds={historyIds}
+                selectedIds={getEffectiveCardIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
+                historyIds={getLayerHistoryIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
                 onSave={handleSaveUsefulCards}
                 onReset={handleResetUsefulCards}
                 maxItems={8}
-                layerName={activeLayerName}
+                layerName={customizerLayer?.name || activeLayerName}
               />
             )}
           </AnimatePresence>
