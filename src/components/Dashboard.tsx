@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Home, 
@@ -54,6 +54,102 @@ const formatTitle = (text: string): string => {
     .join(' ');
 };
 
+interface AnimatedNumberProps {
+  value: number;
+  decimals?: number;
+  prefix?: string;
+  suffix?: string;
+  className?: string;
+}
+
+const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
+  value,
+  decimals = 0,
+  prefix = '',
+  suffix = '',
+  className = ''
+}) => {
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const currentValRef = useRef<number>(0);
+  const animFrameRef = useRef<number | null>(null);
+
+  const format = useCallback((val: number) => {
+    const safeVal = Number.isFinite(val) ? val : 0;
+    const formatted = decimals > 0
+      ? safeVal.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+      : Math.round(safeVal).toLocaleString('pt-BR');
+    return `${prefix}${formatted}${suffix}`;
+  }, [decimals, prefix, suffix]);
+
+  useEffect(() => {
+    const prefersReducedMotion = 
+      typeof window !== 'undefined' && 
+      window.matchMedia && 
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const startVal = currentValRef.current;
+    const targetVal = Number.isFinite(value) ? value : 0;
+
+    if (prefersReducedMotion || startVal === targetVal) {
+      currentValRef.current = targetVal;
+      if (spanRef.current) {
+        spanRef.current.textContent = format(targetVal);
+      }
+      return;
+    }
+
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+    }
+
+    const duration = 500;
+    const startTime = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = easeOutCubic(progress);
+      const current = startVal + (targetVal - startVal) * eased;
+      currentValRef.current = current;
+
+      if (spanRef.current) {
+        spanRef.current.textContent = format(current);
+      }
+
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(tick);
+      } else {
+        currentValRef.current = targetVal;
+        if (spanRef.current) {
+          spanRef.current.textContent = format(targetVal);
+        }
+        animFrameRef.current = null;
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (animFrameRef.current !== null) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, [value, format]);
+
+  return (
+    <span 
+      ref={spanRef} 
+      className={`tabular-nums ${className}`}
+      aria-label={format(value)}
+    >
+      {format(value)}
+    </span>
+  );
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ 
   selectedFeatures, 
   showToast,
@@ -89,6 +185,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
     if (!selectedFeatures || selectedFeatures.length === 0) return [];
     return selectedFeatures.filter(f => !f.id?.startsWith('plot-') && f.sourceName !== 'Endereços plotados');
   }, [selectedFeatures]);
+
+  // Nomes únicos de camadas das feições territoriais selecionadas
+  const uniqueSourceNames = useMemo(() => {
+    if (!validDashboardFeatures || validDashboardFeatures.length === 0) return [];
+    const set = new Set<string>();
+    validDashboardFeatures.forEach(f => {
+      if (f.sourceName && f.sourceName.trim()) {
+        set.add(f.sourceName.trim());
+      }
+    });
+    return Array.from(set);
+  }, [validDashboardFeatures]);
+
+  const layerDisplayInfo = useMemo(() => {
+    if (uniqueSourceNames.length === 0) return null;
+    if (uniqueSourceNames.length === 1) {
+      return {
+        text: uniqueSourceNames[0],
+        title: uniqueSourceNames[0]
+      };
+    }
+    const fullText = `${uniqueSourceNames.length} camadas: ${uniqueSourceNames.join(', ')}`;
+    return {
+      text: fullText,
+      title: fullText
+    };
+  }, [uniqueSourceNames]);
 
   const {
     hasData,
@@ -339,10 +462,19 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
     >
       {/* 1. CARD PRINCIPAL DA LOCALIDADE COM BADGES */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
             Localidade Selecionada
           </span>
+          {layerDisplayInfo && (
+            <span 
+              className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 truncate max-w-[190px] sm:max-w-[260px]"
+              title={layerDisplayInfo.title}
+            >
+              <Layers className="w-3 h-3 shrink-0 text-[#007AFF]" />
+              <span className="truncate">{layerDisplayInfo.text}</span>
+            </span>
+          )}
         </div>
 
         <div>
@@ -451,7 +583,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
               id="dash-pop" 
               className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight"
             >
-              {sumPop.toLocaleString('pt-BR')}
+              <AnimatedNumber value={sumPop} />
             </p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               habitantes contabilizados
@@ -473,7 +605,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
             id="dash-dens" 
             className="px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 text-[#007AFF] dark:text-blue-300 font-black text-[11px]"
           >
-            {densidade} mor./domicílio
+            <AnimatedNumber value={parseFloat(densidade) || 0} decimals={2} suffix=" mor./domicílio" />
           </span>
         </div>
       </div>
@@ -495,7 +627,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
               id="dash-dom-total" 
               className="text-lg font-black text-slate-900 dark:text-white block"
             >
-              {sumDomTotal.toLocaleString('pt-BR')}
+              <AnimatedNumber value={sumDomTotal} />
             </span>
             <span className="text-[10px] text-slate-400 font-medium block">
               total de unidades
@@ -525,10 +657,10 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
 
           <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-0.5">
             <span className="text-[#34C759] flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#34C759]" /> Ocupados ({pctOcup.toFixed(0)}%)
+              <span className="w-2 h-2 rounded-full bg-[#34C759]" /> Ocupados (<AnimatedNumber value={pctOcup} decimals={0} suffix="%" />)
             </span>
             <span className="text-[#FF9500] flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#FF9500]" /> Vagos ({pctVagos.toFixed(0)}%)
+              <span className="w-2 h-2 rounded-full bg-[#FF9500]" /> Vagos (<AnimatedNumber value={pctVagos} decimals={0} suffix="%" />)
             </span>
             <span className="text-[#AF52DE] flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#AF52DE]" /> Coletivos
@@ -545,7 +677,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
                 <Home className="w-3.5 h-3.5" />
               </div>
               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                {taxaOcupacao}%
+                <AnimatedNumber value={parseFloat(taxaOcupacao) || 0} decimals={1} suffix="%" />
               </span>
             </div>
             <div>
@@ -553,7 +685,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
                 Habitados
               </span>
               <p className="text-base font-black text-slate-900 dark:text-white truncate">
-                {sumDomOcup.toLocaleString('pt-BR')}
+                <AnimatedNumber value={sumDomOcup} />
               </p>
             </div>
           </div>
@@ -565,7 +697,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
                 <ShieldAlert className="w-3.5 h-3.5" />
               </div>
               <span id="dash-taxa-vac" className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                {taxaVac}% vac.
+                <AnimatedNumber value={parseFloat(taxaVac) || 0} decimals={1} suffix="% vac." />
               </span>
             </div>
             <div>
@@ -573,7 +705,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
                 Vagos / Ocasional
               </span>
               <p id="dash-vagos" className="text-base font-black text-[#FF9500] truncate">
-                {sumVagos.toLocaleString('pt-BR')}
+                <AnimatedNumber value={sumVagos} />
               </p>
             </div>
           </div>
@@ -593,7 +725,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
                 Coletivos
               </span>
               <p id="dash-coletivos" className="text-base font-black text-slate-900 dark:text-white truncate">
-                {sumDomCol.toLocaleString('pt-BR')}
+                <AnimatedNumber value={sumDomCol} />
               </p>
             </div>
           </div>
@@ -613,7 +745,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
                 Base Residencial
               </span>
               <p className="text-base font-black text-slate-900 dark:text-white truncate">
-                {sumDomPart.toLocaleString('pt-BR')}
+                <AnimatedNumber value={sumDomPart} />
               </p>
             </div>
           </div>

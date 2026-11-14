@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import { APPLE_CATEGORIES } from '../categories';
 
@@ -22,8 +23,9 @@ export const CategorySearchMenu: React.FC<CategorySearchMenuProps> = ({
   title = 'Buscar por tipo de estabelecimento neste polígono'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
+  const [portalPos, setPortalPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const handleClose = useCallback(() => {
     setIsOpen(false);
@@ -41,14 +43,59 @@ export const CategorySearchMenu: React.FC<CategorySearchMenuProps> = ({
     onSelectCategory(catId);
   }, [handleClose, onSelectCategory]);
 
-  // Fechar ao clicar fora ou ao pressionar Escape
+  const updatePortalPos = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const menuWidth = 208; // w-52 = 208px
+    const estimatedHeight = portalRef.current?.offsetHeight || 320;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Se houver menos espaço abaixo do que a altura estimada e mais espaço acima, abre para cima do botão
+    const openUpwards = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+    const margin = 8;
+    const top = openUpwards 
+      ? Math.max(margin, rect.top - estimatedHeight - 6)
+      : Math.min(window.innerHeight - estimatedHeight - margin, rect.bottom + 6);
+
+    // Alinhamento horizontal baseado na prop 'align'
+    let left: number;
+    if (align === 'right') {
+      left = rect.right - menuWidth;
+    } else if (align === 'left') {
+      left = rect.left;
+    } else {
+      // center
+      left = rect.left + (rect.width / 2) - (menuWidth / 2);
+    }
+
+    // Limites de segurança da tela
+    if (left < margin) {
+      left = margin;
+    } else if (left + menuWidth > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - menuWidth - margin);
+    }
+
+    setPortalPos({ top, left });
+  }, [align]);
+
+  // Fechar ao clicar fora, ao pressionar Escape ou ao rolar/redimensionar
   useEffect(() => {
     if (!isOpen) return;
 
+    updatePortalPos();
+    const rafId = requestAnimationFrame(updatePortalPos);
+
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        handleClose();
+      const target = event.target as Node;
+      if (triggerRef.current && triggerRef.current.contains(target)) {
+        return;
       }
+      if (portalRef.current && portalRef.current.contains(target)) {
+        return;
+      }
+      handleClose();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -58,27 +105,37 @@ export const CategorySearchMenu: React.FC<CategorySearchMenuProps> = ({
       }
     };
 
+    const handleScrollOrResize = () => {
+      if (!triggerRef.current) {
+        handleClose();
+        return;
+      }
+      const rect = triggerRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        handleClose();
+      } else {
+        updatePortalPos();
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('touchstart', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
 
     return () => {
+      cancelAnimationFrame(rafId);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
     };
-  }, [isOpen, handleClose]);
-
-  // Alinhamento do popup
-  const alignClass = 
-    align === 'right' 
-      ? 'right-0' 
-      : align === 'left' 
-        ? 'left-0' 
-        : 'left-1/2 -translate-x-1/2';
+  }, [isOpen, handleClose, updatePortalPos]);
 
   return (
-    <div ref={containerRef} className={`relative flex items-center shrink-0 ${className}`}>
+    <div className={`relative flex items-center shrink-0 ${className}`}>
       <button
         ref={triggerRef}
         type="button"
@@ -99,14 +156,21 @@ export const CategorySearchMenu: React.FC<CategorySearchMenuProps> = ({
         )}
       </button>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
+          ref={portalRef}
           role="menu"
           aria-orientation="vertical"
           aria-label="Tipos de estabelecimentos"
-          className={`absolute top-full mt-1.5 z-50 ${alignClass} w-52 py-1.5 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl space-y-0.5 animate-fadeIn`}
+          style={{
+            position: 'fixed',
+            top: `${portalPos.top}px`,
+            left: `${portalPos.left}px`,
+            zIndex: 1200,
+          }}
+          className="w-52 max-h-[min(380px,calc(100vh-24px))] overflow-y-auto custom-scrollbar py-1.5 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl space-y-0.5 animate-fadeIn"
         >
-          <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-black/5 dark:border-white/5 mb-1">
+          <div className="sticky top-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-black/5 dark:border-white/5 mb-1">
             Buscar por Tipo
           </div>
 
@@ -131,7 +195,8 @@ export const CategorySearchMenu: React.FC<CategorySearchMenuProps> = ({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
