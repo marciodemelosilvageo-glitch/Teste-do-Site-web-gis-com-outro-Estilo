@@ -533,24 +533,18 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
         <>
           {/* Card Apresentação da Camada Completa */}
           <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                    Exportar Camada Completa
-                  </h3>
-                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
-                    Base territorial integral
-                  </p>
-                </div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                <Layers className="w-4 h-4" />
               </div>
-
-              <span className="text-[10px] font-bold bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0">
-                Oficial IBGE
-              </span>
+              <div className="min-w-0">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                  Exportar Camada Completa
+                </h3>
+                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                  Base territorial integral
+                </p>
+              </div>
             </div>
 
             {/* Seletor de Camada */}
