@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, Reorder, useDragControls } from 'motion/react';
 import { 
   X, 
@@ -19,6 +19,7 @@ interface FeatureInfoCustomizerModalProps {
   isOpen: boolean;
   onClose: () => void;
   availableOptions: CustomCardOption[];
+  allOptionsMap?: Record<string, { label: string; value?: string }>;
   selectedIds: string[];
   historyIds?: string[];
   onSave: (newSelectedIds: string[]) => void;
@@ -118,6 +119,7 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
   isOpen,
   onClose,
   availableOptions,
+  allOptionsMap,
   selectedIds,
   historyIds = [],
   onSave,
@@ -233,12 +235,21 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
     return new Map(availableOptions.map(opt => [opt.id, opt]));
   }, [availableOptions]);
 
+  // Recupera opção cadastrada ou gera fallback para seleções existentes ausentes da feição atual
+  const getOption = useCallback((id: string): CustomCardOption => {
+    return optionsMap.get(id) || {
+      id,
+      label: allOptionsMap?.[id]?.label || id,
+      category: 'atributo'
+    };
+  }, [optionsMap, allOptionsMap]);
+
   // Reordenação via teclado (Alt+SetaCima / Alt+SetaBaixo) com retenção de foco e aria-live
   const handleMoveItemKeyboard = (index: number, direction: -1 | 1) => {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= currentSelected.length) return;
     const itemToMove = currentSelected[index];
-    const opt = optionsMap.get(itemToMove);
+    const opt = getOption(itemToMove);
 
     setCurrentSelected(prev => {
       const next = [...prev];
@@ -396,8 +407,7 @@ export const FeatureInfoCustomizerModal: React.FC<FeatureInfoCustomizerModalProp
               layoutScroll
             >
               {currentSelected.map((id, index) => {
-                const opt = optionsMap.get(id);
-                if (!opt) return null;
+                const opt = getOption(id);
                 return (
                   <ReorderCardItem
                     key={id}

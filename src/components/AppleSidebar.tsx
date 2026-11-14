@@ -47,7 +47,11 @@ import {
   Wine,
   Hospital,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  LifeBuoy,
+  Phone,
+  Mail,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
@@ -814,57 +818,100 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       return allowedProperties[k] !== false;
     };
 
+    // Helper para verificar se um ou mais campos existem na feição com conteúdo real não vazio
+    const hasField = (...keys: string[]) => {
+      return keys.some(k => {
+        const val = props[k];
+        return val != null && String(val).trim() !== '' && String(val).trim() !== '—';
+      });
+    };
+
     const rawAreaNum = props.AREA_KM2 != null ? Number(props.AREA_KM2) : (props.Area != null ? Number(props.Area) : (props.area_km2 != null ? Number(props.area_km2) : null));
     const densidadeCalculada = (d.popTotal > 0 && rawAreaNum && rawAreaNum > 0)
       ? `${(d.popTotal / rawAreaNum).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hab/km²`
       : null;
 
-    const baseItems: Array<{ id: string; label: string; value: string; propertyKey?: string; category?: any }> = [
-      { id: 'popTotal', label: 'População', value: d.popTotal ? `${d.popTotal.toLocaleString('pt-BR')} hab` : '—', propertyKey: 'V0001', category: 'demografia' },
-      { id: 'domTotal', label: 'Domicílios', value: d.domTotal ? d.domTotal.toLocaleString('pt-BR') : '—', propertyKey: 'V0002', category: 'demografia' },
-      { id: 'mediaMoradores', label: 'Média de Moradores', value: d.mediaMoradores ? `${d.mediaMoradores} /dom.` : '—', propertyKey: 'V0005', category: 'demografia' },
-      { id: 'areaKm2', label: 'Área Territorial', value: d.areaKm2 || '—', propertyKey: 'AREA_KM2', category: 'territorio' },
-      { id: 'densidade', label: 'Densidade Demográfica', value: densidadeCalculada || '—', propertyKey: 'DENSIDADE', category: 'demografia' },
-      { id: 'domParticulares', label: 'Dom. Particulares', value: d.domParticulares ? d.domParticulares.toLocaleString('pt-BR') : '—', propertyKey: 'V0003', category: 'demografia' },
-      { id: 'domOcupados', label: 'Dom. Ocupados', value: d.domOcupados ? d.domOcupados.toLocaleString('pt-BR') : '—', propertyKey: 'V0007', category: 'demografia' },
-      { id: 'domVagos', label: 'Dom. Vagos', value: d.domVagos ? d.domVagos.toLocaleString('pt-BR') : '—', category: 'demografia' },
-      { id: 'taxaVacancia', label: 'Taxa de Vacância', value: d.taxaVacancia || '—', category: 'demografia' },
-      { id: 'domColetivos', label: 'Dom. Coletivos', value: d.domColetivos ? d.domColetivos.toLocaleString('pt-BR') : '—', propertyKey: 'V0004', category: 'demografia' },
-      { id: 'situacao', label: 'Situação', value: d.situacao || '—', propertyKey: 'SITUACAO', category: 'territorio' },
-      { id: 'tipoDescritivo', label: 'Tipo do Setor', value: d.tipoDescritivo || '—', propertyKey: 'Tipo do Setor', category: 'territorio' },
-      { id: 'areaDesenvolvimento', label: 'Área de Desenvolvimento', value: d.areaDesenvolvimento || '—', propertyKey: 'Area de desenvolvimento', category: 'territorio' },
-      { id: 'risp', label: 'RISP (Segurança)', value: d.risp || '—', propertyKey: 'Risp', category: 'seguranca' },
-      { id: 'aisp', label: 'AISP (Segurança)', value: d.aisp || '—', propertyKey: 'Aisp', category: 'seguranca' },
-      { id: 'nomeMunicipio', label: 'Município', value: d.nomeMunicipio || '—', propertyKey: 'NM_MUN', category: 'localizacao' },
-      { id: 'nomeBairro', label: 'Bairro', value: d.nomeBairro || '—', propertyKey: 'NM_BAIRRO', category: 'localizacao' },
-      { id: 'nomeDistrito', label: 'Distrito', value: d.nomeDistrito || '—', propertyKey: 'NM_DIST', category: 'localizacao' },
-      { id: 'zona', label: 'Zona', value: d.zona || d.nomeSubdistrito || '—', propertyKey: 'Zona', category: 'localizacao' },
-      { id: 'nomeSubdistrito', label: 'Subdistrito / Zona', value: d.nomeSubdistrito || '—', propertyKey: 'NM_SUBDIST', category: 'localizacao' },
-      { id: 'nomeRgInt', label: 'Região Intermediária', value: d.nomeRgInt || '—', propertyKey: 'NM_RGINT', category: 'localizacao' },
-      { id: 'nomeRgI', label: 'Região Imediata', value: d.nomeRgI || '—', propertyKey: 'NM_RGI', category: 'localizacao' },
-      { id: 'nomeUf', label: 'Estado / UF', value: d.nomeUf || '—', propertyKey: 'NM_UF', category: 'localizacao' },
+    const baseItems: Array<{ id: string; label: string; value: string; isAvailable: boolean; propertyKey?: string; category?: any }> = [
+      { id: 'popTotal', label: 'População', value: d.popTotal ? `${d.popTotal.toLocaleString('pt-BR')} hab` : '—', isAvailable: hasField('V0001', 'Total de pessoas'), propertyKey: 'V0001', category: 'demografia' },
+      { id: 'domTotal', label: 'Domicílios', value: d.domTotal ? d.domTotal.toLocaleString('pt-BR') : '—', isAvailable: hasField('V0002', 'Total de Domicílios'), propertyKey: 'V0002', category: 'demografia' },
+      { id: 'mediaMoradores', label: 'Média de Moradores', value: d.mediaMoradores ? `${d.mediaMoradores} /dom.` : '—', isAvailable: d.mediaMoradores !== null, propertyKey: 'V0005', category: 'demografia' },
+      { id: 'areaKm2', label: 'Área Territorial', value: d.areaKm2 || '—', isAvailable: hasField('AREA_KM2', 'Area', 'area_km2') && d.areaKm2 !== null, propertyKey: 'AREA_KM2', category: 'territorio' },
+      { id: 'densidade', label: 'Densidade Demográfica', value: densidadeCalculada || '—', isAvailable: densidadeCalculada !== null, propertyKey: 'DENSIDADE', category: 'demografia' },
+      { id: 'domParticulares', label: 'Dom. Particulares', value: d.domParticulares ? d.domParticulares.toLocaleString('pt-BR') : '—', isAvailable: hasField('V0003', 'Total de Domicílios Particulares'), propertyKey: 'V0003', category: 'demografia' },
+      { id: 'domOcupados', label: 'Dom. Ocupados', value: d.domOcupados ? d.domOcupados.toLocaleString('pt-BR') : '—', isAvailable: hasField('V0007', 'Total de Domicílios Particulares Ocupados'), propertyKey: 'V0007', category: 'demografia' },
+      { id: 'domVagos', label: 'Dom. Vagos', value: d.domVagos ? d.domVagos.toLocaleString('pt-BR') : '—', isAvailable: d.domParticulares > 0 && d.domOcupados > 0, category: 'demografia' },
+      { id: 'taxaVacancia', label: 'Taxa de Vacância', value: d.taxaVacancia || '—', isAvailable: d.taxaVacancia !== null, category: 'demografia' },
+      { id: 'domColetivos', label: 'Dom. Coletivos', value: d.domColetivos ? d.domColetivos.toLocaleString('pt-BR') : '—', isAvailable: hasField('V0004', 'Total de Domicílios Coletivos'), propertyKey: 'V0004', category: 'demografia' },
+      { id: 'situacao', label: 'Situação', value: d.situacao || '—', isAvailable: hasField('SITUACAO', 'Situação detalhada', 'NM_SIT', 'CD_SIT') && Boolean(d.situacao), propertyKey: 'SITUACAO', category: 'territorio' },
+      { id: 'tipoDescritivo', label: 'Tipo do Setor', value: d.tipoDescritivo || '—', isAvailable: hasField('Tipo do Setor', 'tipo', 'NM_TIPO', 'CD_TIPO') && Boolean(d.tipoDescritivo), propertyKey: 'Tipo do Setor', category: 'territorio' },
+      { id: 'areaDesenvolvimento', label: 'Área de Desenvolvimento', value: d.areaDesenvolvimento || '—', isAvailable: hasField('Area de desenvolvimento', 'Área de desenvolvimento') && Boolean(d.areaDesenvolvimento), propertyKey: 'Area de desenvolvimento', category: 'territorio' },
+      { id: 'risp', label: 'RISP (Segurança)', value: d.risp || '—', isAvailable: hasField('Risp', 'RISP') && Boolean(d.risp), propertyKey: 'Risp', category: 'seguranca' },
+      { id: 'aisp', label: 'AISP (Segurança)', value: d.aisp || '—', isAvailable: hasField('Aisp', 'AISP') && Boolean(d.aisp), propertyKey: 'Aisp', category: 'seguranca' },
+      { id: 'nomeMunicipio', label: 'Município', value: d.nomeMunicipio || '—', isAvailable: hasField('NM_MUN', 'Nome do município', 'Municipio', 'MUNICIPIO') && Boolean(d.nomeMunicipio), propertyKey: 'NM_MUN', category: 'localizacao' },
+      { id: 'nomeBairro', label: 'Bairro', value: d.nomeBairro || '—', isAvailable: hasField('NM_BAIRRO', 'Bairro', 'BAIRRO') && Boolean(d.nomeBairro), propertyKey: 'NM_BAIRRO', category: 'localizacao' },
+      { id: 'nomeDistrito', label: 'Distrito', value: d.nomeDistrito || '—', isAvailable: hasField('NM_DIST', 'Distrito', 'DISTRITO') && Boolean(d.nomeDistrito), propertyKey: 'NM_DIST', category: 'localizacao' },
+      { id: 'zona', label: 'Zona', value: d.zona || d.nomeSubdistrito || '—', isAvailable: hasField('Zona', 'zona', 'ZONA', 'NM_SUBDIST', 'Subdistrito', 'subdistrito', 'Nome do subdistrito') && Boolean(d.zona || d.nomeSubdistrito), propertyKey: 'Zona', category: 'localizacao' },
+      { id: 'nomeSubdistrito', label: 'Subdistrito / Zona', value: d.nomeSubdistrito || '—', isAvailable: hasField('NM_SUBDIST', 'Subdistrito', 'subdistrito', 'Nome do subdistrito') && Boolean(d.nomeSubdistrito), propertyKey: 'NM_SUBDIST', category: 'localizacao' },
+      { id: 'nomeRgInt', label: 'Região Intermediária', value: d.nomeRgInt || '—', isAvailable: hasField('NM_RGINT') && Boolean(d.nomeRgInt), propertyKey: 'NM_RGINT', category: 'localizacao' },
+      { id: 'nomeRgI', label: 'Região Imediata', value: d.nomeRgI || '—', isAvailable: hasField('NM_RGI') && Boolean(d.nomeRgI), propertyKey: 'NM_RGI', category: 'localizacao' },
+      { id: 'nomeUf', label: 'Estado / UF', value: d.nomeUf || '—', isAvailable: hasField('NM_UF', 'UF', 'uf', 'nm_uf'), propertyKey: 'NM_UF', category: 'localizacao' },
     ];
 
     const options: CustomCardOption[] = [];
     const valuesMap: Record<string, { label: string; value: string }> = {};
 
     baseItems.forEach(item => {
-      if (!isAllowed(item.propertyKey)) return;
-      options.push({ id: item.id, label: item.label, propertyKey: item.propertyKey, category: item.category });
       valuesMap[item.id] = { label: item.label, value: item.value };
+      if (item.isAvailable && isAllowed(item.propertyKey)) {
+        options.push({ id: item.id, label: item.label, propertyKey: item.propertyKey, category: item.category });
+      }
     });
 
-    // Incluir atributos da feição que não estejam nos itens base
+    // Mapeamento de chaves já cobertas pelos itens base para não duplicar no catálogo
+    const basePropertyKeys = new Set([
+      'v0001', 'total de pessoas',
+      'v0002', 'total de domicílios',
+      'v0003', 'total de domicílios particulares',
+      'v0004', 'total de domicílios coletivos',
+      'v0005',
+      'v0007', 'total de domicílios particulares ocupados',
+      'area_km2', 'area',
+      'densidade',
+      'situacao', 'situação detalhada', 'nm_sit', 'cd_sit',
+      'tipo do setor', 'tipo', 'nm_tipo', 'cd_tipo',
+      'area de desenvolvimento', 'área de desenvolvimento',
+      'risp', 'aisp',
+      'nm_mun', 'nome do município', 'municipio',
+      'nm_bairro', 'bairro',
+      'nm_dist', 'distrito',
+      'zona',
+      'nm_subdist', 'subdistrito', 'nome do subdistrito',
+      'nm_rgint', 'nm_rgi',
+      'nm_uf', 'uf',
+      'nome', 'localidade', 'nm_fcu', 'nm_nu', 'nm_aglom'
+    ]);
+
+    const systemKeys = new Set([
+      'id', 'geometry', 'layer', 'name', 'sourcename', 'lat', 'lng', 'latitude', 'longitude'
+    ]);
+
+    // Incluir atributos da feição que não estejam nos itens base e não sejam vazios
     Object.keys(props).forEach(k => {
-      if (k.startsWith('_') || ['id', 'geometry', 'layer', 'name', 'sourceName', 'lat', 'lng', 'latitude', 'longitude'].includes(k.toLowerCase())) return;
+      const lower = k.toLowerCase();
+      if (lower.startsWith('_') || systemKeys.has(lower)) return;
       if (!isAllowed(k)) return;
+      const rawVal = props[k];
+      const hasVal = rawVal != null && String(rawVal).trim() !== '' && String(rawVal).trim() !== '—';
       const attrId = `attr_${k}`;
+      const label = propertyNames[k] || toTitleCase(k.replace(/_/g, ' '));
+      const valStr = hasVal ? String(rawVal) : '—';
+
       if (!valuesMap[attrId]) {
-        const label = propertyNames[k] || toTitleCase(k.replace(/_/g, ' '));
-        const rawVal = props[k];
-        const valStr = (rawVal != null && String(rawVal).trim() !== '') ? String(rawVal) : '—';
-        options.push({ id: attrId, label, propertyKey: k, category: 'atributo' });
         valuesMap[attrId] = { label, value: valStr };
+      }
+
+      if (hasVal && !basePropertyKeys.has(lower)) {
+        options.push({ id: attrId, label, propertyKey: k, category: 'atributo' });
       }
     });
 
@@ -2666,6 +2713,64 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               </div>
             </div>
 
+            {/* 7. CONTATO E SUPORTE */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <div className="w-6 h-6 rounded-lg bg-[#34C759]/15 text-[#34C759] flex items-center justify-center shrink-0">
+                  <LifeBuoy className="w-3.5 h-3.5" />
+                </div>
+                <span>7. Contato e Suporte</span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                Encontrou algum bug ou precisa de ajuda para usar o site? Entre em contato.
+              </p>
+              <div className="space-y-1.5 pt-1 text-xs">
+                {/* Telefone */}
+                <a
+                  href="tel:+5586981689456"
+                  className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                >
+                  <div className="w-5 h-5 rounded-md bg-blue-500/10 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
+                    <Phone className="w-3 h-3" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">Telefone</span>
+                    <span className="font-semibold text-xs truncate">(86) 98168-9456</span>
+                  </div>
+                </a>
+
+                {/* WhatsApp */}
+                <a
+                  href="https://wa.me/5586981689456"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#34C759] dark:hover:text-[#30D158] hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                >
+                  <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-[#34C759] dark:text-[#30D158] flex items-center justify-center shrink-0">
+                    <MessageCircle className="w-3 h-3" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">WhatsApp</span>
+                    <span className="font-semibold text-xs truncate">(86) 98168-9456</span>
+                  </div>
+                </a>
+
+                {/* E-mail */}
+                <a
+                  href="mailto:marciodemelosilva.geo@gmail.com"
+                  className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#AF52DE] dark:hover:text-[#BF5AF2] hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                >
+                  <div className="w-5 h-5 rounded-md bg-purple-500/10 text-[#AF52DE] dark:text-[#BF5AF2] flex items-center justify-center shrink-0">
+                    <Mail className="w-3 h-3" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">E-mail</span>
+                    <span className="font-semibold text-xs truncate">marciodemelosilva.geo@gmail.com</span>
+                  </div>
+                </a>
+              </div>
+            </div>
+
             {/* Botão de Fechar Ajuda */}
             <div className="pt-2">
               <button
@@ -2690,6 +2795,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   setCustomizerLayer(null);
                 }}
                 availableOptions={usefulCardsCatalog.options}
+                allOptionsMap={usefulCardsCatalog.valuesMap}
                 selectedIds={getEffectiveCardIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
                 historyIds={getLayerHistoryIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
                 onSave={handleSaveUsefulCards}
