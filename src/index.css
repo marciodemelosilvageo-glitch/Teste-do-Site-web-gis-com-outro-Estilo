@@ -142,6 +142,13 @@ input:-webkit-autofill:active {
   }
 }
 
+/* Elevação do painel lateral em telas móveis quando uma ferramenta/estágio 2 está aberto */
+@media (max-width: 767px) {
+  aside[data-stage2-open="true"] {
+    z-index: 1150 !important;
+  }
+}
+
 /* ============================================================
    FERRAMENTA DE MEDIÇÃO DE DISTÂNCIAS E ÁREAS (APPLE MAPS GLASS)
    ============================================================ */

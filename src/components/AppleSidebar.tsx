@@ -1147,6 +1147,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   return (
     <aside 
       aria-label="Barra de Ferramentas Estilo Apple Maps"
+      data-stage2-open={!!activeTab}
       className="relative z-[1050] h-full flex shrink-0 select-none font-sans"
     >
       {/* ============================================================== */}

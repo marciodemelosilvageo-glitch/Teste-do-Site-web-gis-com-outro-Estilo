@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   MapPin, 
@@ -259,19 +260,82 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [columnSearchText, setColumnSearchText] = useState('');
-  const columnsModalRef = useRef<HTMLDivElement>(null);
+  const columnsButtonRef = useRef<HTMLButtonElement>(null);
+  const columnsPortalRef = useRef<HTMLDivElement>(null);
+  const [columnsPortalPos, setColumnsPortalPos] = useState<{ top: number; right: number }>({ top: 0, right: 10 });
+
+  const updateColumnsPortalPos = useCallback(() => {
+    if (!columnsButtonRef.current) return;
+    const rect = columnsButtonRef.current.getBoundingClientRect();
+    const modalWidth = 320; // 20rem = 320px
+    const estimatedHeight = 390;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Se houver menos espaço abaixo do que a altura estimada e mais espaço acima, abre para cima do botão
+    const openUpwards = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+    const top = openUpwards 
+      ? Math.max(10, rect.top - estimatedHeight - 8)
+      : Math.min(window.innerHeight - estimatedHeight - 10, rect.bottom + 8);
+
+    // Alinhamento à direita do botão, confinado aos limites da janela
+    let right = window.innerWidth - rect.right;
+    if (right < 10) right = 10;
+    if (window.innerWidth - right < modalWidth) {
+      right = Math.max(10, window.innerWidth - modalWidth - 10);
+    }
+
+    setColumnsPortalPos({ top, right });
+  }, []);
 
   useEffect(() => {
+    if (!isColumnsModalOpen) return;
+
+    updateColumnsPortalPos();
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (columnsModalRef.current && !columnsModalRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (columnsButtonRef.current && columnsButtonRef.current.contains(target)) {
+        return;
+      }
+      if (columnsPortalRef.current && columnsPortalRef.current.contains(target)) {
+        return;
+      }
+      setIsColumnsModalOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
         setIsColumnsModalOpen(false);
       }
     };
-    if (isColumnsModalOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isColumnsModalOpen]);
+
+    const handleScrollOrResize = () => {
+      if (!columnsButtonRef.current) {
+        setIsColumnsModalOpen(false);
+        return;
+      }
+      const rect = columnsButtonRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setIsColumnsModalOpen(false);
+      } else {
+        updateColumnsPortalPos();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [isColumnsModalOpen, updateColumnsPortalPos]);
 
   const filteredModalColumns = useMemo(() => {
     const q = normalizeString(columnSearchText);
@@ -1169,10 +1233,14 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                 </div>
 
                 {/* Botões de Ação de Colunas */}
-                <div className="flex items-center gap-2 relative" ref={columnsModalRef}>
+                <div className="flex items-center gap-2 relative">
                   <button
+                    ref={columnsButtonRef}
                     type="button"
-                    onClick={() => setIsColumnsModalOpen(prev => !prev)}
+                    onClick={() => {
+                      updateColumnsPortalPos();
+                      setIsColumnsModalOpen(prev => !prev);
+                    }}
                     className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 border ${
                       isColumnsModalOpen
                         ? 'bg-[#007AFF] text-white border-[#007AFF]'
@@ -1194,15 +1262,26 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     <span className="hidden sm:inline">Larguras</span>
                   </button>
 
-                  {/* Popover de Seleção de Colunas */}
-                  {isColumnsModalOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-3 z-50 flex flex-col gap-2.5 animate-fadeIn">
+                  {/* Popover de Seleção de Colunas (renderizado no body via Portal para evitar overflow-hidden) */}
+                  {isColumnsModalOpen && typeof document !== 'undefined' && createPortal(
+                    <div 
+                      ref={columnsPortalRef}
+                      style={{
+                        position: 'fixed',
+                        top: `${columnsPortalPos.top}px`,
+                        right: `${columnsPortalPos.right}px`,
+                        width: '20rem',
+                        zIndex: 1200
+                      }}
+                      className="bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-3 flex flex-col gap-2.5 animate-fadeIn pointer-events-auto"
+                    >
                       <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/10">
                         <div className="flex items-center gap-1.5">
                           <SlidersHorizontal size={14} className="text-[#007AFF]" />
                           <span className="text-xs font-black text-slate-800 dark:text-white">Configurar Colunas</span>
                         </div>
                         <button
+                          type="button"
                           onClick={() => setIsColumnsModalOpen(false)}
                           className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg cursor-pointer"
                         >
@@ -1262,7 +1341,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                           );
                         })}
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               </div>
