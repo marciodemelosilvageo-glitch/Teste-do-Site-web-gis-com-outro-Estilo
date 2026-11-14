@@ -504,6 +504,270 @@ const getMeasureExportFilename = (ext: string) => {
   return `area_medida_${y}${m}${d}_${hh}${mm}.${ext}`;
 };
 
+interface MapBottomOverlaysProps {
+  isPrintMode?: boolean;
+  isStage2Open?: boolean;
+  activeVisibleLayers: Array<{
+    name: string;
+    isVisible: boolean;
+    fillColor: string;
+    strokeColor?: string;
+    opacity: number;
+    isPointLayer?: boolean;
+    featureCount: number;
+  }>;
+  toggleLayerVisibility: (name: string) => void;
+  showToast: (msg: string) => void;
+  getZoom?: () => number;
+}
+
+const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
+  isPrintMode = false,
+  isStage2Open = false,
+  activeVisibleLayers,
+  toggleLayerVisibility,
+  showToast,
+  getZoom
+}) => {
+  const [manualLegendState, setManualLegendState] = useState<boolean | null>(null);
+  const [isBarExpanded, setIsBarExpanded] = useState<boolean>(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.getAttribute('data-cnefe-expanded') === 'true';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleExpandedChange = (e: Event) => {
+      const customEvt = e as CustomEvent<{ isExpanded: boolean }>;
+      const nextExpanded = !!customEvt.detail?.isExpanded;
+      setIsBarExpanded(nextExpanded);
+      setManualLegendState(null);
+    };
+    window.addEventListener('cnefe-bar-expanded-change', handleExpandedChange);
+    return () => {
+      window.removeEventListener('cnefe-bar-expanded-change', handleExpandedChange);
+    };
+  }, []);
+
+  const isLegendOpen = manualLegendState !== null ? manualLegendState : !isBarExpanded;
+
+  if (isPrintMode) {
+    return (
+      <div className="absolute bottom-2 left-2 z-[990] bg-white border-2 border-black p-2 rounded shadow-none text-black select-none max-w-[240px]">
+        <div className="text-[10px] font-black uppercase tracking-wider border-b border-black pb-1 mb-1.5 flex items-center justify-between">
+          <span>LEGENDA</span>
+          <span className="text-[8px] font-bold">({activeVisibleLayers.length})</span>
+        </div>
+        <div className="space-y-1">
+          {activeVisibleLayers.map(item => (
+            <div key={item.name} className="flex items-center gap-1.5 text-[9px] font-bold">
+              {item.isPointLayer ? (
+                <div className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={item.fillColor} stroke="#000000" strokeWidth="1.5" className="w-3 h-3">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3" fill="#ffffff" stroke="none"></circle>
+                  </svg>
+                </div>
+              ) : (
+                <div
+                  className="w-3.5 h-2.5 border border-black shrink-0"
+                  style={{
+                    backgroundColor: item.fillColor,
+                    opacity: Math.max(0.3, item.opacity)
+                  }}
+                />
+              )}
+              <span className="truncate">{item.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const zoom = getZoom ? getZoom() : 10;
+
+  return (
+    <>
+      {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
+      <div 
+        className="cnefe-drag-no-transition absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
+        style={{
+          left: isStage2Open ? 'calc(390px + 14px)' : '14px',
+          bottom: 'calc(var(--cnefe-bottom-height, 46px) + 14px)'
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        {!isLegendOpen ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setManualLegendState(true);
+            }}
+            className="bg-white/85 dark:bg-[#1c1c1e]/85 hover:bg-white dark:hover:bg-[#2c2c2e] text-slate-800 dark:text-slate-100 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all flex items-center gap-2 cursor-pointer group active:scale-95"
+            title="Expandir Legenda Temática do Mapa"
+          >
+            <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
+            <span className="tracking-tight">Legenda</span>
+            <span className="bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+              {activeVisibleLayers.length}
+            </span>
+            <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-transform" />
+          </button>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 w-[240px] sm:w-[270px] overflow-hidden flex flex-col transition-all"
+          >
+            {/* Cabeçalho da Legenda */}
+            <div className="px-3.5 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/5 dark:border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
+                <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  Legenda
+                </span>
+                <span className="text-[9px] bg-blue-100 dark:bg-blue-950/80 text-[#007AFF] dark:text-[#0a84ff] font-extrabold px-1.5 py-0.2 rounded-full">
+                  {activeVisibleLayers.length} {activeVisibleLayers.length === 1 ? 'ativa' : 'ativas'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setManualLegendState(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+                title="Minimizar legenda"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Lista de Feições e Camadas da Legenda */}
+            <div className="p-2 max-h-52 overflow-y-auto custom-scrollbar space-y-1.5 text-left">
+              {activeVisibleLayers.length === 0 ? (
+                <div className="p-2.5 text-center text-slate-400 dark:text-slate-500 text-[11px] italic font-medium">
+                  Nenhuma feição nesta área visível do mapa.
+                </div>
+              ) : (
+                activeVisibleLayers.map(item => (
+                  <div
+                    key={item.name}
+                    className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${
+                      item.isVisible 
+                        ? 'hover:bg-slate-100/70 dark:hover:bg-slate-800/70' 
+                        : 'opacity-50 bg-slate-50/60 dark:bg-slate-800/40 hover:opacity-75'
+                    }`}
+                  >
+                    {/* Símbolo Cartográfico (Ponto ou Polígono) */}
+                    {item.isPointLayer ? (
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={item.fillColor} stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4.5 h-4.5 drop-shadow-sm">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                          <circle cx="12" cy="10" r="3" fill="#ffffff" stroke="none"></circle>
+                        </svg>
+                      </div>
+                    ) : (
+                      <div
+                        className="w-5 h-3.5 rounded-xs shrink-0 shadow-xs transition-all relative overflow-hidden flex items-center justify-center"
+                        style={{
+                          backgroundColor: item.opacity <= 0 
+                            ? 'transparent' 
+                            : (item.fillColor.startsWith('#') && item.fillColor.length === 7
+                                ? `rgba(${parseInt(item.fillColor.slice(1, 3), 16)}, ${parseInt(item.fillColor.slice(3, 5), 16)}, ${parseInt(item.fillColor.slice(5, 7), 16)}, ${Math.max(0.12, item.opacity)})`
+                                : item.fillColor),
+                          border: `2px solid ${item.strokeColor || item.fillColor}`,
+                        }}
+                        title={`Preenchimento: ${item.fillColor} (${Math.round(item.opacity * 100)}%), Borda: ${item.strokeColor || item.fillColor}`}
+                      >
+                        {item.opacity <= 0 && (
+                          <div className="w-full h-full opacity-10 bg-current" style={{ color: item.strokeColor || item.fillColor }} />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Rótulo da Camada */}
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-[11px] font-bold truncate ${item.isVisible ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`} title={item.name}>
+                        {item.name}
+                      </div>
+                      <div className="text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">
+                        {!item.isVisible ? (
+                          <span className="text-amber-600 dark:text-amber-400 font-bold">Desativada</span>
+                        ) : item.isPointLayer ? (
+                          zoom < 8 ? (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold">Aproxime o zoom (≥ 8)</span>
+                          ) : item.featureCount === 0 ? (
+                            'Nenhuma localidade na tela'
+                          ) : (
+                            `${item.featureCount} localidade(s) visível(is)` 
+                          )
+                        ) : (
+                          item.opacity <= 0 
+                            ? (item.featureCount === 0 ? 'Polígono (Limites) • Fora da tela' : `Polígono (Limites) • ${item.featureCount} no enquadramento`)
+                            : (item.featureCount === 0 ? 'Polígono • Fora da tela' : `Polígono • ${item.featureCount} na área visível`)
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Botão de Ativação / Desativação da Camada (Olho) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleLayerVisibility(item.name);
+                        showToast(item.isVisible ? `Camada "${item.name}" desativada.` : `Camada "${item.name}" ativada!`);
+                      }}
+                      className={`p-1 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                        item.isVisible
+                          ? 'text-slate-500 hover:text-red-600 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+                          : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+                      }`}
+                      title={item.isVisible ? `Desativar camada ${item.name}` : `Ativar camada ${item.name}`}
+                    >
+                      {item.isVisible ? (
+                        <Eye className="w-3.5 h-3.5" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Apple Maps Legal Bar no Canto Inferior Direito */}
+      <div 
+        className="cnefe-drag-no-transition absolute right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out"
+        style={{
+          bottom: 'calc(var(--cnefe-bottom-height, 46px) + 10px)'
+        }}
+      >
+        <span>Termos</span>
+        <span>•</span>
+        <span>Legal</span>
+        <span>•</span>
+        <span>Dados IBGE / SSP-PI</span>
+      </div>
+    </>
+  );
+});
+
+MapBottomOverlays.displayName = 'MapBottomOverlays';
+
 const MapComponentInner: React.FC<MapComponentProps> = ({
   isPrintMode,
   isMultiSelectMode,
@@ -931,19 +1195,6 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>({});
 
 
-
-  // Estado da Legenda Cartográfica Interativa do Mapa (Estilo QGIS)
-  const [isLegendOpen, setIsLegendOpen] = useState<boolean>(true);
-
-  // Minimizar legenda automaticamente quando a Busca de Endereços Avançado for aberta/expandida,
-  // e voltar ao normal (expandida) automaticamente quando a ferramenta de busca for recolhida
-  useEffect(() => {
-    if (isBottomBarOpen && isBottomBarExpanded) {
-      setIsLegendOpen(false);
-    } else {
-      setIsLegendOpen(true);
-    }
-  }, [isBottomBarOpen, isBottomBarExpanded]);
 
   // Mapeamento de contagem de feições visíveis na extensão (viewport) atual do mapa
   const [visibleLayersInViewport, setVisibleLayersInViewport] = useState<Record<string, number>>({});
@@ -3446,220 +3697,15 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         )}
 
         {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
-        {!isPrintMode ? (
-          <div 
-            className="cnefe-drag-no-transition absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
-            style={{
-              left: isStage2Open ? 'calc(390px + 14px)' : '14px',
-              bottom: !isBottomBarOpen 
-                ? '16px' 
-                : isBottomBarExpanded 
-                  ? 'calc(var(--cnefe-bottom-height, 46vh) + 14px)'
-                  : '58px'
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            {!isLegendOpen ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsLegendOpen(true);
-                }}
-                className="bg-white/85 dark:bg-[#1c1c1e]/85 hover:bg-white dark:hover:bg-[#2c2c2e] text-slate-800 dark:text-slate-100 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all flex items-center gap-2 cursor-pointer group active:scale-95"
-                title="Expandir Legenda Temática do Mapa"
-              >
-                <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
-                <span className="tracking-tight">Legenda</span>
-                <span className="bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                  {activeVisibleLayers.length}
-                </span>
-                <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-transform" />
-              </button>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.94, y: 8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.94, y: 8 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 w-[240px] sm:w-[270px] overflow-hidden flex flex-col transition-all"
-              >
-                {/* Cabeçalho da Legenda */}
-                <div className="px-3.5 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/5 dark:border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
-                    <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                      Legenda
-                    </span>
-                    <span className="text-[9px] bg-blue-100 dark:bg-blue-950/80 text-[#007AFF] dark:text-[#0a84ff] font-extrabold px-1.5 py-0.2 rounded-full">
-                      {activeVisibleLayers.length} {activeVisibleLayers.length === 1 ? 'ativa' : 'ativas'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsLegendOpen(false);
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
-                    title="Minimizar legenda"
-                  >
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Lista de Feições e Camadas da Legenda */}
-                <div className="p-2 max-h-52 overflow-y-auto custom-scrollbar space-y-1.5 text-left">
-                  {activeVisibleLayers.length === 0 ? (
-                    <div className="p-2.5 text-center text-slate-400 dark:text-slate-500 text-[11px] italic font-medium">
-                      Nenhuma feição nesta área visível do mapa.
-                    </div>
-                  ) : (
-                    activeVisibleLayers.map(item => (
-                      <div
-                        key={item.name}
-                        className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${
-                          item.isVisible 
-                            ? 'hover:bg-slate-100/70 dark:hover:bg-slate-800/70' 
-                            : 'opacity-50 bg-slate-50/60 dark:bg-slate-800/40 hover:opacity-75'
-                        }`}
-                      >
-                        {/* Símbolo Cartográfico (Ponto ou Polígono) */}
-                        {item.isPointLayer ? (
-                          <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={item.fillColor} stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4.5 h-4.5 drop-shadow-sm">
-                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                              <circle cx="12" cy="10" r="3" fill="#ffffff" stroke="none"></circle>
-                            </svg>
-                          </div>
-                        ) : (
-                          <div
-                            className="w-5 h-3.5 rounded-xs shrink-0 shadow-xs transition-all relative overflow-hidden flex items-center justify-center"
-                            style={{
-                              backgroundColor: item.opacity <= 0 
-                                ? 'transparent' 
-                                : (item.fillColor.startsWith('#') && item.fillColor.length === 7
-                                    ? `rgba(${parseInt(item.fillColor.slice(1, 3), 16)}, ${parseInt(item.fillColor.slice(3, 5), 16)}, ${parseInt(item.fillColor.slice(5, 7), 16)}, ${Math.max(0.12, item.opacity)})`
-                                    : item.fillColor),
-                              border: `2px solid ${item.strokeColor || item.fillColor}`,
-                            }}
-                            title={`Preenchimento: ${item.fillColor} (${Math.round(item.opacity * 100)}%), Borda: ${item.strokeColor || item.fillColor}`}
-                          >
-                            {item.opacity <= 0 && (
-                              <div className="w-full h-full opacity-10 bg-current" style={{ color: item.strokeColor || item.fillColor }} />
-                            )}
-                          </div>
-                        )}
-
-                        {/* Rótulo da Camada */}
-                        <div className="min-w-0 flex-1">
-                          <div className={`text-[11px] font-bold truncate ${item.isVisible ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`} title={item.name}>
-                            {item.name}
-                          </div>
-                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">
-                            {!item.isVisible ? (
-                              <span className="text-amber-600 dark:text-amber-400 font-bold">Desativada</span>
-                            ) : item.isPointLayer ? (
-                              (mapRef.current && mapRef.current.getZoom() < 8) ? (
-                                <span className="text-amber-600 dark:text-amber-400 font-semibold">Aproxime o zoom (≥ 8)</span>
-                              ) : item.featureCount === 0 ? (
-                                'Nenhuma localidade na tela'
-                              ) : (
-                                `${item.featureCount} localidade(s) visível(is)` 
-                              )
-                            ) : (
-                              item.opacity <= 0 
-                                ? (item.featureCount === 0 ? 'Polígono (Limites) • Fora da tela' : `Polígono (Limites) • ${item.featureCount} no enquadramento`)
-                                : (item.featureCount === 0 ? 'Polígono • Fora da tela' : `Polígono • ${item.featureCount} na área visível`)
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Botão de Ativação / Desativação da Camada (Olho) */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleLayerVisibility(item.name);
-                            showToast(item.isVisible ? `Camada "${item.name}" desativada.` : `Camada "${item.name}" ativada!`);
-                          }}
-                          className={`p-1 rounded-lg transition-colors cursor-pointer shrink-0 ${
-                            item.isVisible
-                              ? 'text-slate-500 hover:text-red-600 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
-                              : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
-                          }`}
-                          title={item.isVisible ? `Desativar camada ${item.name}` : `Ativar camada ${item.name}`}
-                        >
-                          {item.isVisible ? (
-                            <Eye className="w-3.5 h-3.5" />
-                          ) : (
-                            <EyeOff className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                          )}
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </div>
-        ) : (
-          /* LEGENDA NO MODO IMPRESSÃO A4 (FORMATO CARTOGRÁFICO FORMAL) */
-          <div className="absolute bottom-2 left-2 z-[990] bg-white border-2 border-black p-2 rounded shadow-none text-black select-none max-w-[240px]">
-            <div className="text-[10px] font-black uppercase tracking-wider border-b border-black pb-1 mb-1.5 flex items-center justify-between">
-              <span>LEGENDA</span>
-              <span className="text-[8px] font-bold">({activeVisibleLayers.length})</span>
-            </div>
-            <div className="space-y-1">
-              {activeVisibleLayers.map(item => (
-                <div key={item.name} className="flex items-center gap-1.5 text-[9px] font-bold">
-                  {item.isPointLayer ? (
-                    <div className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={item.fillColor} stroke="#000000" strokeWidth="1.5" className="w-3 h-3">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3" fill="#ffffff" stroke="none"></circle>
-                      </svg>
-                    </div>
-                  ) : (
-                    <div
-                      className="w-3.5 h-2.5 border border-black shrink-0"
-                      style={{
-                        backgroundColor: item.fillColor,
-                        opacity: Math.max(0.3, item.opacity)
-                      }}
-                    />
-                  )}
-                  <span className="truncate">{item.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Apple Maps Legal Bar no Canto Inferior Direito */}
-        {!isPrintMode && (
-          <div 
-            className="cnefe-drag-no-transition absolute right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out"
-            style={{
-              bottom: !isBottomBarOpen 
-                ? '8px' 
-                : isBottomBarExpanded 
-                  ? 'calc(var(--cnefe-bottom-height, 46vh) + 10px)'
-                  : '54px'
-            }}
-          >
-            <span>Termos</span>
-            <span>•</span>
-            <span>Legal</span>
-            <span>•</span>
-            <span>Dados IBGE / SSP-PI</span>
-          </div>
-        )}
+        {/* LEGENDA CARTOGRÁFICA E SELO LEGAL DOCKADOS COM VARIÁVEL CSS */}
+        <MapBottomOverlays
+          isPrintMode={isPrintMode}
+          isStage2Open={isStage2Open}
+          activeVisibleLayers={activeVisibleLayers}
+          toggleLayerVisibility={toggleLayerVisibility}
+          showToast={showToast}
+          getZoom={() => mapRef.current ? mapRef.current.getZoom() : 10}
+        />
 
         {/* Loading Overlay */}
         {isLoading && (

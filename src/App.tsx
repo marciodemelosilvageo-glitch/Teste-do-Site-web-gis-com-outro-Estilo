@@ -2491,14 +2491,15 @@ export default function App() {
     setIsCnefeBottomBarOpen(false);
   }, []);
 
+  const isCnefeBottomBarExpandedRef = useRef<boolean>(isCnefeBottomBarExpanded);
+  isCnefeBottomBarExpandedRef.current = isCnefeBottomBarExpanded;
+
   const handleToggleExpandCnefeBottomBar = useCallback(() => {
-    setIsCnefeBottomBarExpanded(prev => {
-      const next = !prev;
-      if (!next) {
-        setIsCnefeBottomBarMaximized(false);
-      }
-      return next;
-    });
+    const next = !isCnefeBottomBarExpandedRef.current;
+    setIsCnefeBottomBarExpanded(next);
+    if (!next) {
+      setIsCnefeBottomBarMaximized(false);
+    }
   }, []);
 
   const handleToggleMaximizeCnefeBottomBar = useCallback(() => {
@@ -3396,8 +3397,6 @@ export default function App() {
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSaveFavoriteLayers={handleSaveFavoriteLayers}
             onLoadFavoriteLayers={handleLoadFavoriteLayers}
-            isBottomBarOpen={isCnefeBottomBarOpen}
-            isBottomBarExpanded={isCnefeBottomBarExpanded}
           />
 
           {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}

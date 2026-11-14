@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { 
   Home, 
   Search, 
@@ -72,26 +72,89 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const onToggleExpandRef = useRef(onToggleExpand);
   onToggleExpandRef.current = onToggleExpand;
 
-  // Gerenciamento do atributo data-cnefe-animating durante transições de abrir/recolher/maximizar
   const isInitialMountRef = useRef<boolean>(true);
-  useEffect(() => {
+  const prevHeightRef = useRef<number>(46);
+  const animTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Transição fluida de abertura/recolhimento/maximização via técnica FLIP (transform: translateY)
+  // Aplica a altura final imediatamente (evitando recálculo de layout a cada frame de height)
+  // e anima GPU-accelerated translateY do delta até 0.
+  useLayoutEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
+      prevHeightRef.current = barContainerRef.current?.getBoundingClientRect().height || 46;
       return;
     }
-    document.documentElement.setAttribute('data-cnefe-animating', 'true');
-    const timer = setTimeout(() => {
-      document.documentElement.removeAttribute('data-cnefe-animating');
-    }, 320);
-    return () => {
-      clearTimeout(timer);
-      document.documentElement.removeAttribute('data-cnefe-animating');
-    };
-  }, [isExpanded, isMaximized]);
 
-  // Sincronizar variável CSS global --cnefe-bottom-height para que elementos do mapa (legenda/legal) e tabela acompanhem o arrasto
+    // Se estiver em arrasto manual, o arrasto já atualiza em tempo real
+    if (isDraggingRef.current) {
+      prevHeightRef.current = barContainerRef.current?.getBoundingClientRect().height || 46;
+      return;
+    }
+
+    const container = barContainerRef.current;
+    if (!container) return;
+
+    const prevHeight = prevHeightRef.current;
+    const currentRect = container.getBoundingClientRect();
+    const currentHeight = currentRect.height;
+    prevHeightRef.current = currentHeight;
+
+    const deltaY = currentHeight - prevHeight;
+    if (Math.abs(deltaY) < 2) return;
+
+    // Marcação síncrona antes da pintura para desligar backdrop-filter durante a animação
+    document.documentElement.setAttribute('data-cnefe-animating', 'true');
+
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      document.documentElement.removeAttribute('data-cnefe-animating');
+      return;
+    }
+
+    // 1. Invert: desloca a barra para que o topo aparente fique exatamente onde estava
+    container.style.transition = 'none';
+    container.style.transform = `translateY(${deltaY}px)`;
+
+    // Forçar reflow local mínimo para computar a posição inicial
+    void container.offsetHeight;
+
+    // 2. Play: anima transform para translateY(0) usando GPU compositor
+    requestAnimationFrame(() => {
+      if (!barContainerRef.current) return;
+      barContainerRef.current.style.transition = 'transform 250ms cubic-bezier(0.16, 1, 0.3, 1), left 300ms ease-out';
+      barContainerRef.current.style.transform = 'translateY(0)';
+    });
+
+    if (animTimeoutRef.current) clearTimeout(animTimeoutRef.current);
+    animTimeoutRef.current = setTimeout(() => {
+      document.documentElement.removeAttribute('data-cnefe-animating');
+      if (barContainerRef.current) {
+        barContainerRef.current.style.transform = '';
+        barContainerRef.current.style.transition = '';
+      }
+    }, 320);
+  }, [isExpanded, isMaximized, customHeight]);
+
+  const handleTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.propertyName === 'transform') {
+      document.documentElement.removeAttribute('data-cnefe-animating');
+      if (animTimeoutRef.current) {
+        clearTimeout(animTimeoutRef.current);
+        animTimeoutRef.current = null;
+      }
+      if (barContainerRef.current) {
+        barContainerRef.current.style.transform = '';
+        barContainerRef.current.style.transition = '';
+      }
+    }
+  };
+
+  // Sincronizar variável CSS global --cnefe-bottom-height para que elementos do mapa (legenda/legal) acompanhem
   useEffect(() => {
-    // Durante o arrasto ativo, o requestAnimationFrame atualiza a variável diretamente sem conflitar
     if (isDraggingRef.current) return;
 
     if (!isOpen) {
@@ -107,13 +170,30 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     }
   }, [isOpen, isExpanded, customHeight, isMaximized]);
 
+  // Sincronizar data-cnefe-expanded no html e evento customizado para controle limpo de minimização da legenda
+  useEffect(() => {
+    if (isExpanded) {
+      document.documentElement.setAttribute('data-cnefe-expanded', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-cnefe-expanded');
+    }
+    window.dispatchEvent(new CustomEvent('cnefe-bar-expanded-change', { detail: { isExpanded } }));
+    return () => {
+      document.documentElement.removeAttribute('data-cnefe-expanded');
+    };
+  }, [isExpanded]);
+
   useEffect(() => {
     return () => {
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
       }
+      if (animTimeoutRef.current) {
+        clearTimeout(animTimeoutRef.current);
+      }
       document.documentElement.removeAttribute('data-cnefe-dragging');
       document.documentElement.removeAttribute('data-cnefe-animating');
+      document.documentElement.removeAttribute('data-cnefe-expanded');
       document.documentElement.style.removeProperty('--cnefe-bottom-height');
     };
   }, []);
@@ -250,10 +330,6 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     e.preventDefault();
     e.stopPropagation();
     setCustomHeight(null);
-    if (barContainerRef.current) {
-      barContainerRef.current.style.height = '';
-      barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
-    }
     if (onToggleMaximize) {
       onToggleMaximize();
     } else {
@@ -265,10 +341,6 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-    }
-    if (barContainerRef.current) {
-      barContainerRef.current.style.height = '';
-      barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
     }
     if (isExpanded) {
       // Ao recolher, reseta estado maximizado e altura customizada
@@ -284,28 +356,27 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   return (
     <div 
       ref={barContainerRef}
-      onTransitionEnd={() => {
-        document.documentElement.removeAttribute('data-cnefe-animating');
-      }}
+      onTransitionEnd={handleTransitionEnd}
       style={
         !isOpen
           ? { display: 'none' }
-          : isExpanded
-          ? {
-              height: customHeight ? `${customHeight}px` : (isMaximized ? '82vh' : '46vh'),
-              maxHeight: '92vh',
-              minHeight: '180px',
-              left: isStage2Open && typeof window !== 'undefined' && window.innerWidth >= 768 ? '390px' : '0px'
-            }
           : {
-              height: '46px',
+              height: !isExpanded
+                ? '46px'
+                : customHeight
+                ? `${customHeight}px`
+                : isMaximized
+                ? '82vh'
+                : '46vh',
+              maxHeight: isExpanded ? '92vh' : '46px',
+              minHeight: isExpanded ? '180px' : '46px',
               left: isStage2Open && typeof window !== 'undefined' && window.innerWidth >= 768 ? '390px' : '0px'
             }
       }
       className={`cnefe-bottom-bar-container absolute bottom-0 left-0 right-0 z-[1100] pointer-events-auto flex flex-col bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] rounded-t-2xl sm:rounded-t-3xl overflow-hidden ${
         !isOpen ? 'hidden' : ''
       } ${
-        isDragging ? 'transition-none select-none' : 'transition-[height,left] duration-300 ease-out'
+        isDragging ? 'transition-none select-none' : 'transition-[left] duration-300 ease-out'
       }`}
     >
       {/* ============================================================== */}
@@ -442,15 +513,25 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             title={isExpanded ? "Recolher barra para ver o mapa completo" : "Abrir busca de endereços de baixo para cima"}
           >
             <span>{isExpanded ? 'Recolher' : 'Abrir Busca'}</span>
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 animate-bounce" />}
+            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 cnefe-bounce-limited" />}
           </button>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* CONTEÚDO EXPANDIDO (SLIDE UP DE BAIXO PARA CIMA - SEMPRE MONTADO) */}
+      {/* CONTEÚDO EXPANDIDO (PRESERVADO NO LAYOUT, VISIVELMENTE OCULTO QUANDO RECOLHIDO) */}
       {/* ============================================================== */}
-      <div className={`flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0 ${isExpanded ? 'animate-fadeIn' : 'hidden'}`}>
+      <div 
+        aria-hidden={!isExpanded}
+        // @ts-expect-error inert is standard HTML5 attribute supported in React 19
+        inert={!isExpanded ? '' : undefined}
+        style={{
+          visibility: isExpanded ? 'visible' : 'hidden',
+          pointerEvents: isExpanded ? 'auto' : 'none',
+          contentVisibility: isExpanded ? 'visible' : 'auto'
+        }}
+        className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0"
+      >
         <IbgeSearchPanel
           embedded={true}
           isMaximized={isMaximized}

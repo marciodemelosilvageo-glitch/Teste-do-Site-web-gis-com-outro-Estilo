@@ -2117,8 +2117,8 @@ html.dark .apple-selected-label {
    ========================================================================== */
 html[data-cnefe-dragging="true"] .cnefe-bottom-bar-container,
 html[data-cnefe-animating="true"] .cnefe-bottom-bar-container,
-html[data-cnefe-dragging="true"] .cnefe-bottom-bar-container *,
-html[data-cnefe-animating="true"] .cnefe-bottom-bar-container * {
+html[data-cnefe-dragging="true"] .cnefe-table-header-sticky,
+html[data-cnefe-animating="true"] .cnefe-table-header-sticky {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -2128,11 +2128,21 @@ html[data-cnefe-dragging="true"] .cnefe-bottom-bar-container {
   contain: layout style;
 }
 
+html[data-cnefe-animating="true"] .cnefe-bottom-bar-container {
+  will-change: transform;
+}
+
 html[data-cnefe-dragging="true"] .cnefe-table-scroll-container {
   contain: content;
 }
 
-/* Desativa transições durante o arrasto da barra para sincronismo 1:1 sem atraso elástico */
-html[data-cnefe-dragging="true"] .cnefe-drag-no-transition {
+/* Desativa transições durante o arrasto ou animação FLIP para sincronismo 1:1 */
+html[data-cnefe-dragging="true"] .cnefe-drag-no-transition,
+html[data-cnefe-animating="true"] .cnefe-drag-no-transition {
   transition: none !important;
+}
+
+/* Limita o bounce do ícone de abrir busca para não consumir CPU/GPU indefinidamente */
+.cnefe-bounce-limited {
+  animation: bounce 1s ease-in-out 3;
 }
