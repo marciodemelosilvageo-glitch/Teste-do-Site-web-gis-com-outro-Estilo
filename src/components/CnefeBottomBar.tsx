@@ -11,7 +11,8 @@ import {
   Minimize2, 
   Sparkles,
   GripHorizontal,
-  X 
+  X,
+  Loader2 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
@@ -33,6 +34,7 @@ export interface CnefeBottomBarProps {
   allowedColumns?: Record<string, boolean>;
   hasPlottedMarkers?: boolean;
   isStage2Open?: boolean;
+  isSearchingExternal?: boolean;
 }
 
 export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
@@ -50,6 +52,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   allowedColumns,
   hasPlottedMarkers = false,
   isStage2Open = false,
+  isSearchingExternal = false,
 }) => {
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
@@ -393,6 +396,13 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
         />
       )}
 
+      {/* Barra de Progresso Indeterminada durante Busca Externa */}
+      {isSearchingExternal && (
+        <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#007AFF]/20 overflow-hidden z-40">
+          <div className="h-full bg-gradient-to-r from-[#007AFF] via-[#5856D6] to-[#007AFF] cnefe-progress-indeterminate" />
+        </div>
+      )}
+
       {/* ============================================================== */}
       {/* CABEÇALHO / BARRA DOCK FIXA (SEMPRE VISÍVEL NA BASE DO MAPA) */}
       {/* ============================================================== */}
@@ -418,8 +428,16 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
               Busca de Endereços Avançado
             </span>
 
+            {/* Indicação de Busca em Andamento */}
+            {isSearchingExternal && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#007AFF] dark:text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full animate-pulse shrink-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <span>Buscando endereços...</span>
+              </span>
+            )}
+
             {/* Indicação de Polígono Ativo */}
-            {externalPolygonResult && (
+            {!isSearchingExternal && externalPolygonResult && (
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 pl-2 pr-1.5 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60 truncate max-w-[220px] sm:max-w-xs shadow-2xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span className="truncate">{externalPolygonResult.title}</span>
@@ -510,7 +528,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
               isExpanded
                 ? 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300'
-                : 'bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-blue-500/25'
+                : `bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-blue-500/25 ${isSearchingExternal ? 'animate-pulse cnefe-btn-searching' : ''}`
             }`}
             title={isExpanded ? "Recolher barra para ver o mapa completo" : "Abrir busca de endereços de baixo para cima"}
           >
@@ -545,6 +563,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           externalPolygonResult={externalPolygonResult}
           allowedColumns={allowedColumns}
           hasPlottedMarkers={hasPlottedMarkers}
+          isExternalSearching={isSearchingExternal}
         />
       </div>
     </div>

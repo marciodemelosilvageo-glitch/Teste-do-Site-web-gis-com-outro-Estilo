@@ -1415,6 +1415,74 @@ html.dark .apple-selected-label {
   }
 }
 
+/* ============================================================
+   ANIMAÇÃO DE BUSCA CNEFE (SHIMMER EM BOTÕES E BARRA DE PROGRESSO)
+   ============================================================ */
+
+@keyframes cnefe-btn-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.cnefe-btn-searching {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.cnefe-btn-searching::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 100%
+  );
+  width: 100%;
+  height: 100%;
+  animation: cnefe-btn-shimmer 1.5s infinite linear;
+  will-change: transform;
+  pointer-events: none;
+}
+
+@keyframes cnefe-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(30%);
+  }
+  100% {
+    transform: translateX(160%);
+  }
+}
+
+.cnefe-progress-indeterminate {
+  width: 45%;
+  will-change: transform;
+  animation: cnefe-indeterminate 1.4s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cnefe-btn-searching::after {
+    animation: none !important;
+    display: none !important;
+  }
+  .cnefe-progress-indeterminate {
+    animation: none !important;
+    width: 100% !important;
+    opacity: 0.6 !important;
+  }
+}
+
 /* Botão de Ação Espacial CNEFE (Estilo Apple Filled Button) */
 .webgis-popup-cnefe-btn {
   width: 100%;

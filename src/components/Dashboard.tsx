@@ -541,8 +541,9 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
             <button
               type="button"
               disabled={isSearching}
+              aria-busy={isSearching}
               onClick={() => onSearchCategoryInFeatures('todos', eligibleFeatures)}
-              className="px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 rounded-l-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              className={`px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 rounded-l-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${isSearching ? 'cnefe-btn-searching' : ''}`}
               title={`Buscar todos os endereços nestas ${eligibleFeatures.length} áreas`}
             >
               {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" /> : null}

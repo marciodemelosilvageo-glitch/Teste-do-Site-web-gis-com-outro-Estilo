@@ -14,7 +14,7 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
     imagePath: '/',
   });
 }
-import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine } from 'lucide-react';
+import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine, Loader2 } from 'lucide-react';
 import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
@@ -463,6 +463,7 @@ interface MapComponentProps {
   isBottomBarMaximized?: boolean;
   isStage2Open?: boolean;
   isSidebarCollapsed?: boolean;
+  isAddressSearching?: boolean;
 }
 
 // Montagem padronizada do polígono medido com anel fechado e propriedades
@@ -798,7 +799,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   isBottomBarExpanded = false,
   isBottomBarMaximized = false,
   isStage2Open = false,
-  isSidebarCollapsed = false
+  isSidebarCollapsed = false,
+  isAddressSearching = false
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -3601,7 +3603,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 <div className="flex items-center gap-1.5 ml-auto">
                   <button
                     type="button"
+                    disabled={isAddressSearching}
+                    aria-busy={isAddressSearching}
                     onClick={(e) => {
+                      if (isAddressSearching) return;
                       e.stopPropagation();
                       const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
                       if (feat && onSearchPolygonAddressesRef.current) {
@@ -3613,10 +3618,14 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                         });
                       }
                     }}
-                    className="px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                    className={`px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed ${isAddressSearching ? 'cnefe-btn-searching' : ''}`}
                     title="Buscar Endereços neste polígono medido"
                   >
-                    <Search className="w-3.5 h-3.5" />
+                    {isAddressSearching ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    ) : (
+                      <Search className="w-3.5 h-3.5" />
+                    )}
                     <span>Buscar Endereços</span>
                   </button>
 

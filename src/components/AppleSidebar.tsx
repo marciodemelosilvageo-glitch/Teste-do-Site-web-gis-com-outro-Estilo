@@ -113,6 +113,7 @@ interface AppleSidebarProps {
   cnefeMunicipios?: string[];
   onEnsureMunicipiosLoaded?: () => void;
   isHospitalSearching?: boolean;
+  isAddressSearching?: boolean;
   
   // Camadas
   activeLayers: string[];
@@ -221,6 +222,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   cnefeMunicipios,
   onEnsureMunicipiosLoaded,
   isHospitalSearching,
+  isAddressSearching = false,
   activeLayers,
   setActiveLayers,
   allowedLayerNames,
@@ -251,6 +253,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onOpenFullTableModal,
   onOpenExportModal
 }) => {
+  const isSearchingAddresses = isAddressSearching || !!isHospitalSearching;
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Controlar se a feição exibida em detalhes foi aberta a partir de um clique no resultado da busca lateral
@@ -1649,17 +1652,24 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 {/* Botão Principal: Busca Direta de Endereços por Localidade no CNEFE */}
                 <button
                   type="button"
+                  disabled={isSearchingAddresses}
+                  aria-busy={isSearchingAddresses}
                   onClick={() => {
+                    if (isSearchingAddresses) return;
                     const loc = localidadeMetadata?.nome || structuredDetails?.nomeLocalidade || activeDetailFeature.name || '';
                     const mun = localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || '';
                     if (onSearchLocalidadeAddresses) {
                       onSearchLocalidadeAddresses(loc, mun);
                     }
                   }}
-                  className="w-full py-3 px-3.5 bg-gradient-to-r from-[#FF9500] to-[#FF5E3A] hover:brightness-105 active:scale-[0.98] text-white rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/25 transition-all cursor-pointer font-bold text-xs sm:text-sm"
+                  className={`w-full py-3 px-3.5 bg-gradient-to-r from-[#FF9500] to-[#FF5E3A] hover:brightness-105 active:scale-[0.98] text-white rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/25 transition-all cursor-pointer font-bold text-xs sm:text-sm disabled:opacity-60 disabled:cursor-not-allowed ${isSearchingAddresses ? 'cnefe-btn-searching' : ''}`}
                   title={`Buscar endereços cadastrados no CNEFE para a localidade "${localidadeMetadata?.nome || activeDetailFeature.name}" no município de ${localidadeMetadata?.municipio || structuredDetails?.nomeMunicipio || 'Piauí'}`}
                 >
-                  <Home className="w-4 h-4 shrink-0" />
+                  {isSearchingAddresses ? (
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  ) : (
+                    <Home className="w-4 h-4 shrink-0" />
+                  )}
                   <span className="truncate">Buscar Endereços desta Localidade</span>
                 </button>
 
@@ -1740,15 +1750,16 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <div className="relative flex rounded-2xl bg-black/5 dark:bg-white/10 text-slate-800 dark:text-slate-200 transition-all overflow-visible">
                     <button
                       type="button"
-                      disabled={isHospitalSearching}
+                      disabled={isSearchingAddresses}
+                      aria-busy={isSearchingAddresses}
                       onClick={() => {
                         onSearchPolygonAddresses(activeDetailFeature);
                         onOpenCnefeBottomBar?.();
                       }}
-                      className="flex-1 py-2.5 pl-1.5 pr-0.5 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] rounded-l-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50"
+                      className={`flex-1 py-2.5 pl-1.5 pr-0.5 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] rounded-l-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50 ${isSearchingAddresses ? 'cnefe-btn-searching' : ''}`}
                       title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
                     >
-                      {isHospitalSearching ? (
+                      {isSearchingAddresses ? (
                         <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
                       ) : (
                         <Home className="w-5 h-5 text-slate-700 dark:text-slate-300" />
@@ -1759,8 +1770,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     <div className="w-[1px] my-2 bg-black/10 dark:bg-white/10 shrink-0" />
 
                     <CategorySearchMenu
-                      disabled={isHospitalSearching}
-                      isLoading={isHospitalSearching}
+                      disabled={isSearchingAddresses}
+                      isLoading={isSearchingAddresses}
                       onSelectCategory={(catId) => onSearchCategoryInFeatures(catId, activeDetailFeature)}
                       align="center"
                     />
@@ -1768,15 +1779,16 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 ) : (
                   <button
                     type="button"
-                    disabled={isHospitalSearching}
+                    disabled={isSearchingAddresses}
+                    aria-busy={isSearchingAddresses}
                     onClick={() => {
                       onSearchPolygonAddresses(activeDetailFeature);
                       onOpenCnefeBottomBar?.();
                     }}
-                    className="py-2.5 px-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50"
+                    className={`py-2.5 px-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50 ${isSearchingAddresses ? 'cnefe-btn-searching' : ''}`}
                     title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
                   >
-                    {isHospitalSearching ? (
+                    {isSearchingAddresses ? (
                       <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
                     ) : (
                       <Home className="w-5 h-5 text-slate-700 dark:text-slate-300" />
@@ -2554,7 +2566,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               onSearchCategoryInFeatures={onSearchCategoryInFeatures}
               onSearchPolygonAddresses={onSearchPolygonAddresses}
               onOpenCnefeBottomBar={onOpenCnefeBottomBar}
-              isSearching={isHospitalSearching}
+              isSearching={isSearchingAddresses}
             />
           </div>
         )}

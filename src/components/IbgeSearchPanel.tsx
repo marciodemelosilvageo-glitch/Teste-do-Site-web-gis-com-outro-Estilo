@@ -45,6 +45,7 @@ interface IbgeSearchPanelProps {
   embedded?: boolean;
   isMaximized?: boolean;
   hasPlottedMarkers?: boolean;
+  isExternalSearching?: boolean;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -203,7 +204,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   allowedColumns,
   embedded = false,
   isMaximized = false,
-  hasPlottedMarkers = false
+  hasPlottedMarkers = false,
+  isExternalSearching = false
 }) => {
   // Configuração de colunas visíveis pelo usuário com persistência em localStorage
   const [userVisibleKeys, setUserVisibleKeys] = useState<string[]>(() => {
@@ -1033,11 +1035,12 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
             <div className="flex items-center gap-2 w-full lg:w-auto">
               <button 
                 type="submit" 
-                disabled={isSearching}
-                className="h-10 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 disabled:opacity-50 text-white px-6 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all w-full lg:w-auto cursor-pointer"
+                disabled={isSearching || isExternalSearching}
+                aria-busy={isSearching || isExternalSearching}
+                className={`h-10 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 disabled:opacity-50 text-white px-6 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all w-full lg:w-auto cursor-pointer ${(isSearching || isExternalSearching) ? 'cnefe-btn-searching' : ''}`}
               >
-                {isSearching ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
-                <span>Buscar</span>
+                {(isSearching || isExternalSearching) ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
+                <span>{(isSearching || isExternalSearching) ? 'Buscando...' : 'Buscar'}</span>
               </button>
               
               {hasSearched && (

@@ -454,6 +454,9 @@ export default function App() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
   const [isHospitalSearching, setIsHospitalSearching] = useState(false);
+  const [isAddressSearching, setIsAddressSearching] = useState<boolean>(false);
+  const isAddressSearchActiveRef = useRef<boolean>(false);
+  const addressSearchRequestIdRef = useRef<number>(0);
   const [cnefeMunicipios, setCnefeMunicipios] = useState<string[]>([]);
 
   // Carregamento sob demanda dos municípios CNEFE (apenas quando solicitado pela busca por categoria)
@@ -820,6 +823,14 @@ export default function App() {
 
   // Busca espacial de endereços CNEFE dentro da geometria de um polígono selecionado
   const handleSearchPolygonAddresses = async (feat: { feature?: any; properties?: any; name?: string; title?: string; sourceName?: string; layer?: any }) => {
+    if (isAddressSearchActiveRef.current) return;
+    isAddressSearchActiveRef.current = true;
+    setIsAddressSearching(true);
+    const reqId = ++addressSearchRequestIdRef.current;
+
+    // Abre a barra imediatamente para feedback instantâneo
+    setIsCnefeBottomBarOpen(true);
+
     try {
       const featTitle = feat.name || feat.title || (feat.properties ? getIdentifier(feat.properties) : 'Área Selecionada');
       showToast(`🔍 Consultando banco CNEFE (1M+ endereços) dentro de "${featTitle}"...`);
@@ -845,6 +856,7 @@ export default function App() {
       }
 
       const res = await buscarEnderecosPorPoligono(geoJsonFeature, 3000);
+      if (reqId !== addressSearchRequestIdRef.current) return;
 
       if (!res.results || res.results.length === 0) {
         showToast(`Nenhum endereço cadastrado no CNEFE foi localizado dentro de "${featTitle}".`);
@@ -858,7 +870,6 @@ export default function App() {
         sourceLayerName: feat.sourceName,
         timestamp: Date.now()
       });
-      setIsCnefeBottomBarOpen(true);
       setIsCnefeBottomBarExpanded(true);
 
       logActivity(
@@ -880,14 +891,26 @@ export default function App() {
     } catch (err) {
       console.error('Erro na busca CNEFE por polígono:', err);
       showToast('Erro ao consultar endereços do CNEFE para este polígono.');
+    } finally {
+      if (reqId === addressSearchRequestIdRef.current) {
+        isAddressSearchActiveRef.current = false;
+        setIsAddressSearching(false);
+      }
     }
   };
 
   // Busca espacial temática de estabelecimentos (ou todos os endereços) por categoria dentro de uma ou mais feições
   const handleSearchCategoryInFeatures = async (categoryId: string, features: any[] | any) => {
-    try {
-      if (isHospitalSearching) return;
+    if (isAddressSearchActiveRef.current) return;
+    isAddressSearchActiveRef.current = true;
+    setIsAddressSearching(true);
+    setIsHospitalSearching(true);
+    const reqId = ++addressSearchRequestIdRef.current;
 
+    // Abre a barra imediatamente para feedback instantâneo
+    setIsCnefeBottomBarOpen(true);
+
+    try {
       const featList = Array.isArray(features) ? features : [features];
       if (featList.length === 0) {
         showToast('Nenhuma feição selecionada para a busca.');
@@ -934,8 +957,6 @@ export default function App() {
         return;
       }
 
-      setIsHospitalSearching(true);
-
       const isAll = !categoryId || categoryId === 'todos';
       const config = !isAll ? CATEGORY_CONFIGS[categoryId] : null;
       const catName = config ? config.name : (isAll ? 'Endereços' : categoryId);
@@ -961,6 +982,7 @@ export default function App() {
         validGeoJsonList.map(v => v.geoJson),
         5000
       );
+      if (reqId !== addressSearchRequestIdRef.current) return;
 
       if (!res.results || res.results.length === 0) {
         showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado em "${dynamicTitle}".`);
@@ -978,7 +1000,6 @@ export default function App() {
         timestamp: Date.now(),
         searchTerm: catName
       });
-      setIsCnefeBottomBarOpen(true);
       setIsCnefeBottomBarExpanded(true);
 
       logActivity(
@@ -1001,12 +1022,24 @@ export default function App() {
       console.error('Erro na busca de estabelecimentos por polígono:', err);
       showToast('Erro ao consultar estabelecimentos no CNEFE.');
     } finally {
-      setIsHospitalSearching(false);
+      if (reqId === addressSearchRequestIdRef.current) {
+        isAddressSearchActiveRef.current = false;
+        setIsAddressSearching(false);
+        setIsHospitalSearching(false);
+      }
     }
   };
 
   // Busca direta de endereços CNEFE pela coluna "localidade" em um determinado município
   const handleSearchLocalidadeAddresses = async (localidade: string, municipio: string) => {
+    if (isAddressSearchActiveRef.current) return;
+    isAddressSearchActiveRef.current = true;
+    setIsAddressSearching(true);
+    const reqId = ++addressSearchRequestIdRef.current;
+
+    // Abre a barra imediatamente para feedback instantâneo
+    setIsCnefeBottomBarOpen(true);
+
     try {
       const locClean = (localidade || '').trim();
       const munClean = (municipio || '').trim();
@@ -1018,6 +1051,7 @@ export default function App() {
       showToast(`🔍 Consultando endereços da localidade "${locClean}"${munClean ? ` em ${munClean}` : ''}...`);
 
       const res = await buscarEnderecosPorLocalidade(munClean, locClean, 3000);
+      if (reqId !== addressSearchRequestIdRef.current) return;
 
       if (!res.results || res.results.length === 0) {
         showToast(`Nenhum endereço com a localidade "${locClean}" foi localizado no CNEFE${munClean ? ` (${munClean})` : ''}.`);
@@ -1031,7 +1065,6 @@ export default function App() {
         sourceLayerName: 'Localidades (Piauí)',
         timestamp: Date.now()
       });
-      setIsCnefeBottomBarOpen(true);
       setIsCnefeBottomBarExpanded(true);
 
       logActivity(
@@ -1052,6 +1085,11 @@ export default function App() {
     } catch (err) {
       console.error('Erro ao buscar endereços da localidade no CNEFE:', err);
       showToast('Erro ao consultar endereços da localidade no CNEFE.');
+    } finally {
+      if (reqId === addressSearchRequestIdRef.current) {
+        isAddressSearchActiveRef.current = false;
+        setIsAddressSearching(false);
+      }
     }
   };
 
@@ -1061,6 +1099,7 @@ export default function App() {
   const handleExecuteHospitalSearchByMunicipio = async (municipio: string) => {
     try {
       setIsHospitalSearching(true);
+      setIsAddressSearching(true);
 
       const isTodos = !municipio || municipio === 'Todos';
       const munLabel = isTodos ? 'em todo o Estado' : `em ${municipio}`;
@@ -1111,6 +1150,7 @@ export default function App() {
       showToast('Erro ao consultar estabelecimentos de saúde no CNEFE.');
     } finally {
       setIsHospitalSearching(false);
+      setIsAddressSearching(false);
     }
   };
 
@@ -1118,6 +1158,7 @@ export default function App() {
   const handleExecuteCategorySearchByMunicipio = async (categoryId: string, municipio: string) => {
     try {
       setIsHospitalSearching(true);
+      setIsAddressSearching(true);
 
       const config = CATEGORY_CONFIGS[categoryId];
       const catName = config ? config.name : categoryId;
@@ -1170,6 +1211,7 @@ export default function App() {
       showToast('Erro ao consultar estabelecimentos no CNEFE.');
     } finally {
       setIsHospitalSearching(false);
+      setIsAddressSearching(false);
     }
   };
 
@@ -1193,6 +1235,7 @@ export default function App() {
   const handleExecuteHospitalSearchByRadius = async (raioMetros: number) => {
     try {
       setIsHospitalSearching(true);
+      setIsAddressSearching(true);
 
       if (!('geolocation' in navigator)) {
         showToast('Geolocalização não é suportada por este dispositivo.', 5000);
@@ -1259,6 +1302,7 @@ export default function App() {
       showToast('Erro ao consultar estabelecimentos de saúde por raio.', 5000);
     } finally {
       setIsHospitalSearching(false);
+      setIsAddressSearching(false);
     }
   };
 
@@ -1269,6 +1313,7 @@ export default function App() {
 
     try {
       setIsHospitalSearching(true);
+      setIsAddressSearching(true);
 
       if (!('geolocation' in navigator)) {
         showToast('Geolocalização não é suportada por este dispositivo.', 5000);
@@ -1335,6 +1380,7 @@ export default function App() {
       showToast(`Erro ao consultar ${catName.toLowerCase()} por raio.`, 5000);
     } finally {
       setIsHospitalSearching(false);
+      setIsAddressSearching(false);
     }
   };
 
@@ -3283,6 +3329,7 @@ export default function App() {
             cnefeMunicipios={cnefeMunicipios}
             onEnsureMunicipiosLoaded={ensureCnefeMunicipiosLoaded}
             isHospitalSearching={isHospitalSearching}
+            isAddressSearching={isAddressSearching || isHospitalSearching}
             onOpenCnefeBottomBar={() => {
               setIsCnefeBottomBarOpen(true);
               setIsCnefeBottomBarExpanded(true);
@@ -3405,6 +3452,7 @@ export default function App() {
             onSearchPolygonAddresses={handleSearchPolygonAddresses}
             onSaveFavoriteLayers={handleSaveFavoriteLayers}
             onLoadFavoriteLayers={handleLoadFavoriteLayers}
+            isAddressSearching={isAddressSearching || isHospitalSearching}
           />
 
           {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
@@ -3425,6 +3473,7 @@ export default function App() {
             externalPolygonResult={cnefeExternalResult}
             allowedColumns={effectiveSession?.addressColumnsPermissions}
             hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
+            isSearchingExternal={isAddressSearching || isHospitalSearching}
           />
         </div>
       </div>
