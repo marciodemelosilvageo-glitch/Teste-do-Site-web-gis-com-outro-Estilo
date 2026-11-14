@@ -27,6 +27,7 @@ export interface CnefeBottomBarProps {
   onPlotAddress: (address: any) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
+  onUnplot?: () => void;
   onClearExternalResult?: () => void;
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
@@ -43,6 +44,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   onPlotAddress,
   onPlotAllAddresses,
   onClearPlot,
+  onUnplot,
   onClearExternalResult,
   externalPolygonResult,
   allowedColumns,
@@ -538,6 +540,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           onPlotAddress={onPlotAddress}
           onPlotAllAddresses={onPlotAllAddresses}
           onClearPlot={onClearPlot}
+          onUnplot={onUnplot}
           onClearExternalResult={onClearExternalResult}
           externalPolygonResult={externalPolygonResult}
           allowedColumns={allowedColumns}

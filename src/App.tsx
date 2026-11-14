@@ -2473,6 +2473,18 @@ export default function App() {
     showToast('Pesquisa e marcadores de endereços limpos.');
   }, [userRole, showToast]);
 
+  const handleUnplotAddresses = useCallback(() => {
+    setSearchCoordinates(null);
+    setSelectedFeatures(prev => {
+      const activeFeature = prev[prev.length - 1];
+      if (activeFeature && activeFeature.id.startsWith('plot-')) {
+        setSidebarTab(current => (current === 'details' ? null : current));
+      }
+      return prev.filter(f => !f.id.startsWith('plot-'));
+    });
+    logActivity('ENDERECO', 'Removeu marcadores de endereços do mapa', userRole);
+  }, [userRole]);
+
   // Callbacks memoizados da Barra Inferior CNEFE para garantir que o React.memo evite re-renders
   const handleOpenCnefeBottomBar = useCallback(() => {
     setIsCnefeBottomBarOpen(true);
@@ -3408,6 +3420,7 @@ export default function App() {
             onPlotAddress={handlePlotAddress}
             onPlotAllAddresses={handlePlotAllAddresses}
             onClearPlot={handleClearPlot}
+            onUnplot={handleUnplotAddresses}
             onClearExternalResult={handleClearExternalResult}
             externalPolygonResult={cnefeExternalResult}
             allowedColumns={effectiveSession?.addressColumnsPermissions}

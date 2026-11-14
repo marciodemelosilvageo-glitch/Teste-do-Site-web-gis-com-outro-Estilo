@@ -38,6 +38,7 @@ interface IbgeSearchPanelProps {
   onPlotAddress: (address: any) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
+  onUnplot?: () => void;
   onClearExternalResult?: () => void;
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
@@ -196,6 +197,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   onPlotAddress, 
   onPlotAllAddresses, 
   onClearPlot,
+  onUnplot,
   onClearExternalResult,
   externalPolygonResult,
   allowedColumns,
@@ -1173,10 +1175,14 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                       <Map size={14} /> Plotar no Mapa ({processedResults.length})
                     </button>
                   )}
-                  {onClearPlot && isPlotted && (
+                  {(onUnplot || onClearPlot) && isPlotted && (
                     <button 
                       onClick={() => {
-                        onClearPlot();
+                        if (onUnplot) {
+                          onUnplot();
+                        } else if (onClearPlot) {
+                          onClearPlot();
+                        }
                         setIsPlotted(false);
                       }}
                       className="text-xs font-bold bg-black/10 hover:bg-black/15 dark:bg-white/15 dark:hover:bg-white/20 active:scale-95 text-slate-800 dark:text-white px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
