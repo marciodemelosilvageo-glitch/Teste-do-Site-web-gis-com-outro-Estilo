@@ -3185,7 +3185,6 @@ export default function App() {
             onLoadFavoriteLayers={handleLoadFavoriteLayers}
             isBottomBarOpen={isCnefeBottomBarOpen}
             isBottomBarExpanded={isCnefeBottomBarExpanded}
-            isBottomBarMaximized={isCnefeBottomBarMaximized}
           />
 
           {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}

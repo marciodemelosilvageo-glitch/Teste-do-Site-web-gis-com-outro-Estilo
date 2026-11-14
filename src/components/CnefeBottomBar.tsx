@@ -62,6 +62,33 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const dragStartYRef = useRef<number>(0);
   const dragStartHeightRef = useRef<number>(0);
 
+  // Refs atualizadas para evitar stale closures em eventos e timeouts
+  const isExpandedRef = useRef<boolean>(isExpanded);
+  isExpandedRef.current = isExpanded;
+  const isMaximizedRef = useRef<boolean>(isMaximized);
+  isMaximizedRef.current = isMaximized;
+  const onToggleMaximizeRef = useRef(onToggleMaximize);
+  onToggleMaximizeRef.current = onToggleMaximize;
+  const onToggleExpandRef = useRef(onToggleExpand);
+  onToggleExpandRef.current = onToggleExpand;
+
+  // Gerenciamento do atributo data-cnefe-animating durante transições de abrir/recolher/maximizar
+  const isInitialMountRef = useRef<boolean>(true);
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+    document.documentElement.setAttribute('data-cnefe-animating', 'true');
+    const timer = setTimeout(() => {
+      document.documentElement.removeAttribute('data-cnefe-animating');
+    }, 320);
+    return () => {
+      clearTimeout(timer);
+      document.documentElement.removeAttribute('data-cnefe-animating');
+    };
+  }, [isExpanded, isMaximized]);
+
   // Sincronizar variável CSS global --cnefe-bottom-height para que elementos do mapa (legenda/legal) e tabela acompanhem o arrasto
   useEffect(() => {
     // Durante o arrasto ativo, o requestAnimationFrame atualiza a variável diretamente sem conflitar
@@ -86,6 +113,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
         cancelAnimationFrame(rafIdRef.current);
       }
       document.documentElement.removeAttribute('data-cnefe-dragging');
+      document.documentElement.removeAttribute('data-cnefe-animating');
       document.documentElement.style.removeProperty('--cnefe-bottom-height');
     };
   }, []);
@@ -115,8 +143,9 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       const heightVal = `${currentClampedHeightRef.current}px`;
       if (barContainerRef.current) {
         barContainerRef.current.style.height = heightVal;
+        barContainerRef.current.style.setProperty('--cnefe-bottom-height', heightVal);
       }
-      document.documentElement.style.setProperty('--cnefe-bottom-height', heightVal);
+      // Não escreve no documentElement durante o arrasto a cada frame para evitar relayout global
       rafIdRef.current = null;
     };
 
@@ -168,7 +197,16 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       // Se arrastar muito para baixo (menos de 130px), recolhe a barra
       if (finalHeight < 130) {
         setCustomHeight(null);
-        handleToggleExpand();
+        if (barContainerRef.current) {
+          barContainerRef.current.style.height = '46px';
+          barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
+        }
+        document.documentElement.style.setProperty('--cnefe-bottom-height', '46px');
+        if (isMaximizedRef.current && onToggleMaximizeRef.current) {
+          onToggleMaximizeRef.current();
+        }
+        setInternalMaximized(false);
+        onToggleExpandRef.current();
       } else {
         const minHeight = 180;
         const maxHeight = Math.min(window.innerHeight * 0.92, window.innerHeight - 50);
@@ -176,14 +214,24 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
 
         // Se estiver perto do topo (> 78vh), sincroniza maximizado
         if (finalHeight >= window.innerHeight * 0.78) {
-          if (!isMaximized && onToggleMaximize) onToggleMaximize();
+          if (!isMaximizedRef.current && onToggleMaximizeRef.current) {
+            onToggleMaximizeRef.current();
+          }
           setCustomHeight(null);
+          if (barContainerRef.current) {
+            barContainerRef.current.style.height = '82vh';
+            barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
+          }
           document.documentElement.style.setProperty('--cnefe-bottom-height', '82vh');
         } else {
-          if (isMaximized && onToggleMaximize) {
-            onToggleMaximize();
+          if (isMaximizedRef.current && onToggleMaximizeRef.current) {
+            onToggleMaximizeRef.current();
           }
           setCustomHeight(finalClampedHeight);
+          if (barContainerRef.current) {
+            barContainerRef.current.style.height = `${finalClampedHeight}px`;
+            barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
+          }
           document.documentElement.style.setProperty('--cnefe-bottom-height', `${finalClampedHeight}px`);
         }
       }
@@ -201,7 +249,11 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const handleToggleMaximize = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setCustomHeight(null); // Limpa altura manual ao alternar botão Maximizar/Restaurar
+    setCustomHeight(null);
+    if (barContainerRef.current) {
+      barContainerRef.current.style.height = '';
+      barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
+    }
     if (onToggleMaximize) {
       onToggleMaximize();
     } else {
@@ -213,6 +265,10 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+    }
+    if (barContainerRef.current) {
+      barContainerRef.current.style.height = '';
+      barContainerRef.current.style.removeProperty('--cnefe-bottom-height');
     }
     if (isExpanded) {
       // Ao recolher, reseta estado maximizado e altura customizada
@@ -228,6 +284,9 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   return (
     <div 
       ref={barContainerRef}
+      onTransitionEnd={() => {
+        document.documentElement.removeAttribute('data-cnefe-animating');
+      }}
       style={
         !isOpen
           ? { display: 'none' }
@@ -246,16 +305,16 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       className={`cnefe-bottom-bar-container absolute bottom-0 left-0 right-0 z-[1100] pointer-events-auto flex flex-col bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] rounded-t-2xl sm:rounded-t-3xl overflow-hidden ${
         !isOpen ? 'hidden' : ''
       } ${
-        isDragging ? 'transition-none select-none !backdrop-blur-none bg-white dark:bg-[#1c1c1e]' : 'transition-[height,left] duration-300 ease-out'
+        isDragging ? 'transition-none select-none' : 'transition-[height,left] duration-300 ease-out'
       }`}
     >
       {/* ============================================================== */}
-      {/* ZONA DE ARRASTAR DE BORDA SUPERIOR (HITBOX DE TOPO) */}
+      {/* ZONA DE ARRASTAR DE BORDA SUPERIOR (HITBOX DE TOPO AMPLIADA) */}
       {/* ============================================================== */}
       {isExpanded && (
         <div 
           onPointerDown={handlePointerDown}
-          className="absolute top-0 left-0 right-0 h-3 z-30 cursor-ns-resize flex items-center justify-center hover:bg-[#007AFF]/10 transition-colors group/topdrag touch-none"
+          className="absolute -top-2 left-0 right-0 h-6 z-30 cursor-ns-resize flex items-center justify-center hover:bg-[#007AFF]/10 transition-colors group/topdrag touch-none"
           style={{ touchAction: 'none' }}
           title="Clique e arraste para cima ou para baixo para ajustar a altura"
         />

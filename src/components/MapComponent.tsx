@@ -504,7 +504,7 @@ const getMeasureExportFilename = (ext: string) => {
   return `area_medida_${y}${m}${d}_${hh}${mm}.${ext}`;
 };
 
-export const MapComponent: React.FC<MapComponentProps> = ({
+const MapComponentInner: React.FC<MapComponentProps> = ({
   isPrintMode,
   isMultiSelectMode,
   selectedFeatures,
@@ -4661,3 +4661,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     </div>
   );
 };
+
+export const MapComponent = React.memo(MapComponentInner);
+MapComponent.displayName = 'MapComponent';

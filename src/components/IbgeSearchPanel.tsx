@@ -1271,7 +1271,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
             {results.length > 0 ? (
               <>
                 {processedResults.length > 0 ? (
-                  <div className={`overflow-x-auto overflow-y-auto custom-scrollbar ${
+                  <div className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
                     embedded 
                       ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
                       : 'max-h-[580px]'
