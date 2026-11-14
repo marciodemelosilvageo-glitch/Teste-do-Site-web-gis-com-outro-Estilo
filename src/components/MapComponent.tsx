@@ -815,6 +815,26 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     onSelectionChangeRef.current = onSelectionChange;
   }, [onSelectionChange]);
 
+  // Controle de transição suave da barra lateral Apple Maps (evita invalidateSize repetido a cada frame)
+  const isSidebarAnimatingRef = useRef(false);
+  const sidebarAnimTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    isSidebarAnimatingRef.current = true;
+    if (sidebarAnimTimeoutRef.current) clearTimeout(sidebarAnimTimeoutRef.current);
+
+    sidebarAnimTimeoutRef.current = setTimeout(() => {
+      isSidebarAnimatingRef.current = false;
+      if (mapRef.current) {
+        mapRef.current.invalidateSize({ pan: false });
+      }
+    }, 320);
+
+    return () => {
+      if (sidebarAnimTimeoutRef.current) clearTimeout(sidebarAnimTimeoutRef.current);
+    };
+  }, [isSidebarCollapsed, isStage2Open]);
+
   const [activeMeasureInfo, setActiveMeasureInfo] = useState<{
     layer: any;
     areaDisplay?: string;
@@ -2135,6 +2155,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         if (newWidth !== lastWidth || newHeight !== lastHeight) {
           lastWidth = newWidth;
           lastHeight = newHeight;
+          // Se a barra lateral estiver no meio da animação CSS, não recalcular Leaflet em todos os quadros
+          if (isSidebarAnimatingRef.current) {
+            return;
+          }
           mapRef.current.invalidateSize({ pan: false });
         }
       });
@@ -3507,14 +3531,14 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           <div 
             ref={measureCardRef}
             className={`fixed z-[1100] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/10 dark:border-white/10 flex items-center select-none text-xs max-w-[95vw] pointer-events-auto ${
-              measureCardPos === null ? 'transition-all duration-300 ease-out' : ''
+              measureCardPos === null ? 'measure-card-ios-transition' : ''
             } ${
               isMeasureCardMinimized ? 'px-2.5 py-1.5 gap-2' : 'px-3.5 py-2.5 flex-wrap gap-3 sm:max-w-md'
             }`}
             style={
               measureCardPos !== null
                 ? { left: `${measureCardPos.x}px`, top: `${measureCardPos.y}px` }
-                : { left: `${(isSidebarCollapsed ? 68 : 215) + (isStage2Open ? 390 : 0) + 16}px`, top: '4rem' }
+                : { left: `calc(var(--sidebar-width, ${isSidebarCollapsed ? '68px' : '215px'}) + ${isStage2Open ? 390 : 0}px + 16px)`, top: '4rem' }
             }
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}

@@ -254,6 +254,21 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const [activeCategorySearchId, setActiveCategorySearchId] = useState<CategorySearchType | null>(null);
   const lastSearchClickTimeRef = useRef<number>(0);
 
+  // Estado e temporizador para suavização da animação da barra lateral Apple (reduz blur temporariamente)
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
+  const animTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setIsAnimating(true);
+    if (animTimeoutRef.current) clearTimeout(animTimeoutRef.current);
+    animTimeoutRef.current = setTimeout(() => {
+      setIsAnimating(false);
+    }, 320);
+    return () => {
+      if (animTimeoutRef.current) clearTimeout(animTimeoutRef.current);
+    };
+  }, [isCollapsed]);
+
   // Carregar lista de municípios sob demanda apenas ao abrir busca por categoria
   useEffect(() => {
     if (activeCategorySearchId) {
@@ -1138,45 +1153,39 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       {/* ESTÁGIO 1: BARRA / RAIL DE NAVEGAÇÃO LATERAL (APPLE SIDEBAR)   */}
       {/* ============================================================== */}
       <nav
-        className={`h-full flex flex-col transition-all duration-300 ease-out bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-xl overflow-hidden overflow-x-hidden select-none shrink-0 ${
-          isCollapsed ? 'w-[68px] items-center py-3.5 px-2' : 'w-[205px] sm:w-[215px] p-3'
+        className={`h-full flex flex-col sidebar-ios-transition border-r border-black/10 dark:border-white/10 shadow-xl overflow-hidden overflow-x-hidden select-none shrink-0 p-3 ${
+          isAnimating 
+            ? 'bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-md' 
+            : 'bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-3xl'
+        } ${
+          isCollapsed ? 'w-[68px]' : 'w-[205px] sm:w-[215px]'
         }`}
       >
         {/* Topo / Header da Barra de Navegação */}
-        {!isCollapsed ? (
-          <div className="flex items-center justify-between pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
+        <div className="flex items-center justify-between pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0 h-12">
+          <div className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+            isCollapsed ? 'opacity-0 max-w-0 -translate-x-3 pointer-events-none' : 'opacity-100 max-w-[150px] translate-x-0 flex-1 min-w-0'
+          }`}>
             <AppLogo
               isDarkMode={isDarkMode}
               variant="sidebar"
               onDoubleClick={onOpenAdminPanel}
               title="WebGis SSP-PI • Clique duplo para login de Administrador"
             />
+          </div>
 
-            {/* Botão de Minimizar para ícones (como na Imagem 1 -> Imagem 3) */}
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-              title="Minimizar barra lateral para ícones"
-              aria-label="Minimizar barra lateral"
-            >
-              <PanelLeft className="w-5 h-5 text-[#007AFF]" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 pb-3 mb-2 border-b border-black/5 dark:border-white/10 w-full shrink-0">
-            {/* Botão de Expandir para texto (como na Imagem 3 -> Imagem 1) */}
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-              title="Expandir barra lateral"
-              aria-label="Expandir barra lateral"
-            >
-              <PanelLeft className="w-5 h-5 text-[#007AFF]" />
-            </button>
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-colors cursor-pointer shrink-0 ${
+              isCollapsed ? 'mx-auto' : ''
+            }`}
+            title={isCollapsed ? "Expandir barra lateral" : "Minimizar barra lateral para ícones"}
+            aria-label={isCollapsed ? "Expandir barra lateral" : "Minimizar barra lateral"}
+          >
+            <PanelLeft className="w-5 h-5 text-[#007AFF]" />
+          </button>
+        </div>
 
         {/* Lista de Ferramentas (Estágio 1 - Imagem 1 e Imagem 3) */}
         <div className="flex flex-col gap-2 w-full flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
@@ -1185,28 +1194,26 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab(activeTab === 'search' ? null : 'search')}
-              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                  : 'px-3 py-2.5 text-sm'
-              } ${
+              className={`w-full h-11 flex items-center rounded-2xl font-bold transition-colors cursor-pointer px-1 ${
                 activeTab === 'search'
                   ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
                   : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
               title={isCollapsed ? "Buscar" : undefined}
             >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                 activeTab === 'search' 
-                  ? (isCollapsed ? '' : 'bg-white/20 text-white') 
+                  ? 'bg-white/20 text-white' 
                   : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 group-hover:text-[#007AFF]'
               }`}>
-                <Search className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+                <Search className="w-4.5 h-4.5" />
               </div>
-              {!isCollapsed && <span className="truncate">Buscar</span>}
+              <div className={`flex items-center min-w-0 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap pl-2.5 ${
+                isCollapsed ? 'opacity-0 max-w-0 -translate-x-2 pointer-events-none' : 'opacity-100 max-w-[140px] translate-x-0'
+              }`}>
+                <span className="truncate text-sm font-bold">Buscar</span>
+              </div>
             </button>
-
-
           </div>
 
           {/* 2. Raio-X */}
@@ -1214,28 +1221,26 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab(activeTab === 'dashboard' ? null : 'dashboard')}
-              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                  : 'px-3 py-2.5 text-sm'
-              } ${
+              className={`w-full h-11 flex items-center rounded-2xl font-bold transition-colors cursor-pointer px-1 ${
                 activeTab === 'dashboard'
                   ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
                   : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
               title={isCollapsed ? "Raio-X Territorial e Domiciliar" : undefined}
             >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                 activeTab === 'dashboard' 
-                  ? (isCollapsed ? '' : 'bg-white/20 text-white') 
+                  ? 'bg-white/20 text-white' 
                   : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 group-hover:text-[#34C759]'
               }`}>
-                <Users className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+                <Users className="w-4.5 h-4.5" />
               </div>
-              {!isCollapsed && <span className="truncate">Raio-X</span>}
+              <div className={`flex items-center min-w-0 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap pl-2.5 ${
+                isCollapsed ? 'opacity-0 max-w-0 -translate-x-2 pointer-events-none' : 'opacity-100 max-w-[140px] translate-x-0'
+              }`}>
+                <span className="truncate text-sm font-bold">Raio-X</span>
+              </div>
             </button>
-
-
           </div>
 
           {/* 3. Detalhes (Permanente na barra lateral) */}
@@ -1246,30 +1251,26 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 setOpenedFromSearch(false);
                 setActiveTab(activeTab === 'details' ? null : 'details');
               }}
-              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                  : 'px-3 py-2.5 text-sm'
-              } ${
+              className={`w-full h-11 flex items-center rounded-2xl font-bold transition-colors cursor-pointer px-1 ${
                 activeTab === 'details'
                   ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/25'
                   : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
               title={isCollapsed ? "Detalhes da Feição" : undefined}
             >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                activeTab === 'details' ? (isCollapsed ? '' : 'bg-white/20 text-white') : 'bg-amber-500/10 text-[#FF9500]'
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'details' ? 'bg-white/20 text-white' : 'bg-amber-500/10 text-[#FF9500]'
               }`}>
-                <MapPin className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+                <MapPin className="w-4.5 h-4.5" />
               </div>
-              {!isCollapsed && (
-                <>
-                  <span className="truncate">Detalhes</span>
-                  {hasFeature && (
-                    <span className="ml-auto w-2 h-2 rounded-full bg-[#FF9500] animate-ping" />
-                  )}
-                </>
-              )}
+              <div className={`flex items-center min-w-0 flex-1 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap pl-2.5 ${
+                isCollapsed ? 'opacity-0 max-w-0 -translate-x-2 pointer-events-none' : 'opacity-100 max-w-[140px] translate-x-0'
+              }`}>
+                <span className="truncate text-sm font-bold">Detalhes</span>
+                {hasFeature && (
+                  <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-[#FF9500] animate-ping" />
+                )}
+              </div>
             </button>
           </div>
 
@@ -1281,31 +1282,35 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 setOpenedFromSearch(false);
                 setActiveTab(activeTab === 'export' ? null : 'export');
               }}
-              className={`w-full flex items-center gap-3 rounded-2xl font-bold transition-all cursor-pointer ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center p-0 mx-auto' 
-                  : 'px-3 py-2.5 text-sm'
-              } ${
+              className={`w-full h-11 flex items-center rounded-2xl font-bold transition-colors cursor-pointer px-1 ${
                 activeTab === 'export'
                   ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
                   : 'text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
               title={isCollapsed ? "Exportar Dados" : undefined}
             >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                 activeTab === 'export'
-                  ? (isCollapsed ? '' : 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900')
+                  ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900'
                   : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-200'
               }`}>
-                <Download className={isCollapsed ? "w-5 h-5" : "w-4 h-4"} />
+                <Download className="w-4.5 h-4.5" />
               </div>
-              {!isCollapsed && <span className="truncate">Exportar</span>}
+              <div className={`flex items-center min-w-0 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap pl-2.5 ${
+                isCollapsed ? 'opacity-0 max-w-0 -translate-x-2 pointer-events-none' : 'opacity-100 max-w-[140px] translate-x-0'
+              }`}>
+                <span className="truncate text-sm font-bold">Exportar</span>
+              </div>
             </button>
           </div>
 
           {/* Atalhos para Buscas Recentes na Barra Lateral Recolhida */}
-          {isCollapsed && recentSearches && recentSearches.length > 0 && (
-            <div className="pt-1 flex flex-col items-center gap-1.5 w-full">
+          {recentSearches && recentSearches.length > 0 && (
+            <div 
+              className={`transition-all duration-300 ease-out overflow-hidden flex flex-col items-center gap-1.5 w-full ${
+                isCollapsed ? 'opacity-100 max-h-48 pt-1' : 'opacity-0 max-h-0 pointer-events-none'
+              }`}
+            >
               <div className="w-8 h-px bg-black/10 dark:bg-white/10 my-1 mx-auto" />
               {recentSearches.slice(0, 3).map((item, idx) => {
                 const cat = item.categoryId ? getCategoryConfig(item.categoryId) : undefined;
@@ -1325,7 +1330,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         onSearch(item.term);
                       }
                     }}
-                    className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                       cat 
                         ? `${cat.color} text-white hover:opacity-90 shadow-sm` 
                         : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/10 dark:hover:bg-white/20'
@@ -1341,84 +1346,73 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         </div>
 
         {/* Rodapé do Estágio 1 */}
-        {!isCollapsed ? (
-          <div className="pt-3 border-t border-black/5 dark:border-white/10 shrink-0 space-y-2 w-full">
-            <div className="flex items-center justify-between gap-2 p-2 rounded-2xl bg-black/5 dark:bg-white/5">
+        <div className="pt-3 border-t border-black/5 dark:border-white/10 shrink-0 w-full flex flex-col gap-2">
+          {/* Cartão de Perfil / Botão de Usuário */}
+          <div className="flex items-center gap-2 p-1 rounded-2xl bg-black/5 dark:bg-white/5 w-full">
+            <button
+              type="button"
+              onClick={onOpenProfileModal}
+              className="flex items-center gap-2 min-w-0 text-left cursor-pointer group flex-1"
+              title="Perfil de Usuário"
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                isMaster ? 'bg-amber-500 text-white' : isManager ? 'bg-indigo-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+              }`}>
+                {isMaster ? <Crown className="w-4.5 h-4.5" /> : isManager ? <Briefcase className="w-4.5 h-4.5" /> : <User className="w-4.5 h-4.5" />}
+              </div>
+              <div className={`min-w-0 flex-1 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+                isCollapsed ? 'opacity-0 max-w-0 -translate-x-2 pointer-events-none' : 'opacity-100 max-w-[120px] translate-x-0'
+              }`}>
+                <span className="text-xs font-bold text-slate-900 dark:text-white truncate block group-hover:text-[#007AFF] transition-colors">
+                  {currentActiveUser ? currentActiveUser.name : 'Visitante'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium truncate block">
+                  {isMaster ? 'Master' : isManager ? 'Gerente' : 'Conta Padrão'}
+                </span>
+              </div>
+            </button>
+
+            {/* Ações de Modo Escuro e Sair (visíveis no card quando expandido) */}
+            <div className={`items-center gap-1 shrink-0 transition-all duration-300 ease-out overflow-hidden ${
+              isCollapsed ? 'opacity-0 max-w-0 pointer-events-none hidden' : 'opacity-100 max-w-[80px] flex'
+            }`}>
               <button
                 type="button"
-                onClick={onOpenProfileModal}
-                className="flex items-center gap-2 min-w-0 text-left cursor-pointer group flex-1"
+                onClick={(e) => onToggleDarkMode(e)}
+                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
+                title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
               >
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                  isMaster ? 'bg-amber-500 text-white' : isManager ? 'bg-indigo-600 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
-                }`}>
-                  {isMaster ? <Crown className="w-4 h-4" /> : isManager ? <Briefcase className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate block group-hover:text-[#007AFF] transition-colors">
-                    {currentActiveUser ? currentActiveUser.name : 'Visitante'}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-medium truncate block">
-                    {isMaster ? 'Master' : isManager ? 'Gerente' : 'Conta Padrão'}
-                  </span>
-                </div>
+                <motion.div
+                  key={isDarkMode ? 'dark' : 'light'}
+                  initial={{ rotate: -45, opacity: 0, scale: 0.8 }}
+                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+                </motion.div>
               </button>
 
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => onToggleDarkMode(e)}
-                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
-                  title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
-                  aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
-                >
-                  <motion.div
-                    key={isDarkMode ? 'dark' : 'light'}
-                    initial={{ rotate: -45, opacity: 0, scale: 0.8 }}
-                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-                  </motion.div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-500/10 hover:text-red-500 text-slate-400 dark:text-slate-500 cursor-pointer transition-colors"
-                  title="Sair"
-                  aria-label="Sair"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-              <a 
-                href="https://www.linkedin.com/in/m%C3%A1rcio-de-melo-silva-299297382/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate hover:text-slate-600 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer"
-                title="Desenvolvido por Márcio de Melo Silva (LinkedIn)"
-              >
-                WebGIS
-              </a>
-              <button 
+              <button
                 type="button"
-                onClick={() => setActiveTab(activeTab === 'help' ? null : 'help')}
-                className="text-[#007AFF] hover:underline font-bold cursor-pointer"
+                onClick={onLogout}
+                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-500/10 hover:text-red-500 text-slate-400 dark:text-slate-500 cursor-pointer transition-colors"
+                title="Sair"
+                aria-label="Sair"
               >
-                Ajuda ↗
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 pt-3 border-t border-black/10 dark:border-white/10 w-full shrink-0">
+
+          {/* Botão de Modo Escuro Isolado quando Recolhido */}
+          <div className={`transition-all duration-300 ease-out flex items-center justify-center w-full ${
+            isCollapsed ? 'opacity-100 max-h-12' : 'opacity-0 max-h-0 pointer-events-none overflow-hidden'
+          }`}>
             <button
               type="button"
               onClick={(e) => onToggleDarkMode(e)}
-              className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
               title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
               aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
             >
@@ -1431,17 +1425,30 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
               </motion.div>
             </button>
+          </div>
 
-            <button
-              type="button"
-              onClick={onOpenProfileModal}
-              className="w-10 h-10 rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-              title="Perfil de Usuário"
+          {/* Links de Rodapé (WebGIS / Ajuda) */}
+          <div className={`items-center justify-between text-[11px] text-slate-400 px-1 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+            isCollapsed ? 'opacity-0 max-h-0 pointer-events-none' : 'opacity-100 max-h-6 flex'
+          }`}>
+            <a 
+              href="https://www.linkedin.com/in/m%C3%A1rcio-de-melo-silva-299297382/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate hover:text-slate-600 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer"
+              title="Desenvolvido por Márcio de Melo Silva (LinkedIn)"
             >
-              {isMaster ? <Crown className="w-4 h-4 text-amber-400" /> : <User className="w-4 h-4" />}
+              WebGIS
+            </a>
+            <button 
+              type="button"
+              onClick={() => setActiveTab(activeTab === 'help' ? null : 'help')}
+              className="text-[#007AFF] hover:underline font-bold cursor-pointer"
+            >
+              Ajuda ↗
             </button>
           </div>
-        )}
+        </div>
       </nav>
 
       {/* ============================================================== */}
@@ -1449,7 +1456,11 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       {/* ============================================================== */}
       {activeTab && (
         <div
-          className="absolute left-full top-0 bottom-0 h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden z-40 animate-fadeIn"
+          className={`absolute left-full top-0 bottom-0 h-full w-[360px] sm:w-[390px] max-w-[calc(100vw-72px)] flex flex-col transition-all duration-300 ease-out border-r border-black/10 dark:border-white/10 shadow-2xl overflow-hidden z-40 animate-fadeIn ${
+            isAnimating 
+              ? 'bg-white/98 dark:bg-[#1c1c1e]/98 backdrop-blur-md' 
+              : 'bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl'
+          }`}
         >
           {/* Cabeçalho do Segundo Estágio (Título + Botão X redondo de fechar) */}
           <div className="h-14 px-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between shrink-0">

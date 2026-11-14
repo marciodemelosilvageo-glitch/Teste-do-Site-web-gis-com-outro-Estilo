@@ -3223,7 +3223,12 @@ export default function App() {
       )}
 
       {/* TELA INTEGRADA ESTILO APPLE MAPS (MAPS.APPLE.COM) */}
-      <div className="relative w-full h-full flex overflow-hidden">
+      <div 
+        className="relative w-full h-full flex overflow-hidden"
+        style={{
+          '--sidebar-width': isSidebarCollapsed ? '68px' : '215px'
+        } as React.CSSProperties}
+      >
         {/* BARRA LATERAL TRANSLÚCIDA APPLE */}
         {!isPrintMode && (
           <AppleSidebar

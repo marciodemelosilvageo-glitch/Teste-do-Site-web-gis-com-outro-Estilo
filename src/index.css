@@ -120,6 +120,28 @@ input:-webkit-autofill:active {
   will-change: transform, opacity;
 }
 
+/* Transição fluida estilo iOS para a barra lateral Apple e cartão de medição */
+.sidebar-ios-transition {
+  transition-property: width, padding;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: width;
+  contain: layout paint;
+}
+
+.measure-card-ios-transition {
+  transition-property: left, top;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-ios-transition,
+  .measure-card-ios-transition {
+    transition: none !important;
+  }
+}
+
 /* ============================================================
    FERRAMENTA DE MEDIÇÃO DE DISTÂNCIAS E ÁREAS (APPLE MAPS GLASS)
    ============================================================ */
