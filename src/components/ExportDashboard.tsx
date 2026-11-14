@@ -22,12 +22,15 @@ import {
   sanitizeFilename 
 } from '../utils';
 import { logActivity } from '../services/adminService';
+import { exportSelectedFeatures, ExportPreferences, ExportFormat } from '../exportActions';
 
 interface ExportDashboardProps {
   selectedFeatures: SelectedFeature[];
   showToast: (msg: string) => void;
   onBackToDetails?: () => void;
   onClose?: () => void;
+  preferences?: ExportPreferences;
+  onUpdatePreferences?: (prefs: Partial<ExportPreferences>) => void;
 }
 
 // Cache em memória para os arquivos GeoJSON completos das camadas
@@ -37,8 +40,11 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   selectedFeatures,
   showToast,
   onBackToDetails,
+  preferences,
+  onUpdatePreferences
 }) => {
   const count = selectedFeatures?.length || 0;
+  const currentFormat: ExportFormat = preferences?.format || 'csv';
 
   // Modo: 'filtered' (feições selecionadas) ou 'full_layer' (camada completa)
   const [exportMode, setExportMode] = useState<'filtered' | 'full_layer'>(
@@ -74,51 +80,31 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   // FUNÇÕES DE EXPORTAÇÃO FILTRADA (FEIÇÕES SELECIONADAS)
   // ==============================================================
   const handleExportFilteredCSV = useCallback(() => {
-    if (count === 0) return;
-    const id = getIdentifier(selectedFeatures[0].properties) || 'selecao';
-    const rawFeatures = selectedFeatures.map(f => f.layer);
-    exportSelectionToCSV(`selecao_${sanitizeFilename(String(id))}.csv`, rawFeatures);
-    logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para CSV`, 'user', `Identificador: ${id}`);
-    showToast(`Exportando ${count} feição(ões) em planilha CSV compatível com Excel...`);
-  }, [selectedFeatures, count, showToast]);
+    const res = exportSelectedFeatures('csv', selectedFeatures, 'user');
+    if (res.ok) {
+      showToast(`Exportando ${res.count} feição(ões) em planilha CSV compatível com Excel...`);
+    } else if (res.error) {
+      showToast(res.error);
+    }
+  }, [selectedFeatures, showToast]);
 
   const handleExportFilteredKML = useCallback(() => {
-    if (count === 0) return;
-    const id = getIdentifier(selectedFeatures[0].properties) || 'selecao';
-    const rawFeatures = selectedFeatures.map(f => f.layer);
-    exportSelectionToKML(`selecao_${sanitizeFilename(String(id))}.kml`, rawFeatures);
-    logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para KML`, 'user', `Identificador: ${id}`);
-    showToast(`Exportando ${count} feição(ões) em arquivo KML para Google Earth e QGIS...`);
-  }, [selectedFeatures, count, showToast]);
+    const res = exportSelectedFeatures('kml', selectedFeatures, 'user');
+    if (res.ok) {
+      showToast(`Exportando ${res.count} feição(ões) em arquivo KML para Google Earth e QGIS...`);
+    } else if (res.error) {
+      showToast(res.error);
+    }
+  }, [selectedFeatures, showToast]);
 
   const handleExportFilteredGeoJSON = useCallback(() => {
-    if (count === 0) return;
-    const id = getIdentifier(selectedFeatures[0].properties) || 'selecao';
-    const featureCollection = {
-      type: "FeatureCollection",
-      features: selectedFeatures.map(f => {
-        if (f.layer && typeof (f.layer as any).toGeoJSON === 'function') {
-          return (f.layer as any).toGeoJSON();
-        }
-        return {
-          type: "Feature",
-          properties: f.properties || {},
-          geometry: (f.layer as any)?.feature?.geometry || null
-        };
-      })
-    };
-
-    const jsonStr = JSON.stringify(featureCollection, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/geo+json;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `selecao_${sanitizeFilename(String(id))}.geojson`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-
-    logActivity('EXPORTACAO', `Exportou ${count} feição(ões) filtrada(s) para GeoJSON`, 'user', `Identificador: ${id}`);
-    showToast(`Exportando ${count} feição(ões) em formato GeoJSON vetorial...`);
-  }, [selectedFeatures, count, showToast]);
+    const res = exportSelectedFeatures('geojson', selectedFeatures, 'user');
+    if (res.ok) {
+      showToast(`Exportando ${res.count} feição(ões) em formato GeoJSON vetorial...`);
+    } else if (res.error) {
+      showToast(res.error);
+    }
+  }, [selectedFeatures, showToast]);
 
   // ==============================================================
   // FUNÇÕES DE EXPORTAÇÃO DA CAMADA COMPLETA
@@ -190,6 +176,85 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
           <span>Voltar aos detalhes</span>
         </button>
       )}
+
+      {/* Seção Download Rápido (configuração de preferência do usuário) */}
+      <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 shadow-xs space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              preferences?.quickDownload
+                ? 'bg-blue-500/10 text-[#007AFF] dark:bg-blue-400/20 dark:text-[#64D2FF]'
+                : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+            }`}>
+              <Download className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                Download Rápido
+              </h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                {preferences?.quickDownload
+                  ? `Baixa ${currentFormat.toUpperCase()} direto ao tocar em Exportar nos detalhes`
+                  : 'Ao tocar em Exportar nos detalhes, abre esta aba'}
+              </p>
+            </div>
+          </div>
+
+          {/* Interruptor Liga/Desliga */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(preferences?.quickDownload)}
+            aria-label="Ativar ou desativar download rápido"
+            onClick={() => {
+              const currentQuick = Boolean(preferences?.quickDownload);
+              onUpdatePreferences?.({
+                quickDownload: !currentQuick,
+                format: preferences?.format || 'csv'
+              });
+            }}
+            className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
+              preferences?.quickDownload
+                ? 'bg-[#007AFF]'
+                : 'bg-black/15 dark:bg-white/20'
+            }`}
+          >
+            <div
+              className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                preferences?.quickDownload ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Seletor Segmentado de Formato Padrão (quando ligado) */}
+        {preferences?.quickDownload && (
+          <div className="pt-2 border-t border-black/5 dark:border-white/5 space-y-1.5 animate-fadeIn">
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+              Formato Padrão para Download Rápido
+            </span>
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/5 dark:bg-white/10 rounded-xl">
+              {(['csv', 'kml', 'geojson'] as const).map(fmt => {
+                const isSelected = currentFormat === fmt;
+                return (
+                  <button
+                    key={fmt}
+                    type="button"
+                    onClick={() => onUpdatePreferences?.({ format: fmt })}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer text-center ${
+                      isSelected
+                        ? 'bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {fmt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Se houver feição selecionada, permite alternar entre Filtro Selecionado e Camada Completa */}
       {count > 0 && (

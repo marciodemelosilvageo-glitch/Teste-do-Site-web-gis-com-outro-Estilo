@@ -46,7 +46,8 @@ import {
   Hotel,
   Wine,
   Hospital,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
@@ -55,6 +56,7 @@ import { getIdentifier, getTranslatedValue, getFeatureCenter, toTitleCase, isCod
 import { Dashboard } from './Dashboard';
 import { CopyableText } from './CopyableText';
 import { ExportDashboard } from './ExportDashboard';
+import { useExportPreferences, exportSelectedFeatures, ExportFormat } from '../exportActions';
 import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { FeatureInfoCustomizerModal, CustomCardOption } from './FeatureInfoCustomizerModal';
@@ -268,6 +270,109 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const activeLayerName = activeDetailFeature?.sourceName || '';
   const normalizedLayer = useMemo(() => normalizeLayerName(activeLayerName), [activeLayerName]);
   const userKey = useMemo(() => currentActiveUser?.username || 'default', [currentActiveUser?.username]);
+
+  // Preferências de exportação e download rápido do usuário
+  const { preferences: exportPrefs, updatePreferences: updateExportPrefs } = useExportPreferences(userKey);
+  const [exportButtonState, setExportButtonState] = useState<'idle' | 'preparing' | 'success' | 'error'>('idle');
+  const isExportingRef = useRef<boolean>(false);
+  const [showFormatPrompt, setShowFormatPrompt] = useState<boolean>(false);
+  const [exportLiveStatus, setExportLiveStatus] = useState<string>('');
+  const prefersReducedMotion = typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Fechar prompt de formato se a feição ou aba mudar
+  useEffect(() => {
+    setShowFormatPrompt(false);
+  }, [activeDetailFeature?.id, activeTab]);
+
+  // Fechar prompt de formato ao pressionar Escape
+  useEffect(() => {
+    if (!showFormatPrompt) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowFormatPrompt(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showFormatPrompt]);
+
+  // Executa o download rápido da seleção com garantia de fluidez de renderização (2 frames)
+  const executeQuickDownload = useCallback(async (format: ExportFormat) => {
+    if (isExportingRef.current) return;
+    isExportingRef.current = true;
+    setShowFormatPrompt(false);
+    setExportButtonState('preparing');
+    setExportLiveStatus('Preparando download...');
+
+    // Aguardar 2 frames para a interface pintar o estado "preparando" antes da serialização
+    await new Promise<void>(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      });
+    });
+
+    try {
+      const res = exportSelectedFeatures(format, selectedFeatures, userRole);
+      if (!res.ok) {
+        setExportButtonState('error');
+        setExportLiveStatus(res.error || 'Erro ao exportar feições');
+        setTimeout(() => {
+          setExportButtonState('idle');
+          isExportingRef.current = false;
+        }, 1800);
+        return;
+      }
+
+      setExportButtonState('success');
+      setExportLiveStatus('Download iniciado com sucesso');
+      setTimeout(() => {
+        setExportButtonState('idle');
+        isExportingRef.current = false;
+      }, 1600);
+    } catch {
+      setExportButtonState('error');
+      setExportLiveStatus('Erro ao gerar arquivo');
+      setTimeout(() => {
+        setExportButtonState('idle');
+        isExportingRef.current = false;
+      }, 1800);
+    }
+  }, [selectedFeatures, userRole]);
+
+  // Ação de clique no botão "Exportar" dos detalhes
+  const handleExportButtonClick = useCallback(() => {
+    if (isExportingRef.current) return;
+
+    // Se o download rápido estiver ativo e com formato definido, baixa na hora
+    if (exportPrefs.quickDownload === true && exportPrefs.format) {
+      executeQuickDownload(exportPrefs.format);
+      return;
+    }
+
+    // Se o usuário optou por "Prefiro escolher sempre", abre a aba
+    if (exportPrefs.quickDownload === false) {
+      setActiveTab('export');
+      return;
+    }
+
+    // Se a preferência ainda não estiver definida, alterna exibição da pergunta embutida
+    setShowFormatPrompt(prev => !prev);
+  }, [exportPrefs, executeQuickDownload, setActiveTab]);
+
+  const handleSelectDefaultFormatAndDownload = useCallback((fmt: ExportFormat) => {
+    updateExportPrefs({ quickDownload: true, format: fmt });
+    executeQuickDownload(fmt);
+  }, [updateExportPrefs, executeQuickDownload]);
+
+  const handleChooseAlways = useCallback(() => {
+    updateExportPrefs({ quickDownload: false });
+    setShowFormatPrompt(false);
+    setActiveTab('export');
+  }, [updateExportPrefs, setActiveTab]);
 
   // Helper de resolução de cartões padrão para uma camada
   const getLayerDefaultIds = useCallback((normLayer: string) => {
@@ -993,9 +1098,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     };
   }, []);
 
-  const prefersReducedMotion = typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
   const handleCardClick = async (
     e: React.MouseEvent<HTMLButtonElement>, 
     id: string, 
@@ -1501,14 +1603,48 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     <span>Focar no Ponto</span>
                   </button>
 
-                  {/* Botão Exportar */}
+                  {/* Botão Exportar com Download Rápido e Feedback Inline */}
                   <button
                     type="button"
-                    onClick={() => setActiveTab('export')}
-                    className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
+                    disabled={exportButtonState !== 'idle'}
+                    onClick={handleExportButtonClick}
+                    className={`py-2.5 px-2 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
+                      exportButtonState === 'success'
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                        : exportButtonState === 'error'
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                        : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
+                    }`}
+                    title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${exportPrefs.format.toUpperCase()}` : "Exportar feição"}
                   >
-                    <Download className="w-4 h-4 text-slate-700 dark:text-slate-200" />
-                    <span>Exportar</span>
+                    {exportButtonState === 'preparing' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
+                        <span>Baixando...</span>
+                      </>
+                    ) : exportButtonState === 'success' ? (
+                      <>
+                        <svg className="w-4 h-4 stroke-emerald-600 dark:stroke-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <motion.path
+                            d="M20 6L9 17L4 12"
+                            initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
+                            animate={{ pathLength: 1 }}
+                            transition={{ duration: 0.35, ease: "easeOut" }}
+                          />
+                        </svg>
+                        <span>Baixado</span>
+                      </>
+                    ) : exportButtonState === 'error' ? (
+                      <>
+                        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                        <span>Erro</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+                        <span>Exportar</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1578,17 +1714,107 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </button>
                 )}
 
-                {/* Botão Exportar */}
+                {/* Botão Exportar com Download Rápido e Feedback Inline */}
                 <button
                   type="button"
-                  onClick={() => setActiveTab('export')}
-                  className="py-2.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer"
+                  disabled={exportButtonState !== 'idle'}
+                  onClick={handleExportButtonClick}
+                  className={`py-2.5 px-2 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer ${
+                    exportButtonState === 'success'
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      : exportButtonState === 'error'
+                      ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                      : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
+                  }`}
+                  title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${exportPrefs.format.toUpperCase()}` : "Exportar feição"}
                 >
-                  <Download className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-                  <span>Exportar</span>
+                  {exportButtonState === 'preparing' ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
+                      <span className="truncate">Baixando...</span>
+                    </>
+                  ) : exportButtonState === 'success' ? (
+                    <>
+                      <svg className="w-5 h-5 stroke-emerald-600 dark:stroke-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <motion.path
+                          d="M20 6L9 17L4 12"
+                          initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                        />
+                      </svg>
+                      <span>Baixado</span>
+                    </>
+                  ) : exportButtonState === 'error' ? (
+                    <>
+                      <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+                      <span>Erro</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                      <span>Exportar</span>
+                    </>
+                  )}
                 </button>
               </div>
             )}
+
+            {/* Região Acessível aria-live para Status de Exportação */}
+            <div className="sr-only" aria-live="polite" aria-atomic="true">
+              {exportLiveStatus}
+            </div>
+
+            {/* Pergunta Embutida: Escolha do Formato Padrão para Download Rápido */}
+            <AnimatePresence>
+              {showFormatPrompt && (
+                <motion.div
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 rounded-2xl space-y-2.5 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      <Download className="w-3.5 h-3.5 text-[#007AFF]" />
+                      <span>Qual formato padrão para baixar?</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowFormatPrompt(false)}
+                      className="w-5 h-5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 cursor-pointer"
+                      aria-label="Fechar"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['csv', 'kml', 'geojson'] as const).map(fmt => (
+                      <button
+                        key={fmt}
+                        type="button"
+                        onClick={() => handleSelectDefaultFormatAndDownload(fmt)}
+                        className="py-1.5 px-2 bg-white dark:bg-[#1c1c1e] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#007AFF] text-slate-800 dark:text-slate-200 rounded-xl text-xs font-black shadow-xs border border-black/5 dark:border-white/10 transition-colors uppercase cursor-pointer text-center"
+                      >
+                        {fmt}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-0.5 text-center">
+                    <button
+                      type="button"
+                      onClick={handleChooseAlways}
+                      className="text-[11px] font-semibold text-[#007AFF] hover:underline cursor-pointer"
+                    >
+                      Prefiro escolher sempre na aba de exportação
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Informações Específicas / Dados da Feição */}
             {isLocalidade ? (
@@ -2238,6 +2464,8 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             selectedFeatures={selectedFeatures}
             showToast={showToast}
             onBackToDetails={hasFeature ? () => setActiveTab('details') : undefined}
+            preferences={exportPrefs}
+            onUpdatePreferences={updateExportPrefs}
           />
         )}
 

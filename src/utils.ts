@@ -330,7 +330,9 @@ export const downloadFile = (filename: string, content: string, mimeType: string
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 2000);
 };
 
 // Exportar feições selecionadas para formato CSV compatível com Excel (com UTF-8 BOM)
