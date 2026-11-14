@@ -644,6 +644,49 @@ export const CATEGORY_CONFIGS: Record<string, CategorySearchConfig> = {
 };
 
 /**
+ * Constrói as cláusulas WHERE SQL para uma categoria temática baseando-se em espécies,
+ * estabelecimento obrigatório, palavras-chave e exclusões configuradas.
+ */
+export function buildCategoryWhereClauses(config: CategorySearchConfig): string[] {
+  const clauses: string[] = [];
+
+  // Filtro estrito de espécie(s) autorizada(s)
+  const speciesList = config.species.map(s => `'${escapeSqlLiteral(s)}'`).join(', ');
+  clauses.push(`"especie" IN (${speciesList})`);
+
+  // Estabelecimento deve estar preenchido
+  clauses.push(`"estabelecimento" IS NOT NULL AND trim("estabelecimento") != ''`);
+
+  // Palavras-chave que entram
+  const kwConditions: string[] = [];
+  if (config.useWordBoundaryPosto) {
+    kwConditions.push(`regexp_matches(strip_accents(lower("estabelecimento")), '(^|\\s)posto(\\s|$)')`);
+  }
+  config.keywords.forEach(kw => {
+    const escKw = escapeSqlLikePattern(normalizeString(kw));
+    if (kw === 'pague menos') {
+      kwConditions.push(`(strip_accents(lower("estabelecimento")) LIKE '%${escKw}%' AND strip_accents(lower("estabelecimento")) NOT LIKE '%mercad%')`);
+    } else {
+      kwConditions.push(`strip_accents(lower("estabelecimento")) LIKE '%${escKw}%'`);
+    }
+  });
+  if (kwConditions.length > 0) {
+    clauses.push(`(${kwConditions.join(' OR ')})`);
+  }
+
+  // Palavras de exclusão
+  config.exclusions.forEach(ex => {
+    const escEx = escapeSqlLikePattern(normalizeString(ex));
+    clauses.push(`strip_accents(lower("estabelecimento")) NOT LIKE '%${escEx}%'`);
+  });
+  if (config.useWordBoundaryPetExclusion) {
+    clauses.push(`regexp_matches(strip_accents(lower("estabelecimento")), '(^|\\s)pet(\\s|$)') = false`);
+  }
+
+  return clauses;
+}
+
+/**
  * Busca endereços no CNEFE filtrando por categoria temática através da coluna "estabelecimento"
  * combinada estritamente com a "especie" autorizada e município.
  */
@@ -673,38 +716,8 @@ export async function buscarEnderecosPorCategoria(
       whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
     }
 
-    // 2. Filtro estrito de espécie(s) autorizada(s)
-    const speciesList = config.species.map(s => `'${escapeSqlLiteral(s)}'`).join(', ');
-    whereClauses.push(`"especie" IN (${speciesList})`);
-
-    // 3. Estabelecimento deve estar preenchido
-    whereClauses.push(`"estabelecimento" IS NOT NULL AND trim("estabelecimento") != ''`);
-
-    // 4. Palavras-chave que entram
-    const kwConditions: string[] = [];
-    if (config.useWordBoundaryPosto) {
-      kwConditions.push(`regexp_matches(strip_accents(lower("estabelecimento")), '(^|\\s)posto(\\s|$)')`);
-    }
-    config.keywords.forEach(kw => {
-      const escKw = escapeSqlLikePattern(normalizeString(kw));
-      if (kw === 'pague menos') {
-        kwConditions.push(`(strip_accents(lower("estabelecimento")) LIKE '%${escKw}%' AND strip_accents(lower("estabelecimento")) NOT LIKE '%mercad%')`);
-      } else {
-        kwConditions.push(`strip_accents(lower("estabelecimento")) LIKE '%${escKw}%'`);
-      }
-    });
-    if (kwConditions.length > 0) {
-      whereClauses.push(`(${kwConditions.join(' OR ')})`);
-    }
-
-    // 5. Palavras de exclusão
-    config.exclusions.forEach(ex => {
-      const escEx = escapeSqlLikePattern(normalizeString(ex));
-      whereClauses.push(`strip_accents(lower("estabelecimento")) NOT LIKE '%${escEx}%'`);
-    });
-    if (config.useWordBoundaryPetExclusion) {
-      whereClauses.push(`regexp_matches(strip_accents(lower("estabelecimento")), '(^|\\s)pet(\\s|$)') = false`);
-    }
+    // 2. Cláusulas temáticas da categoria (espécies, palavras-chave, exclusões)
+    whereClauses.push(...buildCategoryWhereClauses(config));
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
@@ -734,6 +747,94 @@ export async function buscarEnderecosPorCategoria(
     return { results: rawResults, totalEncontrado, config };
   } catch (e) {
     console.error(`Erro na busca de endereços por categoria (${categoryId}) no DuckDB:`, e);
+    throw e;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
+  }
+}
+
+/**
+ * Busca endereços de uma categoria temática específica (Farmácias, Restaurantes, Postos, Hotéis, etc.)
+ * em um raio geométrico a partir de uma coordenada central (latitude, longitude) em metros.
+ */
+export async function buscarEnderecosPorCategoriaEmRaio(
+  categoryId: string,
+  centerLat: number,
+  centerLng: number,
+  raioMetros: number,
+  limit: number = 3000
+): Promise<{ results: any[]; totalEncontrado: number; config: CategorySearchConfig }> {
+  const config = CATEGORY_CONFIGS[categoryId];
+  if (!config) {
+    throw new Error(`Configuração não encontrada para a categoria: ${categoryId}`);
+  }
+
+  let conn: duckdb.AsyncDuckDBConnection | null = null;
+  try {
+    const db = await getDuckDB();
+    conn = await db.connect();
+
+    const safeRaio = Math.max(50, Math.min(200000, Number(raioMetros) || 1000));
+    const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 3000));
+
+    // Bounding Box para aceleração de consulta no DuckDB (graus aprox.)
+    const deltaLat = (safeRaio / 111000) * 1.2;
+    const cosLat = Math.max(0.1, Math.cos((centerLat * Math.PI) / 180));
+    const deltaLng = (safeRaio / (111000 * cosLat)) * 1.2;
+
+    const minLat = centerLat - deltaLat;
+    const maxLat = centerLat + deltaLat;
+    const minLng = centerLng - deltaLng;
+    const maxLng = centerLng + deltaLng;
+
+    const whereClauses: string[] = [
+      `TRY_CAST("latitude" AS DOUBLE) BETWEEN ${minLat} AND ${maxLat}`,
+      `TRY_CAST("longitude" AS DOUBLE) BETWEEN ${minLng} AND ${maxLng}`,
+      ...buildCategoryWhereClauses(config)
+    ];
+
+    const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+
+    const sql = `
+      SELECT *
+      FROM enderecos
+      ${whereSql}
+    `;
+
+    const result = await conn.query(sql);
+    const rows = result.toArray();
+    const rawResults = rows.map(r => r.toJSON());
+
+    // Filtrar com precisão exata usando Haversine e calcular a distância
+    const filteredWithDistance = rawResults
+      .map(row => {
+        const lat = parseFloat(row.latitude);
+        const lng = parseFloat(row.longitude);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        const dist = haversineDistanceMeters(centerLat, centerLng, lat, lng);
+        if (dist > safeRaio) return null;
+        return {
+          ...row,
+          distancia_metros: Math.round(dist),
+          distancia_texto: formatDistance(dist)
+        };
+      })
+      .filter(Boolean) as any[];
+
+    // Ordenar do mais próximo para o mais distante
+    filteredWithDistance.sort((a, b) => a.distancia_metros - b.distancia_metros);
+
+    const paginated = filteredWithDistance.slice(0, safeLimit);
+
+    return {
+      results: paginated,
+      totalEncontrado: filteredWithDistance.length,
+      config
+    };
+  } catch (e) {
+    console.error(`Erro na busca por categoria (${categoryId}) em raio no DuckDB:`, e);
     throw e;
   } finally {
     if (conn) {

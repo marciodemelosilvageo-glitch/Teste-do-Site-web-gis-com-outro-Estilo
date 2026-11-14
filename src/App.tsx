@@ -28,7 +28,7 @@ import { CnefeBottomBar } from './components/CnefeBottomBar';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase } from './utils';
-import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
+import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 import { RecentSearchItem, detectCategoryFromData } from './categories';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
@@ -1114,6 +1114,95 @@ export default function App() {
           } catch (innerErr) {
             console.error('Erro na pesquisa por raio no CNEFE:', innerErr);
             showToast('Erro ao consultar estabelecimentos de saúde por raio.');
+          } finally {
+            setIsHospitalSearching(false);
+          }
+        },
+        (geoErr) => {
+          setIsHospitalSearching(false);
+          console.warn('Erro ao obter GPS:', geoErr);
+          if (geoErr.code === 1) {
+            showToast('Permissão de GPS negada. Por favor, permita a localização no seu navegador.');
+          } else {
+            showToast('Não foi possível obter a sua localização GPS atual.');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    } catch (err) {
+      setIsHospitalSearching(false);
+      console.error('Erro ao processar localização para a busca:', err);
+      showToast('Erro ao iniciar localização.');
+    }
+  };
+
+  // Executa busca por Categoria por Raio GPS ao redor da localização do usuário (Farmácias, Restaurantes, Postos, Hotéis)
+  const handleExecuteCategorySearchByRadius = (categoryId: string, raioMetros: number) => {
+    try {
+      const config = CATEGORY_CONFIGS[categoryId];
+      const catName = config?.name || 'Estabelecimentos';
+
+      setIsHospitalSearching(true);
+
+      if (!('geolocation' in navigator)) {
+        showToast('Geolocalização não é suportada por este dispositivo.');
+        setIsHospitalSearching(false);
+        return;
+      }
+
+      const raioKm = (raioMetros / 1000).toLocaleString('pt-BR');
+      const distLabel = raioMetros >= 1000 ? `${raioKm} km` : `${raioMetros} m`;
+      showToast(`📍 Obtendo localização GPS para buscar ${catName.toLowerCase()} em raio de ${distLabel}...`);
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            showToast(`🔍 Buscando ${catName.toLowerCase()} em raio de ${distLabel} no CNEFE...`);
+
+            const res = await buscarEnderecosPorCategoriaEmRaio(
+              categoryId,
+              latitude,
+              longitude,
+              raioMetros,
+              3000
+            );
+
+            if (!res.results || res.results.length === 0) {
+              showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado a até ${distLabel}.`);
+              return;
+            }
+
+            // Não plota no mapa de imediato, conforme solicitado
+            setSearchCoordinates(null);
+
+            setCnefeExternalResult({
+              results: res.results,
+              totalEncontrado: res.totalEncontrado,
+              title: `${catName} em raio de ${distLabel} da sua localização`,
+              sourceLayerName: `${catName} (Raio GPS)`,
+              timestamp: Date.now(),
+              searchTerm: config?.keywords?.[0] || catName
+            });
+            setIsCnefeBottomBarOpen(true);
+            setIsCnefeBottomBarExpanded(true);
+
+            logActivity(
+              'ENDERECO',
+              `Busca CNEFE: ${catName} por Raio (${raioMetros}m)`,
+              userRole,
+              `${res.totalEncontrado} estabelecimentos encontrados`
+            );
+
+            showToast(`📍 ${res.totalEncontrado} estabelecimentos de ${catName.toLowerCase()} encontrados a até ${distLabel}!`);
+
+            setTimeout(() => {
+              const el = document.getElementById('ibge-search-panel');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+          } catch (innerErr) {
+            console.error(`Erro na pesquisa por raio de ${catName} no CNEFE:`, innerErr);
+            showToast(`Erro ao consultar ${catName.toLowerCase()} por raio.`);
           } finally {
             setIsHospitalSearching(false);
           }
@@ -3058,6 +3147,7 @@ export default function App() {
             onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
             onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
             onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
+            onSearchCategoryByRadius={handleExecuteCategorySearchByRadius}
             cnefeMunicipios={cnefeMunicipios}
             onEnsureMunicipiosLoaded={ensureCnefeMunicipiosLoaded}
             isHospitalSearching={isHospitalSearching}

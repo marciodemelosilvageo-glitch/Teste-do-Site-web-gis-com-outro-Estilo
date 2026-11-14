@@ -100,6 +100,7 @@ interface AppleSidebarProps {
   onSearchHospitaisByMunicipio?: (municipio: string) => void;
   onSearchCategoryByMunicipio?: (categoryId: string, municipio: string) => void;
   onSearchHospitaisByRadius?: (raioMetros: number) => void;
+  onSearchCategoryByRadius?: (categoryId: string, raioMetros: number) => void;
   cnefeMunicipios?: string[];
   onEnsureMunicipiosLoaded?: () => void;
   isHospitalSearching?: boolean;
@@ -206,6 +207,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   onSearchHospitaisByMunicipio,
   onSearchCategoryByMunicipio,
   onSearchHospitaisByRadius,
+  onSearchCategoryByRadius,
   cnefeMunicipios,
   onEnsureMunicipiosLoaded,
   isHospitalSearching,
@@ -1928,7 +1930,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   onSearchCategoryByMunicipio?.(activeCategorySearchId, mun);
                 }
               }}
-              onSearchByRadius={activeCategorySearchId === 'hospitais' ? ((raio) => onSearchHospitaisByRadius?.(raio)) : undefined}
+              onSearchByRadius={(raio) => {
+                if (activeCategorySearchId === 'hospitais') {
+                  onSearchHospitaisByRadius?.(raio);
+                } else {
+                  onSearchCategoryByRadius?.(activeCategorySearchId, raio);
+                }
+              }}
               availableMunicipios={cnefeMunicipios}
               isLoading={isHospitalSearching}
             />

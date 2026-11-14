@@ -307,7 +307,7 @@ export const HospitalSidebarPanel: React.FC<HospitalSidebarPanelProps> = ({
                 Quantos metros será o raio ao redor de sua localização?
               </label>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                O GPS do seu dispositivo será usado para listar os hospitais mais próximos.
+                O GPS do seu dispositivo será usado para listar {meta.name.toLowerCase()} mais próximos.
               </p>
             </div>
 
