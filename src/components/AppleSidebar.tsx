@@ -261,6 +261,18 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   const [activeCategorySearchId, setActiveCategorySearchId] = useState<CategorySearchType | null>(null);
   const lastSearchClickTimeRef = useRef<number>(0);
 
+  // Estado para recolhimento individual dos cartões da Central de Ajuda
+  const [collapsedHelpCards, setCollapsedHelpCards] = useState<Record<number, boolean>>({});
+  const toggleHelpCard = (id: number) => {
+    setCollapsedHelpCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const expandAllHelpCards = () => setCollapsedHelpCards({});
+  const collapseAllHelpCards = () => {
+    const allCollapsed: Record<number, boolean> = {};
+    for (let i = 1; i <= 10; i++) allCollapsed[i] = true;
+    setCollapsedHelpCards(allCollapsed);
+  };
+
   // Estado e temporizador para suavização da animação da barra lateral Apple (reduz blur temporariamente)
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
   const animTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2574,7 +2586,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         {/* ABA: GUIA DE USO E AJUDA (DOCKADO DIRETAMENTE NA BARRA LATERAL) */}
         {/* ============================================================== */}
         {activeTab === 'help' && (
-          <div className="animate-fadeIn space-y-3.5 pb-6">
+          <div className="animate-fadeIn space-y-3 pb-6">
             {/* Header / Apresentação do Guia */}
             <div className="p-4 rounded-3xl bg-gradient-to-br from-[#007AFF]/10 via-[#5856D6]/5 to-transparent border border-[#007AFF]/20 shadow-xs">
               <div className="flex items-center gap-2.5 mb-1.5">
@@ -2586,215 +2598,466 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                 </h3>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                Consulte as instruções rápidas de navegação, seleção de áreas, análise CNEFE e atalhos de produtividade sem sair do mapa.
+                Consulte as instruções rápidas de navegação, seleção de áreas, análise demográfica, consulta CNEFE e atalhos de produtividade sem sair do mapa.
               </p>
+            </div>
+
+            {/* Barra de Controle de Expansão Rápida */}
+            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 select-none">
+              <span>Tópicos do Guia (10 seções)</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={expandAllHelpCards}
+                  className="text-[#007AFF] hover:underline cursor-pointer"
+                >
+                  Expandir tudo
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={collapseAllHelpCards}
+                  className="hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Recolher tudo
+                </button>
+              </div>
             </div>
 
             {/* 1. NAVEGAÇÃO E CAMADAS */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
-                  <Layers className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(1)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#007AFF]/15 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
+                    <Layers className="w-3.5 h-3.5" />
+                  </div>
+                  <span>1. Navegação & Camadas</span>
                 </div>
-                <span>1. Navegação & Camadas</span>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                Controle camadas oficiais (Municípios, Bairros, Setores, Favelas/Comunidades e Localidades).
-              </p>
-              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#007AFF] font-bold">•</span>
-                  <span><strong>Painel de Camadas:</strong> No canto superior direito, ligue/desligue mapas e ajuste opacidade, preenchimento e bordas.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#007AFF] font-bold">•</span>
-                  <span><strong>Mapas de Fundo:</strong> Alterne entre <em>Apple Maps</em> (Claro/Escuro), <em>Google Satélite/Híbrido</em>, <em>OSM</em> e <em>Esri</em>.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#007AFF] font-bold">•</span>
-                  <span><strong>Ações Rápidas:</strong> Use <em>"Ligar Tudo"</em> ou <em>"Desligar Tudo"</em> no topo do mapa para controle instantâneo.</span>
-                </li>
-              </ul>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[1] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[1] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Controle as 10 camadas territoriais oficiais e mapas de fundo em alta resolução.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#007AFF] font-bold">•</span>
+                      <span><strong>10 Camadas Oficiais:</strong> Acesse bases de <em>AISP</em>, <em>Aglomerados Rurais</em>, <em>Áreas de Desenvolvimento</em>, <em>Bairros</em>, <em>Comunidades Rurais de Teresina</em>, <em>Favelas e Comunidades</em>, <em>Localidades (Piauí)</em>, <em>Municípios</em>, <em>Núcleos Urbanos</em> e <em>RISP</em>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#007AFF] font-bold">•</span>
+                      <span><strong>Painel de Camadas:</strong> No canto superior direito do mapa, ative ou desative camadas individuais e regule opacidade, preenchimento e bordas.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#007AFF] font-bold">•</span>
+                      <span><strong>Mapas de Fundo:</strong> Alterne no seletor flutuante entre <strong>Explorar</strong> ( Claro), <strong>Escuro</strong> (🌙), <strong>Satélite</strong> (🛰️ Google), <strong>Híbrido</strong> (🗺️ Google), <strong>OSM</strong> e <strong>Esri</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#007AFF] font-bold">•</span>
+                      <span><strong>Ligar e Desligar Tudo:</strong> Use os botões <strong>"Ligar Tudo"</strong> ou <strong>"Desligar Tudo"</strong> no painel de camadas para ativação ou limpeza em lote da visualização.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* 2. SELEÇÃO DE ÁREAS E RAIO-X */}
+            {/* 2. SELEÇÃO DE ÁREAS E MULTISELEÇÃO */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-[#34C759]/15 text-[#34C759] flex items-center justify-center shrink-0">
-                  <Users className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(2)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#34C759]/15 text-[#34C759] flex items-center justify-center shrink-0">
+                    <MousePointerClick className="w-3.5 h-3.5" />
+                  </div>
+                  <span>2. Seleção de Áreas & Multiseleção</span>
                 </div>
-                <span>2. Seleção de Áreas & Raio-X Territorial</span>
-              </div>
-              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#34C759] font-bold">•</span>
-                  <span><strong>Clique Simples:</strong> Clique em qualquer região do mapa para gerar o <em>Raio-X Territorial</em> com População, Domicílios e Taxa de Vacância.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#34C759] font-bold">•</span>
-                  <span><strong>Multiseleção:</strong> Ative o botão <em>"Multiseleção: ON"</em> acima do mapa (ou segure <kbd className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 font-mono text-[10px]">Ctrl</kbd>) para somar estatísticas de múltiplos bairros ou setores ao mesmo tempo.</span>
-                </li>
-              </ul>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[2] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[2] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Selecione feições territoriais para análise individual ou combinada.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#34C759] font-bold">•</span>
+                      <span><strong>Clique Simples:</strong> Ao clicar em qualquer área ou feição no mapa, ela é destacada e o painel abre automaticamente em <strong>"Detalhes da Feição"</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#34C759] font-bold">•</span>
+                      <span><strong>Seleção pela Busca:</strong> Ao clicar em um resultado na lista da aba <em>Buscar</em>, o mapa centraliza e destaca a feição mantendo a lista aberta; clicar na feição no mapa abre os <strong>Detalhes</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#34C759] font-bold">•</span>
+                      <span><strong>Multiseleção:</strong> Ative o botão <strong>"Multiseleção: ON"</strong> no topo do mapa (ou segure <kbd className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 font-mono text-[10px]">Ctrl</kbd>) para selecionar múltiplas regiões e bairros simultaneamente.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#34C759] font-bold">•</span>
+                      <span><strong>Dissolver Polígonos:</strong> Com 2 ou mais áreas selecionadas, utilize o botão <strong>"Dissolver"</strong> para fundir as geometrias em um contorno unificado (ou <strong>"Desfazer dissolução"</strong> para restaurar).</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* 3. BUSCA DE ENDEREÇOS E CNEFE IBGE */}
+            {/* 3. DETALHES DA FEIÇÃO E INFORMAÇÕES ÚTEIS */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-[#AF52DE]/15 text-[#AF52DE] flex items-center justify-center shrink-0">
-                  <Search className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(3)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#5856D6]/15 text-[#5856D6] dark:text-[#AF52DE] flex items-center justify-center shrink-0">
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                  </div>
+                  <span>3. Detalhes da Feição & Informações Úteis</span>
                 </div>
-                <span>3. Busca Avançada de Endereços (CNEFE)</span>
-              </div>
-              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#AF52DE] font-bold">•</span>
-                  <span><strong>Milhões de Endereços:</strong> Consulta ultra-rápida no banco DuckDB em todos os municípios do Piauí.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#AF52DE] font-bold">•</span>
-                  <span><strong>Sem Problema de Acentos:</strong> Pesquisas com ou sem acentos (ex: <em>"São Benedito"</em> ou <em>"sao benedito"</em>) encontram tudo com 100% de precisão.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#AF52DE] font-bold">•</span>
-                  <span><strong>Lupinha por Coluna:</strong> Clique no ícone de lupa no cabeçalho de qualquer coluna para pesquisar nela diretamente.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#AF52DE] font-bold">•</span>
-                  <span><strong>Ordenação Inteligente:</strong> Ao ordenar por Endereço, ruas de mesmo nome são agrupadas juntas em ordem numérica contínua.</span>
-                </li>
-              </ul>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[3] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[3] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Explore propriedades, demografia e dados cadastrais da feição ativa.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#5856D6] dark:text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Personalizar Informações Úteis:</strong> Clique no botão <strong>"Personalizar"</strong> para selecionar até 8 cartões prioritários por camada. Suas preferências ficam salvas no navegador, com opção de <strong>Restaurar Padrão</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#5856D6] dark:text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Copiar ao Clicar:</strong> Clique sobre qualquer valor, código ou identificador para copiar instantaneamente para a área de transferência com feedback <strong>"Copiado"</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#5856D6] dark:text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Exportação Rápida:</strong> Baixe a feição selecionada diretamente pelo botão de download rápido na aba de Detalhes.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#5856D6] dark:text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Tabela Completa de Atributos:</strong> Acesse a seção retrátil de atributos brutos com todos os geocódigos oficiais e metadados da camada.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* 4. MEDIÇÃO, COORDENADAS E BOTÃO DIREITO */}
+            {/* 4. RAIO-X TERRITORIAL E DOMICILIAR */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center shrink-0">
-                  <Compass className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(4)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center shrink-0">
+                    <Users className="w-3.5 h-3.5" />
+                  </div>
+                  <span>4. Raio-X Territorial e Domiciliar</span>
                 </div>
-                <span>4. Coordenadas, Medição & Botão Direito</span>
-              </div>
-              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#FF9500] font-bold">•</span>
-                  <span><strong>Busca por Coordenadas:</strong> Digite <code>-5.089, -42.801</code> na barra de busca para localizar e marcar qualquer coordenada.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#FF9500] font-bold">•</span>
-                  <span><strong>Botão Direito no Mapa:</strong> Clique com o botão direito para copiar coordenadas precisas, identificar o local ou abrir diretamente no <em>Google Street View</em>.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#FF9500] font-bold">•</span>
-                  <span><strong>Régua de Medição:</strong> Meça distâncias e áreas com cálculo geodésico no mapa.</span>
-                </li>
-              </ul>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[4] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[4] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Panorama demográfico e habitacional sincronizado do Censo IBGE.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF9500] font-bold">•</span>
+                      <span><strong>Abertura Automática:</strong> O Raio-X abre sozinho ao selecionar <strong>2 ou mais áreas</strong> de uma mesma camada (multiseleção) ou manualmente pela aba <strong>"Raio-X"</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF9500] font-bold">•</span>
+                      <span><strong>Card Localidade Selecionada:</strong> Exibe o nome da área, badge com o nome da camada de origem e <strong>números animados</strong> com contagem dinâmica.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF9500] font-bold">•</span>
+                      <span><strong>Indicadores Calculados:</strong> Soma em tempo real de <strong>População Residente</strong>, <strong>Média por Domicílio</strong>, <strong>Total de Domicílios</strong>, <strong>Particulares Ocupados</strong>, <strong>Coletivos</strong> e <strong>Taxa de Vacância</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF9500] font-bold">•</span>
+                      <span><strong>Copiar Resumo:</strong> Clique no título da localidade para copiar o resumo demográfico estruturado para relatórios e mensagens.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* 5. EXPORTAÇÃO DE DADOS */}
+            {/* 5. BUSCA POR TIPO E ESTABELECIMENTOS */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-[#30B0C7]/15 text-[#30B0C7] flex items-center justify-center shrink-0">
-                  <Download className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(5)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#FF2D55]/15 text-[#FF2D55] flex items-center justify-center shrink-0">
+                    <Store className="w-3.5 h-3.5" />
+                  </div>
+                  <span>5. Busca por Tipo & Estabelecimentos</span>
                 </div>
-                <span>5. Exportação (Excel, CSV e KML)</span>
-              </div>
-              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#30B0C7] font-bold">•</span>
-                  <span><strong>Planilha CSV (Excel):</strong> Baixe tabelas com todos os indicadores das regiões selecionadas ou dos endereços consultados.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-[#30B0C7] font-bold">•</span>
-                  <span><strong>KML (Google Earth / QGIS):</strong> Exporte as geometrias dos polígonos selecionados para uso em softwares GIS profissionais.</span>
-                </li>
-              </ul>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[5] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[5] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Localize comércios, serviços essenciais e pontos de interesse CNEFE.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF2D55] font-bold">•</span>
+                      <span><strong>Menu "Buscar por Tipo":</strong> Nos Detalhes e no Raio-X, clique no menu suspenso para pesquisar <strong>Farmácias</strong>, <strong>Restaurantes</strong>, <strong>Postos de Gasolina</strong>, <strong>Hotéis</strong> e <strong>Hospitais</strong> dentro das áreas selecionadas.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF2D55] font-bold">•</span>
+                      <span><strong>Busca por Município:</strong> Na aba <em>Buscar</em>, escolha uma categoria e visualize estabelecimentos de municípios de todo o Piauí.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#FF2D55] font-bold">•</span>
+                      <span><strong>Busca por Raio (GPS):</strong> Busque estabelecimentos próximos a você usando raios de <strong>500 m</strong>, <strong>1 km</strong>, <strong>2 km</strong>, <strong>5 km</strong> ou <strong>10 km</strong>.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* 6. ATALHOS DE TECLADO */}
+            {/* 6. BUSCA AVANÇADA DE ENDEREÇOS (CNEFE) E BARRA INFERIOR */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(6)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#AF52DE]/15 text-[#AF52DE] flex items-center justify-center shrink-0">
+                    <Search className="w-3.5 h-3.5" />
+                  </div>
+                  <span>6. Busca Avançada de Endereços (CNEFE)</span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[6] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[6] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Consulta analítica de milhões de endereços do CNEFE / IBGE via DuckDB.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Botões "Buscar endereços":</strong> Disponíveis nos Detalhes, no Raio-X, no cartão de medição e botão específico <strong>"Buscar Endereços desta Localidade"</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Indicador em Tempo Real:</strong> Uma barra animada de progresso indica o processamento da consulta de alta performance.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Barra Inferior Articulada:</strong> Arraste a barra para cima/baixo para ajustar a altura, use duplo clique ou botão de maximizar para tela cheia e clique em <strong>"Recolher"</strong> para priorizar o mapa.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#AF52DE] font-bold">•</span>
+                      <span><strong>Tabela Interativa:</strong> Ordene com ruas contínuas agrupadas, filtre por coluna com a lupa, selecione colunas em <strong>"Colunas ▼"</strong>, use <strong>"Plotar no Mapa"</strong> e exporte em CSV.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* 7. COORDENADAS, MEDIÇÃO E BOTÃO DIREITO */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(7)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#00C7BE]/15 text-[#00C7BE] flex items-center justify-center shrink-0">
+                    <Compass className="w-3.5 h-3.5" />
+                  </div>
+                  <span>7. Coordenadas, Medição & Botão Direito</span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[7] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[7] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Ferramentas espaciais para navegação precisa e medição de campo.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#00C7BE] font-bold">•</span>
+                      <span><strong>Busca por Coordenadas:</strong> Digite coordenadas decimais (ex: <code>-5.089, -42.801</code>) na barra de busca para centralizar com pino e abrir detalhes imediatos.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#00C7BE] font-bold">•</span>
+                      <span><strong>Botão Direito no Mapa:</strong> Fixa pino no estilo Apple Maps, copia latitude/longitude individual ou em par, pesquisa feições no ponto e abre o local no <strong>Google Street View</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#00C7BE] font-bold">•</span>
+                      <span><strong>Régua de Medição:</strong> Pressione <kbd className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 font-mono text-[10px]">M</kbd> ou use o botão flutuante para medir distâncias e áreas com cálculo geodésico; o cartão flutuante permite <strong>"Buscar Endereços"</strong> e <strong>"Exportar Geometria"</strong>.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* 8. EXPORTAÇÃO DE DADOS */}
+            <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(8)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#30B0C7]/15 text-[#30B0C7] flex items-center justify-center shrink-0">
+                    <Download className="w-3.5 h-3.5" />
+                  </div>
+                  <span>8. Exportação de Dados & Formatos Oficiais</span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[8] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[8] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Extração espacial e tabular de alta fidelidade sem perda de dados.
+                  </p>
+                  <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#30B0C7] font-bold">•</span>
+                      <span><strong>Modos de Exportação:</strong> Escolha entre <strong>"Seleção Filtrada"</strong> (apenas feições selecionadas) e <strong>"Camada Completa"</strong> (toda a malha territorial da camada).</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#30B0C7] font-bold">•</span>
+                      <span><strong>Formatos Suportados:</strong> <strong>GeoPackage (.gpkg)</strong> para QGIS e ArcGIS, <strong>Shapefile (.zip)</strong> com <code>.shp</code>, <code>.shx</code>, <code>.dbf</code>, <code>.prj</code> e <code>.cpg</code> (WGS 84 / EPSG:4326), <strong>KMZ (.kmz)</strong>, <strong>KML (.kml)</strong> e <strong>GeoJSON (.geojson)</strong>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#30B0C7] font-bold">•</span>
+                      <span><strong>Tabelas CSV:</strong> O formato <strong>CSV (.csv)</strong> é disponibilizado exclusivamente para camadas de pontos e listas de endereços CNEFE (camadas poligonais devem ser exportadas em formatos com suporte a geometria espacial).</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-[#30B0C7] font-bold">•</span>
+                      <span><strong>Sem Excel (.xlsx):</strong> O sistema gera arquivos no formato CSV universal, diretamente compatível com Excel, LibreOffice e bancos de dados.</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* 9. ATALHOS DE TECLADO */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2.5">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-slate-500/15 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(9)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-slate-500/15 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <span>9. Atalhos Rápidos de Produtividade</span>
                 </div>
-                <span>6. Atalhos Rápidos de Produtividade</span>
-              </div>
-              <div className="grid grid-cols-1 gap-2 text-xs">
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Focar no campo de busca</span>
-                  <div className="flex items-center gap-1">
-                    <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">Ctrl + F</kbd>
-                    <span className="text-[10px] text-slate-400">ou</span>
-                    <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">/</kbd>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[9] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[9] && (
+                <div className="grid grid-cols-1 gap-2 text-xs pt-1 animate-fadeIn">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Focar no campo de busca</span>
+                    <div className="flex items-center gap-1">
+                      <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">Ctrl + F</kbd>
+                      <span className="text-[10px] text-slate-400">ou</span>
+                      <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">/</kbd>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Limpar seleções / Fechar painéis</span>
+                    <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">Esc</kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Ativar / Desativar Régua de Medição</span>
+                    <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">M</kbd>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Limpar seleções / Fechar painéis</span>
-                  <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">Esc</kbd>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Ativar / Desativar Régua de Medição</span>
-                  <kbd className="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[10px] font-bold border border-black/10 dark:border-white/10">M</kbd>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* 7. CONTATO E SUPORTE */}
+            {/* 10. CONTATO E SUPORTE */}
             <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 space-y-2.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                <div className="w-6 h-6 rounded-lg bg-[#34C759]/15 text-[#34C759] flex items-center justify-center shrink-0">
-                  <LifeBuoy className="w-3.5 h-3.5" />
+              <button
+                type="button"
+                onClick={() => toggleHelpCard(10)}
+                className="w-full flex items-center justify-between text-left text-xs font-black text-slate-900 dark:text-white cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#34C759]/15 text-[#34C759] flex items-center justify-center shrink-0">
+                    <LifeBuoy className="w-3.5 h-3.5" />
+                  </div>
+                  <span>10. Contato e Suporte</span>
                 </div>
-                <span>7. Contato e Suporte</span>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                Encontrou algum bug ou precisa de ajuda para usar o site? Entre em contato.
-              </p>
-              <div className="space-y-1.5 pt-1 text-xs">
-                {/* Telefone */}
-                <a
-                  href="tel:+5586981689456"
-                  className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                >
-                  <div className="w-5 h-5 rounded-md bg-blue-500/10 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
-                    <Phone className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">Telefone</span>
-                    <span className="font-semibold text-xs truncate">(86) 98168-9456</span>
-                  </div>
-                </a>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${collapsedHelpCards[10] ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
+              {!collapsedHelpCards[10] && (
+                <div className="space-y-2 pt-1 animate-fadeIn">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    Encontrou algum bug ou precisa de ajuda para usar o site? Entre em contato.
+                  </p>
+                  <div className="space-y-1.5 pt-1 text-xs">
+                    {/* Telefone */}
+                    <a
+                      href="tel:+5586981689456"
+                      className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-blue-500/10 text-[#007AFF] dark:text-[#64D2FF] flex items-center justify-center shrink-0">
+                        <Phone className="w-3 h-3" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">Telefone</span>
+                        <span className="font-semibold text-xs truncate">(86) 98168-9456</span>
+                      </div>
+                    </a>
 
-                {/* WhatsApp */}
-                <a
-                  href="https://wa.me/5586981689456"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#34C759] dark:hover:text-[#30D158] hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                >
-                  <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-[#34C759] dark:text-[#30D158] flex items-center justify-center shrink-0">
-                    <MessageCircle className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">WhatsApp</span>
-                    <span className="font-semibold text-xs truncate">(86) 98168-9456</span>
-                  </div>
-                </a>
+                    {/* WhatsApp */}
+                    <a
+                      href="https://wa.me/5586981689456"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#34C759] dark:hover:text-[#30D158] hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-[#34C759] dark:text-[#30D158] flex items-center justify-center shrink-0">
+                        <MessageCircle className="w-3 h-3" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">WhatsApp</span>
+                        <span className="font-semibold text-xs truncate">(86) 98168-9456</span>
+                      </div>
+                    </a>
 
-                {/* E-mail */}
-                <a
-                  href="mailto:marciodemelosilva.geo@gmail.com"
-                  className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#AF52DE] dark:hover:text-[#BF5AF2] hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                >
-                  <div className="w-5 h-5 rounded-md bg-purple-500/10 text-[#AF52DE] dark:text-[#BF5AF2] flex items-center justify-center shrink-0">
-                    <Mail className="w-3 h-3" />
+                    {/* E-mail */}
+                    <a
+                      href="mailto:marciodemelosilva.geo@gmail.com"
+                      className="flex items-center gap-2.5 p-2 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-black/5 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-[#AF52DE] dark:hover:text-[#BF5AF2] hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-purple-500/10 text-[#AF52DE] dark:text-[#BF5AF2] flex items-center justify-center shrink-0">
+                        <Mail className="w-3 h-3" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">E-mail</span>
+                        <span className="font-semibold text-xs truncate">marciodemelosilva.geo@gmail.com</span>
+                      </div>
+                    </a>
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">E-mail</span>
-                    <span className="font-semibold text-xs truncate">marciodemelosilva.geo@gmail.com</span>
-                  </div>
-                </a>
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Botão de Fechar Ajuda */}
