@@ -660,6 +660,26 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     };
   }, [activeDetailFeature]);
 
+  // Nome exibido no título da feição e valor para cópia na área de transferência
+  const { featureDisplayName, featureCopyValue } = useMemo(() => {
+    if (!activeDetailFeature) {
+      return { featureDisplayName: '', featureCopyValue: '' };
+    }
+    const raw = isCoordenadaSearch
+      ? (activeDetailFeature.name || '')
+      : (structuredDetails?.nomeOficial || activeDetailFeature.name || '');
+
+    const isPlaceholder = !raw || raw === 'Local Selecionado' || raw === 'Coordenada Pesquisada';
+    const display = isPlaceholder
+      ? (isCoordenadaSearch ? 'Coordenada Pesquisada' : 'Local Selecionado')
+      : raw;
+
+    return {
+      featureDisplayName: display,
+      featureCopyValue: isPlaceholder ? '' : display
+    };
+  }, [activeDetailFeature, isCoordenadaSearch, structuredDetails]);
+
   // Catálogo completo de opções e valores formatados para a seção Informações Úteis
   const usefulCardsCatalog = useMemo(() => {
     if (!activeDetailFeature || !structuredDetails) return { options: [], valuesMap: {} as Record<string, { label: string; value: string }> };
@@ -1387,7 +1407,15 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </button>
                 )}
                 <h2 className="text-xl font-black text-slate-900 dark:text-white truncate tracking-tight">
-                  {isCoordenadaSearch ? (activeDetailFeature.name || 'Coordenada Pesquisada') : (structuredDetails?.nomeOficial || activeDetailFeature.name || 'Local Selecionado')}
+                  <CopyableText
+                    value={featureCopyValue}
+                    label="nome da feição"
+                    showToast={showToast}
+                    className="w-full min-w-0 max-w-full -ml-1 px-1 rounded-lg text-xl font-black text-slate-900 dark:text-white tracking-tight"
+                    title={featureCopyValue ? `Clique para copiar: ${featureDisplayName}` : featureDisplayName}
+                  >
+                    <span className="truncate block">{featureDisplayName}</span>
+                  </CopyableText>
                 </h2>
                 {!activeDetailFeature.id?.startsWith('plot-') && (
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
