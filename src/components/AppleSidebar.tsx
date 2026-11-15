@@ -68,7 +68,7 @@ import { RecentSearchItem, getCategoryConfig } from '../categories';
 import { CategorySearchMenu } from './CategorySearchMenu';
 import { AppLogo } from './AppLogo';
 
-export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | null;
+export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | 'profile' | null;
 
 interface AppleSidebarProps {
   isCollapsed: boolean;

@@ -464,6 +464,7 @@ interface MapComponentProps {
   isStage2Open?: boolean;
   isSidebarCollapsed?: boolean;
   isAddressSearching?: boolean;
+  isMobile?: boolean;
   searchSelectedFeatureId?: string | null;
   isDetailsTabOpen?: boolean;
   onOpenDetailsTab?: () => void;
@@ -512,6 +513,7 @@ const getMeasureExportFilename = (ext: string) => {
 interface MapBottomOverlaysProps {
   isPrintMode?: boolean;
   isStage2Open?: boolean;
+  isMobile?: boolean;
   activeVisibleLayers: Array<{
     name: string;
     isVisible: boolean;
@@ -529,6 +531,7 @@ interface MapBottomOverlaysProps {
 const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
   isPrintMode = false,
   isStage2Open = false,
+  isMobile = false,
   activeVisibleLayers,
   toggleLayerVisibility,
   showToast,
@@ -599,7 +602,7 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
       <div 
         className="cnefe-drag-no-transition absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
         style={{
-          left: isStage2Open ? 'calc(390px + 14px)' : '14px',
+          left: isMobile ? '14px' : (isStage2Open ? 'calc(390px + 14px)' : '14px'),
           bottom: 'calc(var(--cnefe-bottom-height, 46px) + 14px)'
         }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -805,6 +808,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   isStage2Open = false,
   isSidebarCollapsed = false,
   isAddressSearching = false,
+  isMobile = false,
   searchSelectedFeatureId = null,
   isDetailsTabOpen = false,
   onOpenDetailsTab,
@@ -3587,7 +3591,9 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
             style={
               measureCardPos !== null
                 ? { left: `${measureCardPos.x}px`, top: `${measureCardPos.y}px` }
-                : { left: `calc(var(--sidebar-width, ${isSidebarCollapsed ? '68px' : '215px'}) + ${isStage2Open ? 390 : 0}px + 16px)`, top: '4rem' }
+                : isMobile
+                  ? { left: '14px', top: '4.5rem' }
+                  : { left: `calc(var(--sidebar-width, ${isSidebarCollapsed ? '68px' : '215px'}) + ${isStage2Open ? 390 : 0}px + 16px)`, top: '4rem' }
             }
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
@@ -3782,6 +3788,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         <MapBottomOverlays
           isPrintMode={isPrintMode}
           isStage2Open={isStage2Open}
+          isMobile={isMobile}
           activeVisibleLayers={activeVisibleLayers}
           toggleLayerVisibility={toggleLayerVisibility}
           showToast={showToast}

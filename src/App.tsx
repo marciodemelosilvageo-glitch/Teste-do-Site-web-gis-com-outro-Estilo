@@ -25,6 +25,8 @@ import { IbgeSearchPanel, ExternalPolygonSearchResult } from './components/IbgeS
 import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
+import { useIsMobile } from './hooks/useIsMobile';
+import { MobileShell } from './components/mobile/MobileShell';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase, getUserPosition } from './utils';
@@ -171,6 +173,8 @@ export default function App() {
   const [showPreviousUserPassword, setShowPreviousUserPassword] = useState<boolean>(false);
   const [previousUserError, setPreviousUserError] = useState<string | null>(null);
   const [isPreviousUserSubmitting, setIsPreviousUserSubmitting] = useState<boolean>(false);
+
+  const isMobile = useIsMobile(768);
 
   const [isLoginFormOpen, setIsLoginFormOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
@@ -3315,208 +3319,330 @@ export default function App() {
         </div>
       )}
 
-      {/* TELA INTEGRADA ESTILO APPLE MAPS (MAPS.APPLE.COM) */}
-      <div 
-        className="relative w-full h-full flex overflow-hidden"
-        style={{
-          '--sidebar-width': isSidebarCollapsed ? '68px' : '215px'
-        } as React.CSSProperties}
-      >
-        {/* BARRA LATERAL TRANSLÚCIDA APPLE */}
-        {!isPrintMode && (
-          <AppleSidebar
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
-            activeTab={sidebarTab}
-            setActiveTab={handleSetActiveTab}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            onSearch={handleSearch}
-            onAbandonSearch={handleAbandonSearch}
-            isSearchLoading={isSearchLoading}
-            searchActiveLayersOnly={searchActiveLayersOnly}
-            setSearchActiveLayersOnly={setSearchActiveLayersOnly}
-            recentSearches={recentSearches}
-            savedSearches={savedSearches}
-            onToggleSaveSearch={toggleSaveSearch}
-            searchResults={searchResults}
-            totalResultsCount={totalResultsCount}
-            isSearchResultsVisible={isSearchResultsVisible}
-            collapsedGroups={collapsedGroups}
-            setCollapsedGroups={setCollapsedGroups}
-            onResultItemClick={handleResultItemClick}
-            selectedFeatures={selectedFeatures}
-            onZoomToFeature={handleZoomToFeature}
-            onRemoveFromSelection={handleRemoveFromSelection}
-            onClearSelection={handleClearSelection}
-            isMultiSelectMode={isMultiSelectMode}
-            onToggleMultiSelect={() => {
-              setIsMultiSelectMode(!isMultiSelectMode);
-              showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
-            }}
-            onSearchPolygonAddresses={handleSearchPolygonAddresses}
-            onSearchCategoryInFeatures={handleSearchCategoryInFeatures}
-            onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
-            onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
-            onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
-            onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
-            onSearchCategoryByRadius={handleExecuteCategorySearchByRadius}
-            cnefeMunicipios={cnefeMunicipios}
-            onEnsureMunicipiosLoaded={ensureCnefeMunicipiosLoaded}
-            isHospitalSearching={isHospitalSearching}
-            isAddressSearching={isAddressSearching || isHospitalSearching}
-            onOpenCnefeBottomBar={() => {
-              setIsCnefeBottomBarOpen(true);
-              setIsCnefeBottomBarExpanded(true);
-            }}
-            activeLayers={activeLayers}
-            setActiveLayers={setActiveLayers}
-            allowedLayerNames={allowedLayerNames || []}
-            currentActiveUser={currentActiveUser}
-            userRole={userRole}
-            isMaster={isMaster}
-            isManager={isManager}
-            isAdmin={isAdmin}
-            isDarkMode={isDarkMode}
-            onToggleDarkMode={toggleDarkModeWithTransition}
-            onOpenAdminPanel={() => {
-              if (isAdmin) setIsAdminModalOpen(true);
-              else handleOpenAdminLogin();
-            }}
-            onOpenProfileModal={() => {
-              if (currentActiveUser) {
-                setIsProfileModalOpen(true);
-              } else {
-                handleLogout();
-                setIsLoginFormOpen(true);
-              }
-            }}
-            onLogout={handleLogout}
-            onOpenHelp={() => setSidebarTab(prev => prev === 'help' ? null : 'help')}
-            showToast={showToast}
-            onPlotAddress={handlePlotAddress}
-            onPlotAllAddresses={handlePlotAllAddresses}
-            onClearPlot={handleClearPlot}
-            cnefeExternalResult={cnefeExternalResult}
-            allowedColumns={effectiveSession?.addressColumnsPermissions}
-            allowedProperties={effectiveSession?.featurePropertiesPermissions}
-            featurePermissions={featurePermissions}
-            effectiveSession={effectiveSession}
-            isSimulatingUser={isSimulatingUser}
-            simulatedRole={simulatedRole}
-            onExitSimulation={handleExitSimulation}
-            onOpenSimulationChoice={() => setIsSimulationChoiceModalOpen(true)}
-            onOpenFullTableModal={() => setIsFullTableModalOpen(true)}
-            onOpenExportModal={() => setSidebarTab('export')}
-          />
-        )}
-        
-        {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT) */}
-        <div className="flex-1 w-full h-full relative overflow-hidden">
-          <MapComponent 
-            isPrintMode={isPrintMode}
-            isStage2Open={!!sidebarTab}
-            isSidebarCollapsed={isSidebarCollapsed}
-            isMultiSelectMode={isMultiSelectMode}
-            onToggleMultiSelect={() => {
-              setIsMultiSelectMode(!isMultiSelectMode);
-              showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
-            }}
-            selectedFeatures={selectedFeatures}
-            onSelectionChange={(features) => {
-              setSelectedFeatures(prev => {
-                const nextFeatures = typeof features === 'function' ? features(prev) : features;
-                if (nextFeatures.length === 0) {
-                  // Quando desmarca a feição, fecha a barra de detalhes da feição
-                  setSearchSelectedFeatureId(null);
-                  setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
-                  if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
-                    setSearchCoordinates(null);
+      {/* SELEÇÃO DO LAYOUT: MOBILE (< 768px) VS DESKTOP (>= 768px INTOCADO) */}
+      {isMobile ? (
+        <MobileShell
+          activeTab={sidebarTab}
+          setActiveTab={handleSetActiveTab}
+          selectedFeatures={selectedFeatures}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={toggleDarkModeWithTransition}
+          currentActiveUser={currentActiveUser}
+          onLogout={handleLogout}
+          onOpenHelp={() => setSidebarTab(prev => prev === 'help' ? null : 'help')}
+        >
+          {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
+          <div className="w-full h-full relative overflow-hidden">
+            <MapComponent 
+              isPrintMode={isPrintMode}
+              isStage2Open={!!sidebarTab}
+              isSidebarCollapsed={true}
+              isMultiSelectMode={isMultiSelectMode}
+              isMobile={true}
+              onToggleMultiSelect={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
+              }}
+              selectedFeatures={selectedFeatures}
+              onSelectionChange={(features) => {
+                setSelectedFeatures(prev => {
+                  const nextFeatures = typeof features === 'function' ? features(prev) : features;
+                  if (nextFeatures.length === 0) {
+                    // Quando desmarca a feição, fecha a barra de detalhes da feição
+                    setSearchSelectedFeatureId(null);
+                    setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
+                    if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
+                      setSearchCoordinates(null);
+                    }
+                    if ((window as any).removeRightClickPin) {
+                      (window as any).removeRightClickPin();
+                    }
                   }
-                  if ((window as any).removeRightClickPin) {
-                    (window as any).removeRightClickPin();
+                  if (nextFeatures.length === 0 && prev.length === 0) return prev;
+                  if (nextFeatures.length > prev.length) {
+                    const newest = nextFeatures[nextFeatures.length - 1];
+                    if (newest && newest.name) {
+                      logActivity('FEICAO', `Selecionou feição no mapa: "${newest.name}"`, userRole, `Camada: ${newest.sourceName} • Total selecionadas: ${nextFeatures.length}`);
+                    }
                   }
+                  return nextFeatures;
+                });
+              }}
+              showToast={showToast}
+              statusText={statusText}
+              setStatusText={setStatusText}
+              isLoading={isLoading}
+              setIsLoading={setIsLoading}
+              activeLayers={activeLayers}
+              setActiveLayers={(layers: any) => {
+                const nextLayers: string[] = typeof layers === 'function' ? layers(activeLayers) : layers;
+                const added = nextLayers.filter(l => !activeLayers.includes(l));
+                const removed = activeLayers.filter(l => !nextLayers.includes(l));
+                if (added.length > 0) {
+                  logActivity('CAMADA', `Ativou camada(s): ${added.join(', ')}`, userRole);
                 }
-                if (nextFeatures.length === 0 && prev.length === 0) return prev;
-                if (nextFeatures.length > prev.length) {
-                  const newest = nextFeatures[nextFeatures.length - 1];
-                  if (newest && newest.name) {
-                    logActivity('FEICAO', `Selecionou feição no mapa: "${newest.name}"`, userRole, `Camada: ${newest.sourceName} • Total selecionadas: ${nextFeatures.length}`);
-                  }
+                if (removed.length > 0) {
+                  logActivity('CAMADA', `Desativou camada(s): ${removed.join(', ')}`, userRole);
                 }
-                return nextFeatures;
-              });
-            }}
-            showToast={showToast}
-            statusText={statusText}
-            setStatusText={setStatusText}
-            isLoading={isLoading}
-            setIsLoading={setIsLoading}
-            activeLayers={activeLayers}
-            setActiveLayers={(layers: any) => {
-              const nextLayers: string[] = typeof layers === 'function' ? layers(activeLayers) : layers;
-              const added = nextLayers.filter(l => !activeLayers.includes(l));
-              const removed = activeLayers.filter(l => !nextLayers.includes(l));
-              if (added.length > 0) {
-                logActivity('CAMADA', `Ativou camada(s): ${added.join(', ')}`, userRole);
-              }
-              if (removed.length > 0) {
-                logActivity('CAMADA', `Desativou camada(s): ${removed.join(', ')}`, userRole);
-              }
-              setActiveLayers(nextLayers);
-            }}
-            setMapInstance={setMapInstance}
-            registerMapActions={(actions) => {
-              mapActionsRef.current = actions;
-            }}
-            allowedLayerNames={allowedLayerNames}
-            allowMeasureTool={isAdmin || featurePermissions.allowMeasureTool !== false}
-            allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}
-            searchCoordinates={searchCoordinates}
-            onPlottedPointClick={handlePlottedPointClick}
-            searchSelectedFeatureId={searchSelectedFeatureId}
-            isDetailsTabOpen={sidebarTab === 'details'}
-            onOpenDetailsTab={handleOpenDetailsTab}
-            onClearSearchSelectedFeatureId={handleClearSearchSelectedFeatureId}
-            onMeasureChange={(latlngs) => {
-              setMeasureHistory(latlngs);
-              if (latlngs && latlngs.length >= 2) {
-                logActivity('MEDICAO', `Ferramenta de régua/medição utilizada`, userRole, `${latlngs.length} pontos marcados no mapa`);
-              }
-            }}
-            measureHistory={measureHistory}
-            onSearchCoordinate={(coordStr) => {
-              setSearchQuery(coordStr);
-              handleSearch(coordStr);
-            }}
-            onSearchPolygonAddresses={handleSearchPolygonAddresses}
-            onSaveFavoriteLayers={handleSaveFavoriteLayers}
-            onLoadFavoriteLayers={handleLoadFavoriteLayers}
-            isAddressSearching={isAddressSearching || isHospitalSearching}
-          />
+                setActiveLayers(nextLayers);
+              }}
+              setMapInstance={setMapInstance}
+              registerMapActions={(actions) => {
+                mapActionsRef.current = actions;
+              }}
+              allowedLayerNames={allowedLayerNames}
+              allowMeasureTool={isAdmin || featurePermissions.allowMeasureTool !== false}
+              allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}
+              searchCoordinates={searchCoordinates}
+              onPlottedPointClick={handlePlottedPointClick}
+              searchSelectedFeatureId={searchSelectedFeatureId}
+              isDetailsTabOpen={sidebarTab === 'details'}
+              onOpenDetailsTab={handleOpenDetailsTab}
+              onClearSearchSelectedFeatureId={handleClearSearchSelectedFeatureId}
+              onMeasureChange={(latlngs) => {
+                setMeasureHistory(latlngs);
+                if (latlngs && latlngs.length >= 2) {
+                  logActivity('MEDICAO', `Ferramenta de régua/medição utilizada`, userRole, `${latlngs.length} pontos marcados no mapa`);
+                }
+              }}
+              measureHistory={measureHistory}
+              onSearchCoordinate={(coordStr) => {
+                setSearchQuery(coordStr);
+                handleSearch(coordStr);
+              }}
+              onSearchPolygonAddresses={handleSearchPolygonAddresses}
+              onSaveFavoriteLayers={handleSaveFavoriteLayers}
+              onLoadFavoriteLayers={handleLoadFavoriteLayers}
+              isAddressSearching={isAddressSearching || isHospitalSearching}
+            />
 
-          {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
-          <CnefeBottomBar
-            isOpen={isCnefeBottomBarOpen}
-            isStage2Open={!!sidebarTab}
-            isExpanded={isCnefeBottomBarExpanded}
-            onOpen={handleOpenCnefeBottomBar}
-            onClose={handleCloseCnefeBottomBar}
-            onToggleExpand={handleToggleExpandCnefeBottomBar}
-            isMaximized={isCnefeBottomBarMaximized}
-            onToggleMaximize={handleToggleMaximizeCnefeBottomBar}
-            onPlotAddress={handlePlotAddress}
-            onPlotAllAddresses={handlePlotAllAddresses}
-            onClearPlot={handleClearPlot}
-            onUnplot={handleUnplotAddresses}
-            onClearExternalResult={handleClearExternalResult}
-            externalPolygonResult={cnefeExternalResult}
-            allowedColumns={effectiveSession?.addressColumnsPermissions}
-            hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
-            isSearchingExternal={isAddressSearching || isHospitalSearching}
-          />
+            {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
+            <CnefeBottomBar
+              isOpen={isCnefeBottomBarOpen}
+              isStage2Open={!!sidebarTab}
+              isExpanded={isCnefeBottomBarExpanded}
+              onOpen={handleOpenCnefeBottomBar}
+              onClose={handleCloseCnefeBottomBar}
+              onToggleExpand={handleToggleExpandCnefeBottomBar}
+              isMaximized={isCnefeBottomBarMaximized}
+              onToggleMaximize={handleToggleMaximizeCnefeBottomBar}
+              onPlotAddress={handlePlotAddress}
+              onPlotAllAddresses={handlePlotAllAddresses}
+              onClearPlot={handleClearPlot}
+              onUnplot={handleUnplotAddresses}
+              onClearExternalResult={handleClearExternalResult}
+              externalPolygonResult={cnefeExternalResult}
+              allowedColumns={effectiveSession?.addressColumnsPermissions}
+              hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
+              isSearchingExternal={isAddressSearching || isHospitalSearching}
+            />
+          </div>
+        </MobileShell>
+      ) : (
+        /* TELA INTEGRADA ESTILO APPLE MAPS (MAPS.APPLE.COM) - DESKTOP */
+        <div 
+          className="relative w-full h-full flex overflow-hidden"
+          style={{
+            '--sidebar-width': isSidebarCollapsed ? '68px' : '215px'
+          } as React.CSSProperties}
+        >
+          {/* BARRA LATERAL TRANSLÚCIDA APPLE */}
+          {!isPrintMode && (
+            <AppleSidebar
+              isCollapsed={isSidebarCollapsed}
+              onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+              activeTab={sidebarTab}
+              setActiveTab={handleSetActiveTab}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onSearch={handleSearch}
+              onAbandonSearch={handleAbandonSearch}
+              isSearchLoading={isSearchLoading}
+              searchActiveLayersOnly={searchActiveLayersOnly}
+              setSearchActiveLayersOnly={setSearchActiveLayersOnly}
+              recentSearches={recentSearches}
+              savedSearches={savedSearches}
+              onToggleSaveSearch={toggleSaveSearch}
+              searchResults={searchResults}
+              totalResultsCount={totalResultsCount}
+              isSearchResultsVisible={isSearchResultsVisible}
+              collapsedGroups={collapsedGroups}
+              setCollapsedGroups={setCollapsedGroups}
+              onResultItemClick={handleResultItemClick}
+              selectedFeatures={selectedFeatures}
+              onZoomToFeature={handleZoomToFeature}
+              onRemoveFromSelection={handleRemoveFromSelection}
+              onClearSelection={handleClearSelection}
+              isMultiSelectMode={isMultiSelectMode}
+              onToggleMultiSelect={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
+              }}
+              onSearchPolygonAddresses={handleSearchPolygonAddresses}
+              onSearchCategoryInFeatures={handleSearchCategoryInFeatures}
+              onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
+              onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
+              onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
+              onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
+              onSearchCategoryByRadius={handleExecuteCategorySearchByRadius}
+              cnefeMunicipios={cnefeMunicipios}
+              onEnsureMunicipiosLoaded={ensureCnefeMunicipiosLoaded}
+              isHospitalSearching={isHospitalSearching}
+              isAddressSearching={isAddressSearching || isHospitalSearching}
+              onOpenCnefeBottomBar={() => {
+                setIsCnefeBottomBarOpen(true);
+                setIsCnefeBottomBarExpanded(true);
+              }}
+              activeLayers={activeLayers}
+              setActiveLayers={setActiveLayers}
+              allowedLayerNames={allowedLayerNames || []}
+              currentActiveUser={currentActiveUser}
+              userRole={userRole}
+              isMaster={isMaster}
+              isManager={isManager}
+              isAdmin={isAdmin}
+              isDarkMode={isDarkMode}
+              onToggleDarkMode={toggleDarkModeWithTransition}
+              onOpenAdminPanel={() => {
+                if (isAdmin) setIsAdminModalOpen(true);
+                else handleOpenAdminLogin();
+              }}
+              onOpenProfileModal={() => {
+                if (currentActiveUser) {
+                  setIsProfileModalOpen(true);
+                } else {
+                  handleLogout();
+                  setIsLoginFormOpen(true);
+                }
+              }}
+              onLogout={handleLogout}
+              onOpenHelp={() => setSidebarTab(prev => prev === 'help' ? null : 'help')}
+              showToast={showToast}
+              onPlotAddress={handlePlotAddress}
+              onPlotAllAddresses={handlePlotAllAddresses}
+              onClearPlot={handleClearPlot}
+              cnefeExternalResult={cnefeExternalResult}
+              allowedColumns={effectiveSession?.addressColumnsPermissions}
+              allowedProperties={effectiveSession?.featurePropertiesPermissions}
+              featurePermissions={featurePermissions}
+              effectiveSession={effectiveSession}
+              isSimulatingUser={isSimulatingUser}
+              simulatedRole={simulatedRole}
+              onExitSimulation={handleExitSimulation}
+              onOpenSimulationChoice={() => setIsSimulationChoiceModalOpen(true)}
+              onOpenFullTableModal={() => setIsFullTableModalOpen(true)}
+              onOpenExportModal={() => setSidebarTab('export')}
+            />
+          )}
+          
+          {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT) */}
+          <div className="flex-1 w-full h-full relative overflow-hidden">
+            <MapComponent 
+              isPrintMode={isPrintMode}
+              isStage2Open={!!sidebarTab}
+              isSidebarCollapsed={isSidebarCollapsed}
+              isMultiSelectMode={isMultiSelectMode}
+              isMobile={false}
+              onToggleMultiSelect={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
+              }}
+              selectedFeatures={selectedFeatures}
+              onSelectionChange={(features) => {
+                setSelectedFeatures(prev => {
+                  const nextFeatures = typeof features === 'function' ? features(prev) : features;
+                  if (nextFeatures.length === 0) {
+                    // Quando desmarca a feição, fecha a barra de detalhes da feição
+                    setSearchSelectedFeatureId(null);
+                    setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
+                    if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
+                      setSearchCoordinates(null);
+                    }
+                    if ((window as any).removeRightClickPin) {
+                      (window as any).removeRightClickPin();
+                    }
+                  }
+                  if (nextFeatures.length === 0 && prev.length === 0) return prev;
+                  if (nextFeatures.length > prev.length) {
+                    const newest = nextFeatures[nextFeatures.length - 1];
+                    if (newest && newest.name) {
+                      logActivity('FEICAO', `Selecionou feição no mapa: "${newest.name}"`, userRole, `Camada: ${newest.sourceName} • Total selecionadas: ${nextFeatures.length}`);
+                    }
+                  }
+                  return nextFeatures;
+                });
+              }}
+              showToast={showToast}
+              statusText={statusText}
+              setStatusText={setStatusText}
+              isLoading={isLoading}
+              setIsLoading={setIsLoading}
+              activeLayers={activeLayers}
+              setActiveLayers={(layers: any) => {
+                const nextLayers: string[] = typeof layers === 'function' ? layers(activeLayers) : layers;
+                const added = nextLayers.filter(l => !activeLayers.includes(l));
+                const removed = activeLayers.filter(l => !nextLayers.includes(l));
+                if (added.length > 0) {
+                  logActivity('CAMADA', `Ativou camada(s): ${added.join(', ')}`, userRole);
+                }
+                if (removed.length > 0) {
+                  logActivity('CAMADA', `Desativou camada(s): ${removed.join(', ')}`, userRole);
+                }
+                setActiveLayers(nextLayers);
+              }}
+              setMapInstance={setMapInstance}
+              registerMapActions={(actions) => {
+                mapActionsRef.current = actions;
+              }}
+              allowedLayerNames={allowedLayerNames}
+              allowMeasureTool={isAdmin || featurePermissions.allowMeasureTool !== false}
+              allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}
+              searchCoordinates={searchCoordinates}
+              onPlottedPointClick={handlePlottedPointClick}
+              searchSelectedFeatureId={searchSelectedFeatureId}
+              isDetailsTabOpen={sidebarTab === 'details'}
+              onOpenDetailsTab={handleOpenDetailsTab}
+              onClearSearchSelectedFeatureId={handleClearSearchSelectedFeatureId}
+              onMeasureChange={(latlngs) => {
+                setMeasureHistory(latlngs);
+                if (latlngs && latlngs.length >= 2) {
+                  logActivity('MEDICAO', `Ferramenta de régua/medição utilizada`, userRole, `${latlngs.length} pontos marcados no mapa`);
+                }
+              }}
+              measureHistory={measureHistory}
+              onSearchCoordinate={(coordStr) => {
+                setSearchQuery(coordStr);
+                handleSearch(coordStr);
+              }}
+              onSearchPolygonAddresses={handleSearchPolygonAddresses}
+              onSaveFavoriteLayers={handleSaveFavoriteLayers}
+              onLoadFavoriteLayers={handleLoadFavoriteLayers}
+              isAddressSearching={isAddressSearching || isHospitalSearching}
+            />
+
+            {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
+            <CnefeBottomBar
+              isOpen={isCnefeBottomBarOpen}
+              isStage2Open={!!sidebarTab}
+              isExpanded={isCnefeBottomBarExpanded}
+              onOpen={handleOpenCnefeBottomBar}
+              onClose={handleCloseCnefeBottomBar}
+              onToggleExpand={handleToggleExpandCnefeBottomBar}
+              isMaximized={isCnefeBottomBarMaximized}
+              onToggleMaximize={handleToggleMaximizeCnefeBottomBar}
+              onPlotAddress={handlePlotAddress}
+              onPlotAllAddresses={handlePlotAllAddresses}
+              onClearPlot={handleClearPlot}
+              onUnplot={handleUnplotAddresses}
+              onClearExternalResult={handleClearExternalResult}
+              externalPolygonResult={cnefeExternalResult}
+              allowedColumns={effectiveSession?.addressColumnsPermissions}
+              hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
+              isSearchingExternal={isAddressSearching || isHospitalSearching}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* MODAL EXPANDIDO DE TABELA DE ATRIBUTOS */}
       {isFullTableModalOpen && (

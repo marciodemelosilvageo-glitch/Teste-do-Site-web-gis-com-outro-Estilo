@@ -29,8 +29,16 @@
   --text-5xl--line-height: 1;
 }
 
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
 html {
   font-size: 15px;
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -42,6 +50,30 @@ body,
   padding: 0;
   overflow: hidden;
   position: relative;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+
+/* Prevenção de auto-zoom no iOS Safari (inputs com menos de 16px no mobile disparam zoom da tela) */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+.h-screen-dynamic {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 body {
