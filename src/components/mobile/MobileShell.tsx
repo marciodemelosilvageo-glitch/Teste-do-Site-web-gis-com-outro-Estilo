@@ -1,17 +1,25 @@
 import React from 'react';
 import { SelectedFeature } from '../../types';
 import { SidebarTab } from '../AppleSidebar';
+import { MobileBottomNav } from './MobileBottomNav';
+import { MobileProfileDrawer } from './MobileProfileDrawer';
 
 export interface MobileShellProps {
   children?: React.ReactNode;
-  activeTab: SidebarTab | 'profile';
-  setActiveTab: (tab: SidebarTab | 'profile' | null) => void;
+  activeTab: SidebarTab;
+  setActiveTab: (tab: SidebarTab) => void;
   selectedFeatures: SelectedFeature[];
   isDarkMode: boolean;
   onToggleDarkMode: (event?: React.MouseEvent) => void;
   currentActiveUser: any;
+  userRole?: string;
+  isMaster?: boolean;
+  isManager?: boolean;
+  isAdmin?: boolean;
   onLogout: () => void;
   onOpenHelp: () => void;
+  onOpenProfileModal?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
 /**
@@ -20,14 +28,20 @@ export interface MobileShellProps {
  */
 export const MobileShell: React.FC<MobileShellProps> = ({
   children,
-  activeTab: _activeTab,
-  setActiveTab: _setActiveTab,
-  selectedFeatures: _selectedFeatures,
-  isDarkMode: _isDarkMode,
-  onToggleDarkMode: _onToggleDarkMode,
-  currentActiveUser: _currentActiveUser,
-  onLogout: _onLogout,
-  onOpenHelp: _onOpenHelp
+  activeTab,
+  setActiveTab,
+  selectedFeatures,
+  isDarkMode,
+  onToggleDarkMode,
+  currentActiveUser,
+  userRole,
+  isMaster = false,
+  isManager = false,
+  isAdmin = false,
+  onLogout,
+  onOpenHelp,
+  onOpenProfileModal,
+  onOpenAdminPanel
 }) => {
   return (
     <div className="relative w-full h-full h-screen-dynamic overflow-hidden flex flex-col bg-slate-100 dark:bg-slate-950 select-none">
@@ -36,7 +50,32 @@ export const MobileShell: React.FC<MobileShellProps> = ({
         {children}
       </main>
 
-      {/* Espaço reservado para MobileBottomNav (Etapa 2) e MobileSheet (Etapa 3) */}
+      {/* Barra Inferior Fixa Flutuante (Etapa 2) */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        selectedFeaturesCount={selectedFeatures.length}
+        userRole={userRole}
+        isMaster={isMaster}
+        isManager={isManager}
+      />
+
+      {/* Gaveta de Perfil / Configurações Rápidas (Etapa 2) */}
+      <MobileProfileDrawer
+        isOpen={activeTab === 'profile'}
+        onClose={() => setActiveTab(null)}
+        currentActiveUser={currentActiveUser}
+        userRole={userRole}
+        isMaster={isMaster}
+        isManager={isManager}
+        isAdmin={isAdmin}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onOpenHelp={onOpenHelp}
+        onOpenProfileModal={onOpenProfileModal}
+        onOpenAdminPanel={onOpenAdminPanel}
+        onLogout={onLogout}
+      />
     </div>
   );
 };

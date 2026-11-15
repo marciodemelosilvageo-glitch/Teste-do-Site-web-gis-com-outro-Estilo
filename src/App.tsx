@@ -3328,8 +3328,24 @@ export default function App() {
           isDarkMode={isDarkMode}
           onToggleDarkMode={toggleDarkModeWithTransition}
           currentActiveUser={currentActiveUser}
+          userRole={userRole}
+          isMaster={isMaster}
+          isManager={isManager}
+          isAdmin={isAdmin}
           onLogout={handleLogout}
           onOpenHelp={() => setSidebarTab(prev => prev === 'help' ? null : 'help')}
+          onOpenProfileModal={() => {
+            if (currentActiveUser) {
+              setIsProfileModalOpen(true);
+            } else {
+              handleLogout();
+              setIsLoginFormOpen(true);
+            }
+          }}
+          onOpenAdminPanel={() => {
+            if (isAdmin) setIsAdminModalOpen(true);
+            else handleOpenAdminLogin();
+          }}
         >
           {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
           <div className="w-full h-full relative overflow-hidden">
