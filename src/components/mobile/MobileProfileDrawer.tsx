@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
   Crown, 
@@ -50,6 +51,16 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   onLogout
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
 
   // Fecha ao pressionar Escape
   useEffect(() => {
@@ -61,34 +72,53 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const displayName = currentActiveUser?.name || 'Visitante';
   const roleLabel = isMaster ? 'Master • Acesso Total' : isManager ? 'Gerente' : 'Conta Padrão';
   const ProfileIcon = isMaster ? Crown : isManager ? Briefcase : User;
 
   return (
-    <div 
-      className="fixed inset-0 flex flex-col justify-end pointer-events-auto select-none"
-      style={{ zIndex: MOBILE_Z_INDEX.SHEET }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Perfil do Usuário e Configurações"
-    >
-      {/* Backdrop Translúcido (z-0 dentro do contêiner SHEET z-1200) */}
-      <div 
-        className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300 z-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+    <AnimatePresence>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 flex flex-col justify-end pointer-events-auto select-none"
+          style={{ zIndex: MOBILE_Z_INDEX.SHEET }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Perfil do Usuário e Configurações"
+        >
+          {/* Backdrop Escurecido Suave (sem blur) */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="fixed inset-0 bg-black/30 dark:bg-black/50 z-0"
+            onClick={onClose}
+            aria-hidden="true"
+          />
 
-      {/* Conteúdo da Gaveta */}
-      <div 
-        ref={drawerRef}
-        className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl px-5 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] flex flex-col gap-4 max-h-[85vh] overflow-y-auto animate-slideUp"
-      >
-        {/* Alça de Arraste Superior */}
-        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0" />
+          {/* Conteúdo da Gaveta */}
+          <motion.div 
+            ref={drawerRef}
+            initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+            animate={prefersReducedMotion ? { opacity: 1 } : { y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+            transition={{ 
+              duration: 0.38, 
+              ease: [0.32, 0.72, 0, 1] 
+            }}
+            drag={prefersReducedMotion ? false : 'y'}
+            dragConstraints={{ top: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 90 || info.velocity.y > 450) {
+                onClose();
+              }
+            }}
+            className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border-t border-black/10 dark:border-white/10 rounded-t-[28px] shadow-2xl px-5 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] flex flex-col gap-4 max-h-[85vh] overflow-y-auto"
+          >
+            {/* Alça de Arraste Superior */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0 touch-none" />
 
         {/* Cabeçalho do Perfil */}
         <div className="flex items-center justify-between gap-3 pb-2 border-b border-black/5 dark:border-white/10">
@@ -261,7 +291,9 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             <ChevronRight className="w-5 h-5 text-rose-400" />
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
+      )}
+    </AnimatePresence>
   );
 };

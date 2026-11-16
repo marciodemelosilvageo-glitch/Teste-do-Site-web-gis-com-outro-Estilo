@@ -64,6 +64,7 @@ import { useExportPreferences, exportSelectedFeatures, ExportFormat } from '../e
 import { HospitalSidebarPanel, CategorySearchType, CATEGORY_UI_META } from './HospitalSidebarPanel';
 import { ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { FeatureInfoCustomizerModal, CustomCardOption } from './FeatureInfoCustomizerModal';
+import { MobileFeatureInfoCustomizer } from './mobile/MobileFeatureInfoCustomizer';
 import { RecentSearchItem, getCategoryConfig } from '../categories';
 import { CategorySearchMenu } from './CategorySearchMenu';
 import { AppLogo } from './AppLogo';
@@ -2266,44 +2267,65 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     if (!isSheetOpen) return null;
 
     return (
-      <>
-        <MobileSheet
-          isOpen={isSheetOpen}
-          activeTab={activeTab}
-          onClose={() => {
-            setOpenedFromSearch(false);
-            setActiveCategorySearchId(null);
-            setActiveTab(null);
-          }}
-          title={sheetTitle}
-          icon={sheetIcon}
-          snapPoint={activeTab === 'help' || activeTab === 'export' ? 'full' : 'half'}
-        >
-          <div className="space-y-4">
-            {renderStage2Body()}
-          </div>
-        </MobileSheet>
-
-        <AnimatePresence>
-          {isCustomizerModalOpen && (
-            <FeatureInfoCustomizerModal
-              isOpen={isCustomizerModalOpen}
-              onClose={() => {
-                setIsCustomizerModalOpen(false);
-                setCustomizerLayer(null);
-              }}
-              availableOptions={usefulCardsCatalog.options}
-              allOptionsMap={usefulCardsCatalog.valuesMap}
-              selectedIds={getEffectiveCardIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
-              historyIds={getLayerHistoryIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
-              onSave={handleSaveUsefulCards}
-              onReset={handleResetUsefulCards}
-              maxItems={8}
-              layerName={customizerLayer?.name || activeLayerName}
-            />
-          )}
-        </AnimatePresence>
-      </>
+      <MobileSheet
+        isOpen={isSheetOpen}
+        activeTab={activeTab}
+        onClose={() => {
+          if (isCustomizerModalOpen) {
+            setIsCustomizerModalOpen(false);
+            setCustomizerLayer(null);
+          }
+          setOpenedFromSearch(false);
+          setActiveCategorySearchId(null);
+          setActiveTab(null);
+        }}
+        title={isCustomizerModalOpen ? undefined : sheetTitle}
+        icon={isCustomizerModalOpen ? undefined : sheetIcon}
+        snapPoint={isCustomizerModalOpen ? 'full' : (activeTab === 'help' || activeTab === 'export' ? 'full' : 'half')}
+        hideHeader={isCustomizerModalOpen}
+        noPadding={isCustomizerModalOpen}
+      >
+        <div className="relative w-full h-full min-h-full">
+          <AnimatePresence initial={false} mode="wait">
+            {isCustomizerModalOpen ? (
+              <motion.div
+                key="mobile-customizer-view"
+                initial={{ x: '100%', opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: '100%', opacity: 0 }}
+                transition={{ type: 'spring', damping: 32, stiffness: 380 }}
+                className="w-full h-full flex flex-col"
+              >
+                <MobileFeatureInfoCustomizer
+                  onClose={() => {
+                    setIsCustomizerModalOpen(false);
+                    setCustomizerLayer(null);
+                  }}
+                  availableOptions={usefulCardsCatalog.options}
+                  allOptionsMap={usefulCardsCatalog.valuesMap}
+                  selectedIds={getEffectiveCardIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
+                  historyIds={getLayerHistoryIds(userKey, customizerLayer?.norm ?? normalizedLayer)}
+                  onSave={handleSaveUsefulCards}
+                  onReset={handleResetUsefulCards}
+                  maxItems={8}
+                  layerName={customizerLayer?.name || activeLayerName}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="mobile-stage2-view"
+                initial={{ x: '-15%', opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: '-15%', opacity: 0 }}
+                transition={{ type: 'spring', damping: 32, stiffness: 380 }}
+                className="space-y-4 p-4 pb-[calc(env(safe-area-inset-bottom,0px)+72px)]"
+              >
+                {renderStage2Body()}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </MobileSheet>
     );
   }
 

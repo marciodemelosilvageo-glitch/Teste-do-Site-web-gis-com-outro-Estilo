@@ -13,6 +13,8 @@ export interface MobileSheetProps {
   onSnapChange?: (snap: SnapPoint) => void;
   title?: string;
   icon?: React.ReactNode;
+  hideHeader?: boolean;
+  noPadding?: boolean;
   children: React.ReactNode;
 }
 
@@ -35,6 +37,8 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
   onSnapChange,
   title,
   icon,
+  hideHeader = false,
+  noPadding = false,
   children
 }) => {
   const [currentSnap, setCurrentSnap] = useState<SnapPoint>(snapPoint);
@@ -175,78 +179,80 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
         </div>
 
         {/* Cabeçalho do Sheet */}
-        <div className="px-4 pb-2.5 flex items-center justify-between border-b border-black/5 dark:border-white/10 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {icon && <span className="text-[#007AFF] shrink-0">{icon}</span>}
-            <h2 className="text-base font-black text-slate-900 dark:text-white truncate tracking-tight">
-              {title}
-            </h2>
-          </div>
+        {!hideHeader && (
+          <div className="px-4 pb-2.5 flex items-center justify-between border-b border-black/5 dark:border-white/10 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {icon && <span className="text-[#007AFF] shrink-0">{icon}</span>}
+              <h2 className="text-base font-black text-slate-900 dark:text-white truncate tracking-tight">
+                {title}
+              </h2>
+            </div>
 
-          <div className="flex items-center gap-1">
-            {/* Alternador de Altura Rápido (Minimizar / Maximizar) */}
-            {currentSnap === 'peek' && (
-              <button
-                type="button"
-                onClick={() => setSnap('half')}
-                className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                title="Expandir para metade"
-                aria-label="Expandir gaveta"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </button>
-            )}
-
-            {currentSnap === 'half' && (
-              <>
+            <div className="flex items-center gap-1">
+              {/* Alternador de Altura Rápido (Minimizar / Maximizar) */}
+              {currentSnap === 'peek' && (
                 <button
                   type="button"
-                  onClick={() => setSnap('peek')}
+                  onClick={() => setSnap('half')}
                   className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                  title="Recolher para barra compacta"
-                  aria-label="Compactar gaveta"
+                  title="Expandir para metade"
+                  aria-label="Expandir gaveta"
                 >
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronUp className="w-4 h-4" />
                 </button>
+              )}
+
+              {currentSnap === 'half' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSnap('peek')}
+                    className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
+                    title="Recolher para barra compacta"
+                    aria-label="Compactar gaveta"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSnap('full')}
+                    className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
+                    title="Expandir em tela quase cheia"
+                    aria-label="Expandir em tela cheia"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+
+              {currentSnap === 'full' && (
                 <button
                   type="button"
-                  onClick={() => setSnap('full')}
+                  onClick={() => setSnap('half')}
                   className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                  title="Expandir em tela quase cheia"
-                  aria-label="Expandir em tela cheia"
+                  title="Reduzir para metade"
+                  aria-label="Restaurar tamanho da gaveta"
                 >
-                  <Maximize2 className="w-3.5 h-3.5" />
+                  <Minimize2 className="w-3.5 h-3.5" />
                 </button>
-              </>
-            )}
+              )}
 
-            {currentSnap === 'full' && (
+              {/* Botão Recolher / Fechar */}
               <button
                 type="button"
-                onClick={() => setSnap('half')}
-                className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                title="Reduzir para metade"
-                aria-label="Restaurar tamanho da gaveta"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90 ml-1"
+                title="Recolher gaveta"
+                aria-label="Recolher gaveta"
               >
-                <Minimize2 className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
-            )}
-
-            {/* Botão Recolher / Fechar */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90 ml-1"
-              title="Recolher gaveta"
-              aria-label="Recolher gaveta"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Conteúdo Rolável do Sheet */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 select-text pb-[calc(env(safe-area-inset-bottom,0px)+72px)]">
+        <div className={noPadding ? "flex-1 min-h-0 overflow-hidden flex flex-col" : "flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 select-text pb-[calc(env(safe-area-inset-bottom,0px)+72px)]"}>
           {children}
         </div>
       </section>

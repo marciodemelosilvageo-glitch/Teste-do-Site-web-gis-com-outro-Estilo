@@ -819,6 +819,22 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
 
 MapBottomOverlays.displayName = 'MapBottomOverlays';
 
+const AppleLogoSvg: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 170 170" fill="currentColor" aria-hidden="true">
+    <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.92-3.37-7.85-8.08-11.78-14.13-5.34-8.27-9.5-17.91-12.48-28.91-2.98-11.01-4.47-21.68-4.47-32.02 0-14.81 3.73-27.14 11.2-37 7.47-9.86 16.92-14.85 28.34-14.97 4.13 0 9.07 1.14 14.83 3.42 5.76 2.29 9.42 3.48 10.98 3.59 1.79 0 5.66-1.25 11.61-3.77 5.96-2.51 10.9-3.65 14.83-3.42 11.02.55 20.15 4.79 27.38 12.74-9.8 5.88-14.59 14.15-14.37 24.8.22 8.49 3.59 15.67 10.12 21.54 6.53 5.88 14.37 9.14 23.51 9.8-2.61 7.73-5.99 15.34-10.13 22.84zm-30.82-124.9c0 6.64-2.4 12.86-7.2 18.66-5.87 7.08-13.06 11.1-21.57 12.08-.22-1.2-.33-2.39-.33-3.59 0-6.64 2.51-13.07 7.51-19.3 2.61-3.26 5.88-6.09 9.8-8.49 3.92-2.4 7.73-3.92 11.43-4.57.22 1.74.36 3.48.36 5.21z" />
+  </svg>
+);
+
+const SatelliteSvg: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M13 7 9 3 5 7l4 4" />
+    <path d="m17 11 4 4-4 4-4-4" />
+    <path d="m8 12 4 4 6-6-4-4Z" />
+    <path d="M16 8 19 5" />
+    <path d="M9 21a6 6 0 0 0-6-6" />
+  </svg>
+);
+
 const MapComponentInner: React.FC<MapComponentProps> = ({
   isPrintMode,
   isMultiSelectMode,
@@ -1240,6 +1256,16 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   });
   const [basemapModalOpen, setBasemapModalOpen] = useState<boolean>(false);
   const [layersPanelOpen, setLayersPanelOpen] = useState<boolean>(false);
+
+  // Fecha o modal de mapa base ao pressionar Escape
+  useEffect(() => {
+    if (!basemapModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBasemapModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [basemapModalOpen]);
 
   // Sincronização inteligente entre Apple Maps Claro e Escuro ao alternar tema do site
   useEffect(() => {
@@ -4061,12 +4087,12 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                     <ChevronDown className={`w-3.5 h-3.5 transition-transform ${basemapModalOpen ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* Popover Apple com Segmented Controls para Basemaps */}
-                  {basemapModalOpen && (
+                  {/* Popover Apple com Segmented Controls para Basemaps (Desktop >= 768px) */}
+                  {!isMobile && basemapModalOpen && (
                     <div 
                       onMouseDown={(e) => e.stopPropagation()}
                       onTouchStart={(e) => e.stopPropagation()}
-                      style={{ zIndex: isMobile ? MOBILE_Z_INDEX.POPOVER : 1001 }}
+                      style={{ zIndex: 1001 }}
                       className="absolute right-0 top-12 w-[270px] max-w-[calc(100vw-24px)] p-2 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 animate-fadeIn text-left"
                     >
                       <div className="grid grid-cols-2 gap-1.5 p-1 bg-black/5 dark:bg-white/5 rounded-2xl">
@@ -4144,6 +4170,142 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {/* Seletor de Mapa Base no Mobile (< 768px): Cartão-Gaveta Flutuante sobre a barra inferior */}
+                  {isMobile && typeof document !== 'undefined' && createPortal(
+                    <AnimatePresence>
+                      {basemapModalOpen && (
+                        <>
+                          {/* Backdrop suave para fechar ao tocar fora */}
+                          <motion.div
+                            key="mobile-basemap-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={() => setBasemapModalOpen(false)}
+                            className="fixed inset-0 bg-black/30 dark:bg-black/50 print:hidden"
+                            style={{ zIndex: MOBILE_Z_INDEX.POPOVER }}
+                          />
+
+                          {/* Cartão flutuante */}
+                          <motion.div
+                            key="mobile-basemap-card"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Seletor de Estilo do Mapa"
+                            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+                            transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="fixed left-3 right-3 max-w-[420px] mx-auto p-3.5 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/10 dark:border-white/10 text-left print:hidden"
+                            style={{
+                              bottom: 'calc(var(--mobile-bottom-inset, 80px) + 8px)',
+                              zIndex: MOBILE_Z_INDEX.POPOVER + 1,
+                            }}
+                          >
+                            {/* Cabeçalho */}
+                            <div className="flex items-center justify-between mb-3 px-1">
+                              <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                  <MapIcon className="w-4 h-4 text-[#007AFF] dark:text-[#0a84ff]" />
+                                  Estilo do Mapa
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">Escolha o mapa de fundo</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setBasemapModalOpen(false)}
+                                className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer active:scale-95"
+                                aria-label="Fechar seletor de mapa base"
+                                title="Fechar"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Grade 2 Colunas com as 6 opções */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                {
+                                  id: 'apple',
+                                  name: 'Explorar',
+                                  desc: 'Apple Maps',
+                                  icon: <AppleLogoSvg className="w-4 h-4" />
+                                },
+                                {
+                                  id: 'appleDark',
+                                  name: 'Escuro',
+                                  desc: 'Apple Noturno',
+                                  icon: <Moon className="w-4 h-4" />
+                                },
+                                {
+                                  id: 'googleSat',
+                                  name: 'Satélite',
+                                  desc: 'Google Satélite',
+                                  icon: <SatelliteSvg className="w-4 h-4" />
+                                },
+                                {
+                                  id: 'googleHybrid',
+                                  name: 'Híbrido',
+                                  desc: 'Google Híbrido',
+                                  icon: <Layers className="w-4 h-4" />
+                                },
+                                {
+                                  id: 'osm',
+                                  name: 'OpenStreetMap',
+                                  desc: 'OSM Padrão',
+                                  icon: <Navigation className="w-4 h-4" />
+                                },
+                                {
+                                  id: 'esri',
+                                  name: 'Esri',
+                                  desc: 'World Imagery',
+                                  icon: <Compass className="w-4 h-4" />
+                                },
+                              ].map((item) => {
+                                const isSelected = basemap === item.id;
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setBasemap(item.id);
+                                      setBasemapModalOpen(false);
+                                    }}
+                                    className={`p-2.5 rounded-2xl flex items-center gap-2.5 transition-all relative text-left border cursor-pointer active:scale-[0.98] ${
+                                      isSelected
+                                        ? 'border-[#007AFF] bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#0a84ff] shadow-xs'
+                                        : 'border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04] text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                                    }`}
+                                  >
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                      isSelected 
+                                        ? 'bg-[#007AFF] text-white' 
+                                        : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300'
+                                    }`}>
+                                      {item.icon}
+                                    </div>
+                                    <div className="flex-1 min-w-0 pr-3">
+                                      <div className="font-bold text-xs truncate leading-tight">{item.name}</div>
+                                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate leading-tight mt-0.5">{item.desc}</div>
+                                    </div>
+                                    {isSelected && (
+                                      <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[#007AFF] text-white flex items-center justify-center shadow-xs">
+                                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>,
+                    document.body
                   )}
                 </div>
 
