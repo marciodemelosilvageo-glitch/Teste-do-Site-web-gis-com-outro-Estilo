@@ -1475,7 +1475,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
             userMarkerRef.current.setPopupContent(`
               <div style="padding: 4px; font-family: sans-serif; text-align: center;">
                 <div style="font-weight: 800; font-size: 13px; color: #1e40af; margin-bottom: 2px;">📍 Sua Localização Atual</div>
-                <div style="font-size: 11px; color: #475569;">${latitude.toFixed(6)}&deg;, ${longitude.toFixed(6)}&deg;</div>
+                <div style="font-size: 12px; color: #475569;">${latitude.toFixed(6)}&deg;, ${longitude.toFixed(6)}&deg;</div>
               </div>
             `);
           } else {
@@ -1495,7 +1495,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                   </div>
                   <div style="font-size: 13px; font-weight: 700; color: #0f172a;" class="dark:text-slate-100">GPS Ativo</div>
                   <div class="webgis-popup-attributes-grid" style="width: 100%; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 600; color: #475569;" class="dark:text-slate-300">${latitude.toFixed(6)}&deg;, ${longitude.toFixed(6)}&deg;</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #475569;" class="dark:text-slate-300">${latitude.toFixed(6)}&deg;, ${longitude.toFixed(6)}&deg;</div>
                   </div>
                 </div>
               `)

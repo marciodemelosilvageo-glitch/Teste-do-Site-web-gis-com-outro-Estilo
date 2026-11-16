@@ -84,16 +84,18 @@ body {
 }
 
 
-/* Redução de 1px nas classes de fonte com tamanho explícito */
-.text-\[13px\] { font-size: 12px !important; }
-.text-\[12px\] { font-size: 11px !important; }
-.text-\[11\.5px\] { font-size: 10.5px !important; }
-.text-\[11px\] { font-size: 10px !important; }
-.text-\[10\.5px\] { font-size: 9.5px !important; }
-.text-\[10px\] { font-size: 9px !important; }
-.text-\[9\.5px\] { font-size: 8.5px !important; }
-.text-\[9px\] { font-size: 8px !important; }
-.text-\[8px\] { font-size: 7.5px !important; }
+/* Redução de 1px nas classes de fonte com tamanho explícito APENAS em desktop (>= 768px) */
+@media (min-width: 768px) {
+  .text-\[13px\] { font-size: 12px !important; }
+  .text-\[12px\] { font-size: 11px !important; }
+  .text-\[11\.5px\] { font-size: 10.5px !important; }
+  .text-\[11px\] { font-size: 10px !important; }
+  .text-\[10\.5px\] { font-size: 9.5px !important; }
+  .text-\[10px\] { font-size: 9px !important; }
+  .text-\[9\.5px\] { font-size: 8.5px !important; }
+  .text-\[9px\] { font-size: 8px !important; }
+  .text-\[8px\] { font-size: 7.5px !important; }
+}
 
 .font-display {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Outfit", "Plus Jakarta Sans", sans-serif;
@@ -2274,4 +2276,122 @@ html[data-cnefe-animating="true"] .cnefe-drag-no-transition {
 /* Limita o bounce do ícone de abrir busca para não consumir CPU/GPU indefinidamente */
 .cnefe-bounce-limited {
   animation: bounce 1s ease-in-out 3;
+}
+
+/* ============================================================
+   ESCALA TIPOGRÁFICA MOBILE (< 768px)
+   Piso mínimo absoluto de 12px para todo e qualquer elemento de texto.
+   Textos de apoio em 13px, texto principal/botões em 14-15px.
+   Inputs/selects mantidos em 16px (anti-zoom iOS).
+   Títulos limitados a 17-18px e números de destaque limitados a 20-24px.
+   Posicionado no final do arquivo para prevalecer na cascata com !important.
+   ============================================================ */
+@media (max-width: 767px) {
+  /* Piso mínimo de 12px para todas as classes explícitas sub-12px e text-xs */
+  .text-\[7px\],
+  .text-\[7\.5px\],
+  .text-\[8px\],
+  .text-\[8\.5px\],
+  .text-\[9px\],
+  .text-\[9\.5px\],
+  .text-\[10px\],
+  .text-\[10\.5px\],
+  .text-\[11px\],
+  .text-\[11\.5px\],
+  .text-xs {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Rótulos e textos de apoio: 13px */
+  .text-\[12px\],
+  .text-\[12\.5px\],
+  .text-\[13px\] {
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Texto principal e botões: 14-15px */
+  .text-sm {
+    font-size: 14px !important;
+    line-height: 1.42 !important;
+  }
+  .text-base,
+  .text-\[14px\],
+  .text-\[15px\] {
+    font-size: 15px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Títulos de gaveta e seção: 17-18px */
+  .text-lg {
+    font-size: 17px !important;
+    line-height: 1.35 !important;
+  }
+  .text-xl {
+    font-size: 18px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Números de destaque e estatísticas (Dashboard/Raio-X): máximo 24px no mobile */
+  .text-2xl {
+    font-size: 20px !important;
+    line-height: 1.25 !important;
+  }
+  .text-3xl {
+    font-size: 22px !important;
+    line-height: 1.25 !important;
+  }
+  .text-4xl,
+  .text-5xl {
+    font-size: 24px !important;
+    line-height: 1.25 !important;
+  }
+
+  /* Overrides para classes customizadas do mapa, popups, medições e cards para piso >= 12px */
+  .apple-unselected-label,
+  .webgis-popup-badge,
+  .webgis-popup-field-label,
+  .webgis-popup-attr-label,
+  .webgis-coord-btn-label,
+  .apple-cnefe-attr-lbl,
+  .apple-cnefe-coords-header,
+  .apple-cnefe-coord-tag,
+  .apple-measure-kpi-label,
+  .apple-measure-kpi-sub,
+  .apple-cnefe-tag,
+  .apple-cnefe-note-box,
+  .leaflet-control-attribution,
+  .leaflet-control-attribution a,
+  .leaflet-control-scale-line,
+  .leaflet-control-measure-toggle,
+  .leaflet-control-measure,
+  .leaflet-control-measure *,
+  .leaflet-control-measure h3,
+  .leaflet-control-measure h3::before,
+  .leaflet-control-measure p.js-starthelp,
+  .leaflet-control-measure p.js-starthelp::before,
+  .leaflet-control-measure a.start,
+  .leaflet-control-measure a.start::before,
+  .leaflet-control-measure .results .heading,
+  .leaflet-control-measure .results p,
+  .leaflet-control-measure a.cancel,
+  .leaflet-control-measure a.cancel::before,
+  .leaflet-control-measure a.finish,
+  .leaflet-control-measure a.finish::before,
+  .leaflet-measure-resultpopup a.zoomto,
+  .leaflet-measure-resultpopup a.deletemarkup {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .webgis-popup-attr-val,
+  .webgis-coord-btn-val,
+  .webgis-streetview-btn,
+  .apple-cnefe-attr-val,
+  .apple-cnefe-coord-val,
+  .apple-cnefe-action-btn {
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+  }
 }

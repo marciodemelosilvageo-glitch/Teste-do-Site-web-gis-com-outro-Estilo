@@ -53,7 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}>
             <Users className="w-5 h-5 stroke-[2]" />
           </div>
-          <span className="text-[11px] font-semibold tracking-tight mt-0.5">Raio-X</span>
+          <span className="text-[12px] font-semibold tracking-tight mt-0.5">Raio-X</span>
         </button>
 
         {/* 2. Detalhes */}
@@ -75,12 +75,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <MapPin className={`w-5 h-5 stroke-[2] ${selectedFeaturesCount > 0 && activeTab !== 'details' ? 'text-[#FF9500]' : ''}`} />
             </div>
             {selectedFeaturesCount > 0 && (
-              <span className="absolute -top-1 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF9500] text-white text-[10px] font-black flex items-center justify-center shadow-md animate-scaleIn">
+              <span className="absolute -top-1 -right-2 min-w-[20px] h-[20px] px-1 rounded-full bg-[#FF9500] text-white text-[12px] font-black flex items-center justify-center shadow-md animate-scaleIn">
                 {selectedFeaturesCount > 99 ? '99+' : selectedFeaturesCount}
               </span>
             )}
           </div>
-          <span className="text-[11px] font-semibold tracking-tight mt-0.5">Detalhes</span>
+          <span className="text-[12px] font-semibold tracking-tight mt-0.5">Detalhes</span>
         </button>
 
         {/* 3. BUSCAR (Central, Proeminente, Destacado) */}
@@ -98,7 +98,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           >
             <Search className="w-6 h-6 stroke-[2.3]" />
           </button>
-          <span className={`text-[11px] font-bold tracking-tight mt-1 ${
+          <span className={`text-[12px] font-bold tracking-tight mt-1 ${
             activeTab === 'search' ? 'text-[#007AFF] dark:text-[#3898FF]' : 'text-slate-700 dark:text-slate-300'
           }`}>
             Buscar
@@ -122,7 +122,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}>
             <Download className="w-5 h-5 stroke-[2]" />
           </div>
-          <span className="text-[11px] font-semibold tracking-tight mt-0.5">Exportar</span>
+          <span className="text-[12px] font-semibold tracking-tight mt-0.5">Exportar</span>
         </button>
 
         {/* 5. Perfil */}
@@ -142,7 +142,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}>
             <ProfileIcon className="w-5 h-5 stroke-[2]" />
           </div>
-          <span className="text-[11px] font-semibold tracking-tight mt-0.5">Perfil</span>
+          <span className="text-[12px] font-semibold tracking-tight mt-0.5">Perfil</span>
         </button>
       </div>
     </nav>
