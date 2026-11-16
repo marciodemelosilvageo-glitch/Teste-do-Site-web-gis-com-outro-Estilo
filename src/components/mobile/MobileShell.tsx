@@ -20,6 +20,7 @@ export interface MobileShellProps {
   onOpenHelp: () => void;
   onOpenProfileModal?: () => void;
   onOpenAdminPanel?: () => void;
+  onOpenCnefeAddressSearch?: () => void;
 }
 
 /**
@@ -42,7 +43,8 @@ export const MobileShell: React.FC<MobileShellProps> = ({
   onLogout,
   onOpenHelp,
   onOpenProfileModal,
-  onOpenAdminPanel
+  onOpenAdminPanel,
+  onOpenCnefeAddressSearch
 }) => {
   const navRef = useRef<HTMLElement>(null);
   const [navHeight, setNavHeight] = useState<number>(68);
@@ -155,6 +157,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
         isAdmin={isAdmin}
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
+        onOpenAddressSearch={onOpenCnefeAddressSearch}
         onOpenHelp={onOpenHelp}
         onOpenProfileModal={onOpenProfileModal}
         onOpenAdminPanel={onOpenAdminPanel}

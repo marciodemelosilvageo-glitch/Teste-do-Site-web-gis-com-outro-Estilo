@@ -3346,6 +3346,10 @@ export default function App() {
             if (isAdmin) setIsAdminModalOpen(true);
             else handleOpenAdminLogin();
           }}
+          onOpenCnefeAddressSearch={() => {
+            setIsCnefeBottomBarOpen(true);
+            setIsCnefeBottomBarExpanded(true);
+          }}
         >
           {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
           <div className="w-full h-full relative overflow-hidden">
@@ -3355,6 +3359,8 @@ export default function App() {
               isSidebarCollapsed={true}
               isMultiSelectMode={isMultiSelectMode}
               isMobile={true}
+              isDarkMode={isDarkMode}
+              onToggleDarkMode={toggleDarkModeWithTransition}
               onToggleMultiSelect={() => {
                 setIsMultiSelectMode(!isMultiSelectMode);
                 showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
@@ -3432,8 +3438,9 @@ export default function App() {
               isAddressSearching={isAddressSearching || isHospitalSearching}
             />
 
-            {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
+            {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) - MOBILE */}
             <CnefeBottomBar
+              isMobile={true}
               isOpen={isCnefeBottomBarOpen}
               isStage2Open={!!sidebarTab}
               isExpanded={isCnefeBottomBarExpanded}
@@ -3723,7 +3730,7 @@ export default function App() {
               isAddressSearching={isAddressSearching || isHospitalSearching}
             />
 
-            {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) */}
+            {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) - DESKTOP */}
             <CnefeBottomBar
               isOpen={isCnefeBottomBarOpen}
               isStage2Open={!!sidebarTab}

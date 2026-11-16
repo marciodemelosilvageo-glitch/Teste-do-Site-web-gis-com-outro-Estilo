@@ -4,6 +4,7 @@ import {
   Crown, 
   Briefcase, 
   User, 
+  Home,
   Sun, 
   Moon, 
   HelpCircle, 
@@ -22,8 +23,9 @@ export interface MobileProfileDrawerProps {
   isMaster?: boolean;
   isManager?: boolean;
   isAdmin?: boolean;
-  isDarkMode: boolean;
-  onToggleDarkMode: (event?: React.MouseEvent) => void;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: (event?: React.MouseEvent) => void;
+  onOpenAddressSearch?: () => void;
   onOpenHelp: () => void;
   onOpenProfileModal?: () => void;
   onOpenAdminPanel?: () => void;
@@ -32,7 +34,7 @@ export interface MobileProfileDrawerProps {
 
 /**
  * MobileProfileDrawer - Gaveta de perfil e configurações rápidas no mobile.
- * Permite alternar tema, consultar guia de ajuda, ver dados da conta e sair.
+ * Permite acessar busca avançada de endereços, guia de ajuda, ver dados da conta e sair.
  */
 export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   isOpen,
@@ -41,8 +43,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   isMaster = false,
   isManager = false,
   isAdmin = false,
-  isDarkMode,
-  onToggleDarkMode,
+  onOpenAddressSearch,
   onOpenHelp,
   onOpenProfileModal,
   onOpenAdminPanel,
@@ -74,10 +75,9 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
       aria-modal="true"
       aria-label="Perfil do Usuário e Configurações"
     >
-      {/* Backdrop Translúcido */}
+      {/* Backdrop Translúcido (z-0 dentro do contêiner SHEET z-1200) */}
       <div 
-        className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300"
-        style={{ zIndex: MOBILE_Z_INDEX.SHEET_BACKDROP }}
+        className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300 z-0"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -130,29 +130,32 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
 
         {/* Lista de Ações Rápidas */}
         <div className="flex flex-col gap-2">
-          {/* Alternar Tema (Modo Escuro / Claro) */}
-          <button
-            type="button"
-            onClick={(e) => onToggleDarkMode(e)}
-            className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer text-left active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {/* Busca de Endereços Avançada (IBGE CNEFE) */}
+          {onOpenAddressSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenAddressSearch();
+              }}
+              className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer text-left active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Home className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white block">
+                    Busca de Endereços Avançada
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                    Consultar base CNEFE do IBGE
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-sm font-bold text-slate-900 dark:text-white block">
-                  {isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                  {isDarkMode ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
-                </span>
-              </div>
-            </div>
-            <div className="px-2.5 py-1 rounded-full text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-xs border border-black/5 dark:border-white/10">
-              {isDarkMode ? 'Escuro' : 'Claro'}
-            </div>
-          </button>
+              <ChevronRight className="w-5 h-5 text-slate-400" />
+            </button>
+          )}
 
           {/* Guia de Uso & Ajuda */}
           <button

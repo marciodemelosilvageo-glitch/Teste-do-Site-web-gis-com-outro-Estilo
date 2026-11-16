@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
+import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 
 export interface CnefeBottomBarProps {
   isOpen?: boolean;
@@ -35,6 +36,7 @@ export interface CnefeBottomBarProps {
   hasPlottedMarkers?: boolean;
   isStage2Open?: boolean;
   isSearchingExternal?: boolean;
+  isMobile?: boolean;
 }
 
 export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
@@ -53,6 +55,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   hasPlottedMarkers = false,
   isStage2Open = false,
   isSearchingExternal = false,
+  isMobile = false,
 }) => {
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
@@ -162,7 +165,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   useEffect(() => {
     if (isDraggingRef.current) return;
 
-    if (!isOpen) {
+    if (!isOpen || (isMobile && !isExpanded)) {
       document.documentElement.style.setProperty('--cnefe-bottom-height', '0px');
     } else if (!isExpanded) {
       document.documentElement.style.setProperty('--cnefe-bottom-height', '46px');
@@ -173,7 +176,18 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     } else {
       document.documentElement.style.setProperty('--cnefe-bottom-height', '46vh');
     }
-  }, [isOpen, isExpanded, customHeight, isMaximized]);
+  }, [isOpen, isExpanded, customHeight, isMaximized, isMobile]);
+
+  // Sincronização mobile para mobile-sheet-resize quando o painel CNEFE é expandido como gaveta
+  useEffect(() => {
+    if (!isMobile) return;
+    if (isExpanded) {
+      const h = Math.round((window.innerHeight || 800) * 0.9);
+      window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: h, snap: 'full' } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: 0, snap: null } }));
+    }
+  }, [isMobile, isExpanded]);
 
   // Sincronizar data-cnefe-expanded no html e evento customizado para controle limpo de minimização da legenda
   useEffect(() => {
@@ -358,6 +372,151 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     onToggleExpand();
   };
 
+  // ==============================================================
+  // RENDERIZAÇÃO MOBILE: NÃO MOSTRA FAIXA DE 46PX, ABRE COMO GAVETA
+  // ==============================================================
+  if (isMobile) {
+    if (!isExpanded) {
+      // Preserva o componente e seu estado interno montado sem renderizar visualmente no mapa
+      return (
+        <div 
+          ref={barContainerRef}
+          style={{ display: 'none' }}
+          aria-hidden="true"
+          // @ts-expect-error inert is standard HTML5 attribute supported in React 19
+          inert=""
+        >
+          <IbgeSearchPanel
+            embedded={true}
+            isMaximized={false}
+            onPlotAddress={onPlotAddress}
+            onPlotAllAddresses={onPlotAllAddresses}
+            onClearPlot={onClearPlot}
+            onUnplot={onUnplot}
+            onClearExternalResult={onClearExternalResult}
+            externalPolygonResult={externalPolygonResult}
+            allowedColumns={allowedColumns}
+            hasPlottedMarkers={hasPlottedMarkers}
+            isExternalSearching={isSearchingExternal}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        className="fixed inset-0 flex flex-col justify-end pointer-events-auto select-none"
+        style={{ zIndex: MOBILE_Z_INDEX.SHEET }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Busca de Endereços Avançada"
+      >
+        {/* Backdrop Translúcido */}
+        <div 
+          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300 z-0"
+          onClick={() => handleToggleExpand()}
+          aria-hidden="true"
+        />
+
+        {/* Conteúdo da Gaveta em Tela Quase Cheia */}
+        <div 
+          ref={barContainerRef}
+          className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col h-[90dvh] max-h-[92dvh] overflow-hidden animate-slideUp"
+        >
+          {/* Barra de Progresso Indeterminada durante Busca Externa */}
+          {isSearchingExternal && (
+            <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#007AFF]/20 overflow-hidden z-40">
+              <div className="h-full bg-gradient-to-r from-[#007AFF] via-[#5856D6] to-[#007AFF] cnefe-progress-indeterminate" />
+            </div>
+          )}
+
+          {/* Alça de Arraste Superior */}
+          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0 mt-3 mb-1" />
+
+          {/* Cabeçalho Limpo */}
+          <div className="w-full px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 border-b border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Home className="w-4 h-4" />
+              </div>
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                <span className="font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight">
+                  Busca de Endereços Avançada
+                </span>
+                {!isSearchingExternal && externalPolygonResult && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 pl-2 pr-1.5 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60 truncate max-w-[170px] shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="truncate">{externalPolygonResult.title}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onClearExternalResult) onClearExternalResult();
+                        if (onClearPlot) onClearPlot();
+                      }}
+                      className="p-0.5 hover:bg-emerald-200/70 dark:hover:bg-emerald-800/60 rounded-full text-emerald-700 dark:text-emerald-200 transition-colors cursor-pointer shrink-0"
+                      title="Limpar pesquisa desta feição"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Ações: Limpar e Botão Claro de Recolher */}
+            <div className="flex items-center gap-2 shrink-0">
+              {(hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearPlot();
+                    if (onClearExternalResult) onClearExternalResult();
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  title="Limpar pesquisa e marcadores do mapa"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden xs:inline">Limpar</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleToggleExpand()}
+                className="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs active:scale-95"
+                title="Recolher busca de endereços"
+              >
+                <span>Recolher</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Painel Interno Scrollable */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0">
+            <IbgeSearchPanel
+              embedded={true}
+              isMaximized={true}
+              onPlotAddress={onPlotAddress}
+              onPlotAllAddresses={onPlotAllAddresses}
+              onClearPlot={onClearPlot}
+              onUnplot={onUnplot}
+              onClearExternalResult={onClearExternalResult}
+              externalPolygonResult={externalPolygonResult}
+              allowedColumns={allowedColumns}
+              hasPlottedMarkers={hasPlottedMarkers}
+              isExternalSearching={isSearchingExternal}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==============================================================
+  // RENDERIZAÇÃO ORIGINAL DESKTOP (INALTERADA)
+  // ==============================================================
   return (
     <div 
       ref={barContainerRef}

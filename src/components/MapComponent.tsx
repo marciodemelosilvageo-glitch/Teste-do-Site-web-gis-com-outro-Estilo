@@ -14,7 +14,7 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
     imagePath: '/',
   });
 }
-import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine, Loader2 } from 'lucide-react';
+import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine, Loader2, Sun, Moon } from 'lucide-react';
 import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
@@ -466,6 +466,8 @@ interface MapComponentProps {
   isSidebarCollapsed?: boolean;
   isAddressSearching?: boolean;
   isMobile?: boolean;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: (event?: React.MouseEvent) => void;
   searchSelectedFeatureId?: string | null;
   isDetailsTabOpen?: boolean;
   onOpenDetailsTab?: () => void;
@@ -850,6 +852,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   isSidebarCollapsed = false,
   isAddressSearching = false,
   isMobile = false,
+  isDarkMode = false,
+  onToggleDarkMode,
   searchSelectedFeatureId = null,
   isDetailsTabOpen = false,
   onOpenDetailsTab,
@@ -4142,6 +4146,24 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* 1.1. Botão Modo Escuro (Mobile - ao lado do mapa base) */}
+                {isMobile && onToggleDarkMode && (
+                  <button
+                    type="button"
+                    id="btn-mobile-dark-mode"
+                    onClick={(e) => onToggleDarkMode(e)}
+                    className="w-10 h-10 min-w-[40px] rounded-2xl flex items-center justify-center border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 shrink-0"
+                    title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                    aria-label={isDarkMode ? "Alternar para modo claro" : "Alternar para modo escuro"}
+                  >
+                    {isDarkMode ? (
+                      <Sun className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Moon className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+                    )}
+                  </button>
+                )}
 
                 {/* 2. Botão Multiseleção Estilo Apple */}
                 <button 
