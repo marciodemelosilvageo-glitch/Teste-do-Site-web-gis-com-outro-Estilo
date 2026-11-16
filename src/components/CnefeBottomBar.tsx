@@ -37,6 +37,7 @@ export interface CnefeBottomBarProps {
   isStage2Open?: boolean;
   isSearchingExternal?: boolean;
   isMobile?: boolean;
+  onSearchStateChange?: (hasResults: boolean) => void;
 }
 
 export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
@@ -56,6 +57,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   isStage2Open = false,
   isSearchingExternal = false,
   isMobile = false,
+  onSearchStateChange,
 }) => {
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
@@ -680,7 +682,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           </div>
 
           {/* Painel Interno: Mantido montado na mesma árvore React para preservar filtros/buscas/plotagem */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-hidden px-3 sm:px-6 py-2 min-h-0 flex flex-col">
             <IbgeSearchPanel
               embedded={true}
               isMaximized={true}
@@ -694,6 +696,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
               allowedColumns={allowedColumns}
               hasPlottedMarkers={hasPlottedMarkers}
               isExternalSearching={isSearchingExternal}
+              onSearchStateChange={onSearchStateChange}
             />
           </div>
         </div>
@@ -910,6 +913,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           allowedColumns={allowedColumns}
           hasPlottedMarkers={hasPlottedMarkers}
           isExternalSearching={isSearchingExternal}
+          onSearchStateChange={onSearchStateChange}
         />
       </div>
     </div>

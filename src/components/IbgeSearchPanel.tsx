@@ -51,6 +51,7 @@ interface IbgeSearchPanelProps {
   hasPlottedMarkers?: boolean;
   isExternalSearching?: boolean;
   isMobile?: boolean;
+  onSearchStateChange?: (hasResults: boolean) => void;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -148,6 +149,7 @@ interface IbgeTableRowProps {
   visibleTableColumns: Array<{ key: string; label: string }>;
   columnWidths: Record<string, number>;
   onPlotAddress: (address: any) => void;
+  isSelected?: boolean;
 }
 
 const IbgeTableRow = React.memo<IbgeTableRowProps>(({
@@ -156,6 +158,7 @@ const IbgeTableRow = React.memo<IbgeTableRowProps>(({
   visibleTableColumns,
   columnWidths,
   onPlotAddress,
+  isSelected = false,
 }) => {
   // Memoizar também o cálculo dos valores exibidos por linha para não reexecutar getFormattedDisplayValue a cada render
   const formattedCells = useMemo(() => {
@@ -177,10 +180,18 @@ const IbgeTableRow = React.memo<IbgeTableRowProps>(({
   return (
     <tr 
       onClick={handleClick}
-      className="hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10] transition-colors cursor-pointer group"
+      className={`transition-colors cursor-pointer group ${
+        isSelected
+          ? 'bg-[#007AFF]/15 dark:bg-[#007AFF]/25 border-l-[3px] border-[#007AFF]'
+          : 'hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10]'
+      }`}
       title="Clique para navegar e destacar este endereço no mapa"
     >
-      <td className="px-3 py-2.5 text-center text-slate-400 dark:text-slate-500 font-bold sticky left-0 z-10 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10] shadow-r border-r border-black/5 dark:border-white/10 select-none text-[11px]">
+      <td className={`px-3 py-2.5 text-center font-bold sticky left-0 z-10 shadow-r border-r border-black/5 dark:border-white/10 select-none text-[11px] ${
+        isSelected
+          ? 'bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF]'
+          : 'text-slate-400 dark:text-slate-500 bg-white/95 dark:bg-[#1c1c1e]/95 group-hover:bg-[#007AFF]/[0.05] dark:group-hover:bg-[#007AFF]/[0.10]'
+      }`}>
         {index + 1}
       </td>
       {formattedCells.map(cell => (
@@ -211,8 +222,11 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   isMaximized = false,
   hasPlottedMarkers = false,
   isExternalSearching = false,
-  isMobile = false
+  isMobile = false,
+  onSearchStateChange
 }) => {
+  // Estado para linha selecionada na tabela (baseado em codigo_unico)
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   // Estado para recolher o formulário após busca com resultados no mobile
   const [isFormCollapsed, setIsFormCollapsed] = useState<boolean>(false);
   // Configuração de colunas visíveis pelo usuário com persistência em localStorage
@@ -789,6 +803,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       setTotalEncontrado(res.totalEncontrado);
       setHasSearched(true);
       setIsPlotted(false);
+      setSelectedRowKey(null);
       setColumnFilters({});
       setSortConfig(null);
 
@@ -818,6 +833,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     setTotalEncontrado(0);
     setHasSearched(false);
     setIsPlotted(false);
+    setSelectedRowKey(null);
     setPolygonSearchTitle(null);
     setErrorMsg(null);
     setColumnFilters({});
@@ -830,6 +846,25 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       onClearExternalResult();
     }
   };
+
+  // Notifica componentes pais quando o estado de resultados de busca muda
+  useEffect(() => {
+    onSearchStateChange?.(results.length > 0);
+  }, [results.length, onSearchStateChange]);
+
+  // Limpa linha selecionada se os marcadores forem removidos do mapa
+  useEffect(() => {
+    if (!hasPlottedMarkers) {
+      setSelectedRowKey(null);
+    }
+  }, [hasPlottedMarkers]);
+
+  // Handler para selecionar a linha e plotar o ponto
+  const handleSelectAndPlot = useCallback((row: any) => {
+    const key = row.codigo_unico != null ? String(row.codigo_unico) : (row.CODIGO_UNICO != null ? String(row.CODIGO_UNICO) : null);
+    setSelectedRowKey(key);
+    onPlotAddress(row);
+  }, [onPlotAddress]);
 
   // Filtragem e ordenação dos resultados diretamente no cliente
   const processedResults = useMemo(() => {
@@ -1408,6 +1443,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     <button 
                       type="button"
                       onClick={() => {
+                        setSelectedRowKey(null);
                         onPlotAllAddresses(processedResults);
                         setIsPlotted(true);
                       }}
@@ -1424,6 +1460,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     <button 
                       type="button"
                       onClick={() => {
+                        setSelectedRowKey(null);
                         if (onUnplot) {
                           onUnplot();
                         } else if (onClearPlot) {
@@ -1829,16 +1866,16 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                 {processedResults.length > 0 ? (
                   <div className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
                     isMobile
-                      ? 'flex-1 min-h-[160px]'
+                      ? 'flex-1 min-h-0 overflow-auto'
                       : embedded 
                       ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
                       : 'max-h-[580px]'
                   }`}>
                     <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
-                      <thead className="bg-slate-100/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-10 shadow-xs select-none border-b border-black/10 dark:border-white/10">
+                      <thead className="bg-slate-100/95 dark:bg-[#2c2c2e]/95 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-20 shadow-xs select-none border-b border-black/10 dark:border-white/10">
                         {/* Linha 1: Títulos das Colunas, Ordenação e Alça de Redimensionamento */}
-                        <tr>
-                          <th className="px-3 py-3 font-extrabold w-12 min-w-[48px] max-w-[48px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 z-20 bg-slate-100 dark:bg-[#2c2c2e] shadow-r text-slate-500 dark:text-slate-400">
+                        <tr className="sticky top-0 z-20 bg-slate-100 dark:bg-[#2c2c2e]">
+                          <th className="px-3 py-3 font-extrabold w-12 min-w-[48px] max-w-[48px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 top-0 z-30 bg-slate-100 dark:bg-[#2c2c2e] shadow-r text-slate-500 dark:text-slate-400">
                             #
                           </th>
                           {visibleTableColumns.map(col => {
@@ -1934,8 +1971,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
                         {/* Linha 2: Caixas de Filtro Individuais por Coluna (Apenas Desktop) */}
                         {!isMobile && (
-                          <tr className="bg-slate-200/75 dark:bg-[#242426]/90 border-b border-black/10 dark:border-white/10">
-                            <th className="px-1.5 py-1.5 sticky left-0 z-20 bg-slate-200 dark:bg-[#242426] shadow-r text-center">
+                          <tr className="bg-slate-200/95 dark:bg-[#242426]/95 border-b border-black/10 dark:border-white/10 sticky top-[41px] z-20">
+                            <th className="px-1.5 py-1.5 sticky left-0 top-[41px] z-30 bg-slate-200 dark:bg-[#242426] shadow-r text-center">
                               <Filter size={11} className="mx-auto text-slate-400" />
                             </th>
                             {visibleTableColumns.map(col => {
@@ -1947,7 +1984,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                                 <th
                                   key={`filter-${col.key}`}
                                   style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                  className="px-2 py-1.5 font-normal"
+                                  className="px-2 py-1.5 font-normal sticky top-[41px] z-20 bg-slate-200/95 dark:bg-[#242426]/95"
                                 >
                                   <div className="relative flex items-center w-full rounded-lg border transition-all border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20">
                                     <input
@@ -1993,16 +2030,21 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                         )}
                       </thead>
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
-                        {processedResults.map((row, i) => (
-                          <IbgeTableRow
-                            key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`}
-                            row={row}
-                            index={i}
-                            visibleTableColumns={visibleTableColumns}
-                            columnWidths={columnWidths}
-                            onPlotAddress={onPlotAddress}
-                          />
-                        ))}
+                        {processedResults.map((row, i) => {
+                          const rowKey = row.codigo_unico != null ? String(row.codigo_unico) : (row.CODIGO_UNICO != null ? String(row.CODIGO_UNICO) : null);
+                          const isSelected = selectedRowKey != null && rowKey === selectedRowKey;
+                          return (
+                            <IbgeTableRow
+                              key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`}
+                              row={row}
+                              index={i}
+                              visibleTableColumns={visibleTableColumns}
+                              columnWidths={columnWidths}
+                              onPlotAddress={handleSelectAndPlot}
+                              isSelected={isSelected}
+                            />
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

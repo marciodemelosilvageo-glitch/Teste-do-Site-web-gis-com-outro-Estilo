@@ -338,6 +338,8 @@ export default function App() {
   }, [allowedLayerNames]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }> | null>(null);
+  const [hasCnefeResults, setHasCnefeResults] = useState<boolean>(false);
+  const hasCnefeSearch = hasCnefeResults || Boolean(searchCoordinates && searchCoordinates.length > 0);
 
   // Estados de Carregamento e Status do Mapa
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -568,14 +570,19 @@ export default function App() {
       } else {
         // Apenas feições sem dashboard (Localidades, Comunidades Rurais, pontos plotados)
         isAutoOpenedDashboardRef.current = false;
-        setSidebarTab('details');
+        const isAllPlots = selectedFeatures.length > 0 && selectedFeatures.every(f => f.id.startsWith('plot-'));
+        if (isMobile && isAllPlots) {
+          // No mobile: clicar num ponto plotado NÃO abre a aba de detalhes
+        } else {
+          setSidebarTab('details');
+        }
       }
     } else {
       isAutoOpenedDashboardRef.current = false;
       // Quando o usuário desmarca a feição (nada selecionado), fecha a barra de detalhes da feição
       setSidebarTab(prev => (prev === 'details' ? null : prev));
     }
-  }, [selectedFeatures]);
+  }, [selectedFeatures, isMobile]);
 
   const [measureHistory, setMeasureHistory] = useState<L.LatLng[] | null>(null);
 
@@ -2566,6 +2573,7 @@ export default function App() {
 
   const handleClearPlot = useCallback(() => {
     setSearchCoordinates(null);
+    setHasCnefeResults(false);
     setCnefeExternalResult(null);
     setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
     setSidebarTab(prev => (prev === 'details' ? null : prev));
@@ -2612,6 +2620,7 @@ export default function App() {
   const handleClearExternalResult = useCallback(() => {
     setCnefeExternalResult(null);
     setSearchCoordinates(null);
+    setHasCnefeResults(false);
     setSelectedFeatures(prev => prev.filter(f => !f.id.startsWith('plot-')));
   }, []);
 
@@ -3366,6 +3375,7 @@ export default function App() {
             setIsCnefeBottomBarExpanded(true);
           }}
           isAddressSearchOpen={isCnefeBottomBarExpanded}
+          hasCnefeSearch={hasCnefeSearch}
         >
           {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
           <div className="w-full h-full relative overflow-hidden">
@@ -3474,6 +3484,7 @@ export default function App() {
               allowedColumns={effectiveSession?.addressColumnsPermissions}
               hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
               isSearchingExternal={isAddressSearching || isHospitalSearching}
+              onSearchStateChange={setHasCnefeResults}
             />
             {/* GAVETA / BOTTOM SHEET MÓVEL (ETAPA 3) */}
             <AppleSidebar
@@ -3765,6 +3776,7 @@ export default function App() {
               allowedColumns={effectiveSession?.addressColumnsPermissions}
               hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
               isSearchingExternal={isAddressSearching || isHospitalSearching}
+              onSearchStateChange={setHasCnefeResults}
             />
           </div>
         </div>

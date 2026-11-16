@@ -1271,7 +1271,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   onRemoveFromSelection(activeDetailFeature.id);
                   setActiveTab(null);
                 }}
-                className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 text-xs font-semibold transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95 focus-visible:ring-2 focus-visible:ring-[#007AFF] outline-none"
+                className="shrink-0 hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 text-xs font-semibold transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95 focus-visible:ring-2 focus-visible:ring-[#007AFF] outline-none"
                 title="Remove esta feição da seleção e tira o destaque do mapa"
                 aria-label={selectedFeatures.length >= 2 ? "Desmarcar esta feição da seleção" : "Desmarcar feição"}
               >

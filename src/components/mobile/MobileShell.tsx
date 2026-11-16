@@ -22,6 +22,7 @@ export interface MobileShellProps {
   onOpenAdminPanel?: () => void;
   onOpenCnefeAddressSearch?: () => void;
   isAddressSearchOpen?: boolean;
+  hasCnefeSearch?: boolean;
 }
 
 /**
@@ -46,7 +47,8 @@ export const MobileShell: React.FC<MobileShellProps> = ({
   onOpenProfileModal,
   onOpenAdminPanel,
   onOpenCnefeAddressSearch,
-  isAddressSearchOpen = false
+  isAddressSearchOpen = false,
+  hasCnefeSearch = false
 }) => {
   const navRef = useRef<HTMLElement>(null);
   const [navHeight, setNavHeight] = useState<number>(68);
@@ -148,6 +150,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
         isManager={isManager}
         onOpenAddressSearch={onOpenCnefeAddressSearch}
         isAddressSearchOpen={isAddressSearchOpen}
+        hasCnefeSearch={hasCnefeSearch}
       />
 
       {/* Gaveta de Perfil / Configurações Rápidas */}

@@ -20,6 +20,7 @@ export interface MobileBottomNavProps {
   navRef?: React.Ref<HTMLElement>;
   onOpenAddressSearch?: () => void;
   isAddressSearchOpen?: boolean;
+  hasCnefeSearch?: boolean;
 }
 
 /**
@@ -54,7 +55,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   isManager = false,
   navRef,
   onOpenAddressSearch,
-  isAddressSearchOpen = false
+  isAddressSearchOpen = false,
+  hasCnefeSearch = false
 }) => {
   // Detecção de prefers-reduced-motion
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -85,6 +87,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     onSelectTab(activeTab === tab ? null : tab);
   };
 
+  // Se houver busca e a gaveta estiver fechada, o 5º botão exibe o ícone e rótulo de Endereços
+  const showAddressIcon = Boolean(hasCnefeSearch && !isAddressSearchOpen);
+
+  const handleProfileOrAddressClick = () => {
+    triggerHaptic();
+    if (showAddressIcon) {
+      onOpenAddressSearch?.();
+    } else {
+      handleTabClick('profile');
+    }
+  };
+
   return (
     <nav
       ref={navRef}
@@ -102,7 +116,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           onClick={() => handleTabClick('dashboard')}
           aria-label="Raio-X Territorial"
           aria-current={activeTab === 'dashboard' ? 'page' : undefined}
-          className={`flex-1 min-w-[44px] min-h-[44px] flex flex-col items-center justify-center py-1 px-0.5 rounded-[18px] relative transition-colors cursor-pointer ${
+          className={`flex-1 min-w-[48px] min-h-[48px] flex flex-col items-center justify-center py-1 px-1 rounded-[20px] relative transition-colors cursor-pointer ${
             activeTab === 'dashboard'
               ? 'text-[#007AFF] dark:text-[#0A84FF]'
               : 'text-[#8E8E93] dark:text-[#98989D] hover:text-slate-800 dark:hover:text-slate-200'
@@ -112,7 +126,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <motion.div
               layoutId={prefersReducedMotion ? undefined : 'mobile-nav-active-pill'}
               transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[18px] pointer-events-none"
+              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[20px] pointer-events-none"
             />
           )}
           <motion.div
@@ -121,9 +135,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             transition={{ duration: 0.25, ease: 'easeOut' }}
             className="relative z-10 flex items-center justify-center"
           >
-            <DashboardIcon size={21} active={activeTab === 'dashboard'} />
+            <DashboardIcon size={22} active={activeTab === 'dashboard'} />
           </motion.div>
-          <span className="relative z-10 text-[10.5px] xs:text-[11px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
+          <span className="relative z-10 text-[11px] xs:text-[12px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
             Raio-X
           </span>
         </motion.button>
@@ -136,7 +150,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           onClick={() => handleTabClick('details')}
           aria-label={selectedFeaturesCount > 0 ? `Detalhes da feição (${selectedFeaturesCount} selecionadas)` : 'Detalhes da feição'}
           aria-current={activeTab === 'details' ? 'page' : undefined}
-          className={`flex-1 min-w-[44px] min-h-[44px] flex flex-col items-center justify-center py-1 px-0.5 rounded-[18px] relative transition-colors cursor-pointer ${
+          className={`flex-1 min-w-[48px] min-h-[48px] flex flex-col items-center justify-center py-1 px-1 rounded-[20px] relative transition-colors cursor-pointer ${
             activeTab === 'details'
               ? 'text-[#007AFF] dark:text-[#0A84FF]'
               : 'text-[#8E8E93] dark:text-[#98989D] hover:text-slate-800 dark:hover:text-slate-200'
@@ -146,7 +160,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <motion.div
               layoutId={prefersReducedMotion ? undefined : 'mobile-nav-active-pill'}
               transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[18px] pointer-events-none"
+              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[20px] pointer-events-none"
             />
           )}
           <div className="relative z-10">
@@ -156,7 +170,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               transition={{ duration: 0.25, ease: 'easeOut' }}
               className="flex items-center justify-center"
             >
-              <DetailsIcon size={21} active={activeTab === 'details'} />
+              <DetailsIcon size={22} active={activeTab === 'details'} />
             </motion.div>
             <AnimatePresence>
               {selectedFeaturesCount > 0 && (
@@ -165,20 +179,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-                  className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF3B30] text-white text-[10px] font-bold flex items-center justify-center border-2 border-white/90 dark:border-[#1c1c1e]/90 shadow-sm leading-none"
+                  className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF3B30] text-white text-[11px] font-bold flex items-center justify-center border-2 border-white/90 dark:border-[#1c1c1e]/90 shadow-sm leading-none"
                 >
                   {selectedFeaturesCount > 99 ? '99+' : selectedFeaturesCount}
                 </motion.span>
               )}
             </AnimatePresence>
           </div>
-          <span className="relative z-10 text-[10.5px] xs:text-[11px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
+          <span className="relative z-10 text-[11px] xs:text-[12px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
             Detalhes
           </span>
         </motion.button>
 
         {/* 3. BUSCAR (Central, Círculo Azul Sólido Apple, Elevado) */}
-        <div className="flex-1 flex flex-col items-center justify-center -translate-y-2 relative">
+        <div className="flex-1 flex flex-col items-center justify-center -translate-y-2.5 relative">
           <motion.button
             type="button"
             whileTap={prefersReducedMotion ? undefined : { scale: 0.92 }}
@@ -186,7 +200,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onClick={() => handleTabClick('search')}
             aria-label="Buscar feições e endereços"
             aria-current={activeTab === 'search' ? 'page' : undefined}
-            className={`w-12 h-12 xs:w-13 xs:h-13 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-[0_4px_14px_rgba(0,122,255,0.28)] ${
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-[0_4px_14px_rgba(0,122,255,0.28)] ${
               activeTab === 'search'
                 ? 'bg-[#007AFF] text-white ring-4 ring-[#007AFF]/25 scale-105'
                 : 'bg-[#007AFF] text-white hover:bg-[#0071E3]'
@@ -197,11 +211,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               transition={{ duration: 0.25, ease: 'easeOut' }}
               className="flex items-center justify-center"
             >
-              <SearchIcon size={22} active={activeTab === 'search'} />
+              <SearchIcon size={24} active={activeTab === 'search'} />
             </motion.div>
           </motion.button>
           <span
-            className={`text-[10.5px] xs:text-[11px] font-bold tracking-tight mt-0.5 ${
+            className={`text-[11px] xs:text-[12px] font-bold tracking-tight mt-0.5 ${
               activeTab === 'search'
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-700 dark:text-slate-300'
@@ -219,7 +233,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           onClick={() => handleTabClick('export')}
           aria-label="Exportar dados territoriais"
           aria-current={activeTab === 'export' ? 'page' : undefined}
-          className={`flex-1 min-w-[44px] min-h-[44px] flex flex-col items-center justify-center py-1 px-0.5 rounded-[18px] relative transition-colors cursor-pointer ${
+          className={`flex-1 min-w-[48px] min-h-[48px] flex flex-col items-center justify-center py-1 px-1 rounded-[20px] relative transition-colors cursor-pointer ${
             activeTab === 'export'
               ? 'text-[#007AFF] dark:text-[#0A84FF]'
               : 'text-[#8E8E93] dark:text-[#98989D] hover:text-slate-800 dark:hover:text-slate-200'
@@ -229,7 +243,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <motion.div
               layoutId={prefersReducedMotion ? undefined : 'mobile-nav-active-pill'}
               transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[18px] pointer-events-none"
+              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[20px] pointer-events-none"
             />
           )}
           <motion.div
@@ -238,87 +252,74 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             transition={{ duration: 0.25, ease: 'easeOut' }}
             className="relative z-10 flex items-center justify-center"
           >
-            <ExportIcon size={21} active={activeTab === 'export'} />
+            <ExportIcon size={22} active={activeTab === 'export'} />
           </motion.div>
-          <span className="relative z-10 text-[10.5px] xs:text-[11px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
+          <span className="relative z-10 text-[11px] xs:text-[12px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
             Exportar
           </span>
         </motion.button>
 
-        {/* 5. BUSCA AVANÇADA DE ENDEREÇOS (CNEFE) */}
+        {/* 5. PERFIL (OU ENDEREÇOS QUANDO HOUVER PESQUISA MINIMIZADA) */}
         <motion.button
           type="button"
           whileTap={prefersReducedMotion ? undefined : { scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-          onClick={() => {
-            triggerHaptic();
-            onOpenAddressSearch?.();
-          }}
-          aria-label="Busca de endereços avançada"
-          aria-current={isAddressSearchOpen ? 'page' : undefined}
-          className={`flex-1 min-w-[44px] min-h-[44px] flex flex-col items-center justify-center py-1 px-0.5 rounded-[18px] relative transition-colors cursor-pointer ${
-            isAddressSearchOpen
+          onClick={handleProfileOrAddressClick}
+          aria-label={showAddressIcon ? "Busca de endereços avançada" : "Perfil do usuário e configurações"}
+          aria-current={!showAddressIcon && activeTab === 'profile' ? 'page' : undefined}
+          className={`flex-1 min-w-[48px] min-h-[48px] flex flex-col items-center justify-center py-1 px-1 rounded-[20px] relative transition-colors cursor-pointer ${
+            (!showAddressIcon && activeTab === 'profile') || showAddressIcon
               ? 'text-[#007AFF] dark:text-[#0A84FF]'
               : 'text-[#8E8E93] dark:text-[#98989D] hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          {isAddressSearchOpen && (
+          {!showAddressIcon && activeTab === 'profile' && (
             <motion.div
               layoutId={prefersReducedMotion ? undefined : 'mobile-nav-active-pill'}
               transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[18px] pointer-events-none"
+              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[20px] pointer-events-none"
             />
           )}
-          <motion.div
-            key={isAddressSearchOpen ? 'active' : 'inactive'}
-            animate={isAddressSearchOpen && !prefersReducedMotion ? { scale: [1, 1.12, 1] } : { scale: 1 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="relative z-10 flex items-center justify-center"
-          >
-            <AddressNavIcon size={21} active={isAddressSearchOpen} />
-          </motion.div>
-          <span className="relative z-10 text-[10.5px] xs:text-[11px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
-            Endereços
-          </span>
-        </motion.button>
-
-        {/* 6. PERFIL */}
-        <motion.button
-          type="button"
-          whileTap={prefersReducedMotion ? undefined : { scale: 0.92 }}
-          transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-          onClick={() => handleTabClick('profile')}
-          aria-label="Perfil do usuário e configurações"
-          aria-current={activeTab === 'profile' ? 'page' : undefined}
-          className={`flex-1 min-w-[44px] min-h-[44px] flex flex-col items-center justify-center py-1 px-0.5 rounded-[18px] relative transition-colors cursor-pointer ${
-            activeTab === 'profile'
-              ? 'text-[#007AFF] dark:text-[#0A84FF]'
-              : 'text-[#8E8E93] dark:text-[#98989D] hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-        >
-          {activeTab === 'profile' && (
-            <motion.div
-              layoutId={prefersReducedMotion ? undefined : 'mobile-nav-active-pill'}
-              transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-              className="absolute inset-0 bg-black/[0.06] dark:bg-white/[0.10] rounded-[18px] pointer-events-none"
-            />
-          )}
-          <motion.div
-            key={activeTab === 'profile' ? 'active' : 'inactive'}
-            animate={activeTab === 'profile' && !prefersReducedMotion ? { scale: [1, 1.12, 1] } : { scale: 1 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="relative z-10 flex items-center justify-center"
-          >
-            <ProfileNavIcon
-              size={21}
-              active={activeTab === 'profile'}
-              isMaster={isMaster}
-              isManager={isManager}
-            />
-          </motion.div>
-          <span className="relative z-10 text-[10.5px] xs:text-[11px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
-            Perfil
-          </span>
+          <AnimatePresence mode="wait" initial={false}>
+            {showAddressIcon ? (
+              <motion.div
+                key="address-nav-content"
+                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col items-center justify-center w-full"
+              >
+                <div className="relative z-10 flex items-center justify-center">
+                  <AddressNavIcon size={22} active={true} />
+                </div>
+                <span className="relative z-10 text-[11px] xs:text-[12px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
+                  Endereços
+                </span>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="profile-nav-content"
+                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col items-center justify-center w-full"
+              >
+                <div className="relative z-10 flex items-center justify-center">
+                  <ProfileNavIcon
+                    size={22}
+                    active={activeTab === 'profile'}
+                    isMaster={isMaster}
+                    isManager={isManager}
+                  />
+                </div>
+                <span className="relative z-10 text-[11px] xs:text-[12px] font-semibold tracking-tight mt-0.5 truncate max-w-full text-center">
+                  Perfil
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.button>
       </div>
     </nav>
