@@ -603,7 +603,7 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
         className="cnefe-drag-no-transition absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
         style={{
           left: isMobile ? '14px' : (isStage2Open ? 'calc(390px + 14px)' : '14px'),
-          bottom: 'calc(var(--cnefe-bottom-height, 46px) + 14px)'
+          bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 72px)' : 'calc(var(--cnefe-bottom-height, 46px) + 14px)'
         }}
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
@@ -838,6 +838,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   useEffect(() => {
     isDetailsTabOpenRef.current = isDetailsTabOpen;
   }, [isDetailsTabOpen]);
+
+  const isMobileRef = useRef<boolean>(isMobile);
+  useEffect(() => {
+    isMobileRef.current = isMobile;
+  }, [isMobile]);
 
   const onOpenDetailsTabRef = useRef(onOpenDetailsTab);
   useEffect(() => {
@@ -2856,9 +2861,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         if (!mapRef.current) return;
         if (typeof (layer as any).getBounds === 'function' && (layer as any).getBounds().isValid()) {
           const bounds = (layer as any).getBounds();
+          const isMob = isMobileRef.current;
           mapRef.current.fitBounds(bounds, {
-            paddingTopLeft: L.point(280, 50),
-            paddingBottomRight: L.point(50, 50),
+            paddingTopLeft: isMob ? L.point(20, 60) : L.point(280, 50),
+            paddingBottomRight: isMob ? L.point(20, 260) : L.point(50, 50),
             maxZoom: 15,
             animate: true,
             duration: 0.3
@@ -3953,7 +3959,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         {/* CONTROLES FLUTUANTES ESTILO APPLE MAPS (MAPS.APPLE.COM) SOBREPOSTOS NO MAPA */}
         {(() => {
           const controlsContent = (
-            <div id="custom-map-controls" className={isPrintMode ? "flex flex-col gap-4 w-full" : "absolute top-3 right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden"}>
+            <div 
+              id="custom-map-controls" 
+              className={isPrintMode ? "flex flex-col gap-4 w-full" : "absolute right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden"}
+              style={!isPrintMode ? { top: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 12px)' : '12px' } : undefined}
+            >
               
               {/* Barra Superior de Botões Flutuantes (Apple Squircle Pills) */}
               <div className="flex items-center gap-2">

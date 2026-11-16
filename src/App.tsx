@@ -3452,6 +3452,93 @@ export default function App() {
               hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
               isSearchingExternal={isAddressSearching || isHospitalSearching}
             />
+            {/* GAVETA / BOTTOM SHEET MÓVEL (ETAPA 3) */}
+            <AppleSidebar
+              isMobile={true}
+              isCollapsed={true}
+              onToggleCollapse={() => {}}
+              activeTab={sidebarTab}
+              setActiveTab={handleSetActiveTab}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onSearch={handleSearch}
+              onAbandonSearch={handleAbandonSearch}
+              isSearchLoading={isSearchLoading}
+              searchActiveLayersOnly={searchActiveLayersOnly}
+              setSearchActiveLayersOnly={setSearchActiveLayersOnly}
+              recentSearches={recentSearches}
+              savedSearches={savedSearches}
+              onToggleSaveSearch={toggleSaveSearch}
+              searchResults={searchResults}
+              totalResultsCount={totalResultsCount}
+              isSearchResultsVisible={isSearchResultsVisible}
+              collapsedGroups={collapsedGroups}
+              setCollapsedGroups={setCollapsedGroups}
+              onResultItemClick={handleResultItemClick}
+              selectedFeatures={selectedFeatures}
+              onZoomToFeature={handleZoomToFeature}
+              onRemoveFromSelection={handleRemoveFromSelection}
+              onClearSelection={handleClearSelection}
+              isMultiSelectMode={isMultiSelectMode}
+              onToggleMultiSelect={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
+              }}
+              onSearchPolygonAddresses={handleSearchPolygonAddresses}
+              onSearchCategoryInFeatures={handleSearchCategoryInFeatures}
+              onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
+              onSearchHospitaisByMunicipio={handleExecuteHospitalSearchByMunicipio}
+              onSearchCategoryByMunicipio={handleExecuteCategorySearchByMunicipio}
+              onSearchHospitaisByRadius={handleExecuteHospitalSearchByRadius}
+              onSearchCategoryByRadius={handleExecuteCategorySearchByRadius}
+              cnefeMunicipios={cnefeMunicipios}
+              onEnsureMunicipiosLoaded={ensureCnefeMunicipiosLoaded}
+              isHospitalSearching={isHospitalSearching}
+              isAddressSearching={isAddressSearching || isHospitalSearching}
+              onOpenCnefeBottomBar={() => {
+                setIsCnefeBottomBarOpen(true);
+                setIsCnefeBottomBarExpanded(true);
+              }}
+              activeLayers={activeLayers}
+              setActiveLayers={setActiveLayers}
+              allowedLayerNames={allowedLayerNames || []}
+              currentActiveUser={currentActiveUser}
+              userRole={userRole}
+              isMaster={isMaster}
+              isManager={isManager}
+              isAdmin={isAdmin}
+              isDarkMode={isDarkMode}
+              onToggleDarkMode={toggleDarkModeWithTransition}
+              onOpenAdminPanel={() => {
+                if (isAdmin) setIsAdminModalOpen(true);
+                else handleOpenAdminLogin();
+              }}
+              onOpenProfileModal={() => {
+                if (currentActiveUser) {
+                  setIsProfileModalOpen(true);
+                } else {
+                  handleLogout();
+                  setIsLoginFormOpen(true);
+                }
+              }}
+              onLogout={handleLogout}
+              onOpenHelp={() => setSidebarTab(prev => prev === 'help' ? null : 'help')}
+              showToast={showToast}
+              onPlotAddress={handlePlotAddress}
+              onPlotAllAddresses={handlePlotAllAddresses}
+              onClearPlot={handleClearPlot}
+              cnefeExternalResult={cnefeExternalResult}
+              allowedColumns={effectiveSession?.addressColumnsPermissions}
+              allowedProperties={effectiveSession?.featurePropertiesPermissions}
+              featurePermissions={featurePermissions}
+              effectiveSession={effectiveSession}
+              isSimulatingUser={isSimulatingUser}
+              simulatedRole={simulatedRole}
+              onExitSimulation={handleExitSimulation}
+              onOpenSimulationChoice={() => setIsSimulationChoiceModalOpen(true)}
+              onOpenFullTableModal={() => setIsFullTableModalOpen(true)}
+              onOpenExportModal={() => setSidebarTab('export')}
+            />
           </div>
         </MobileShell>
       ) : (
