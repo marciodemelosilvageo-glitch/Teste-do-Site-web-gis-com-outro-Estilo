@@ -3,6 +3,8 @@ import { SelectedFeature } from '../../types';
 import { SidebarTab } from '../AppleSidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { MobileProfileDrawer } from './MobileProfileDrawer';
+import { AppLogo } from '../AppLogo';
+import { MOBILE_Z_INDEX } from '../../constants/mobileZIndex';
 
 export interface MobileShellProps {
   children?: React.ReactNode;
@@ -53,6 +55,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
   const navRef = useRef<HTMLElement>(null);
   const [navHeight, setNavHeight] = useState<number>(68);
   const [sheetHeight, setSheetHeight] = useState<number>(0);
+  const [sheetSnap, setSheetSnap] = useState<string | null>(null);
   const [topInset, setTopInset] = useState<number>(0);
 
   const calculateInsets = useCallback(() => {
@@ -101,6 +104,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
     const handleSheetResize = (e: Event) => {
       const detail = (e as CustomEvent<{ height: number; snap: string | null }>).detail;
       setSheetHeight(detail?.height ?? 0);
+      setSheetSnap(detail?.snap ?? null);
     };
 
     window.addEventListener('mobile-sheet-resize', handleSheetResize);
@@ -125,6 +129,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
   }, [calculateInsets]);
 
   const bottomInset = Math.max(navHeight, sheetHeight);
+  const isSheetFullscreen = sheetSnap === 'full' || (sheetHeight > (typeof window !== 'undefined' ? window.innerHeight * 0.75 : 600));
 
   return (
     <div 
@@ -137,6 +142,27 @@ export const MobileShell: React.FC<MobileShellProps> = ({
       {/* Contêiner Principal do Mapa em Tela Cheia */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
         {children}
+
+        {/* Logo Institucional no Canto Superior Esquerdo (Apenas Mobile) */}
+        <div 
+          style={{
+            top: 'calc(var(--mobile-top-inset, 0px) + 10px)',
+            left: '12px',
+            zIndex: MOBILE_Z_INDEX.MAP_CONTROLS + 5,
+          }}
+          className={`fixed pointer-events-none transition-all duration-300 print:hidden ${
+            isSheetFullscreen ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+          }`}
+          aria-hidden="true"
+        >
+          <div className="bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-md border border-black/10 dark:border-white/10 shadow-xs px-2.5 py-1 rounded-2xl max-w-[120px] flex items-center justify-center">
+            <AppLogo
+              variant="sidebar"
+              isDarkMode={isDarkMode}
+              className="h-6 sm:h-7 w-auto max-w-[100px] object-contain pointer-events-none"
+            />
+          </div>
+        </div>
       </main>
 
       {/* Barra Inferior Fixa Flutuante */}

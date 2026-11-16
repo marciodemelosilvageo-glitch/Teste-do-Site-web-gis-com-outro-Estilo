@@ -446,6 +446,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   // Popover de histórico e buscas salvas no mobile após a pesquisa
   const mobileHistorySummaryBtnRef = useRef<HTMLButtonElement>(null);
   const mobileHistoryFormBtnRef = useRef<HTMLButtonElement>(null);
+  const mobileKeywordHistoryBtnRef = useRef<HTMLButtonElement>(null);
   const [isHistoryPopoverOpen, setIsHistoryPopoverOpen] = useState(false);
   const [historyPopoverPos, setHistoryPopoverPos] = useState<{ top: number; right: number }>({ top: 0, right: 12 });
   const historyPopoverRef = useRef<HTMLDivElement>(null);
@@ -473,6 +474,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       if (historyPopoverRef.current && historyPopoverRef.current.contains(target)) return;
       if (mobileHistorySummaryBtnRef.current && mobileHistorySummaryBtnRef.current.contains(target)) return;
       if (mobileHistoryFormBtnRef.current && mobileHistoryFormBtnRef.current.contains(target)) return;
+      if (mobileKeywordHistoryBtnRef.current && mobileKeywordHistoryBtnRef.current.contains(target)) return;
       setIsHistoryPopoverOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
@@ -694,7 +696,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     if (!trimmed) return;
     setRecentSearches(prev => {
       const filtered = prev.filter(item => item && typeof item === 'string' && normalizeString(item) !== normalizeString(trimmed));
-      const updated = [trimmed, ...filtered].slice(0, 3);
+      const updated = [trimmed, ...filtered].slice(0, 8);
       try {
         localStorage.setItem('recent_address_searches', JSON.stringify(updated));
       } catch (e) {}
@@ -1196,44 +1198,97 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                 <Search size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
                 Endereço, número, Bairro
               </label>
-              <div className={`relative flex items-center ${isMobile ? 'ibge-input-wrapper' : ''}`}>
-                <input 
-                  type="text" 
-                  value={textoBusca}
-                  onChange={(e) => setTextoBusca(e.target.value)}
-                  onFocus={() => ensureMunicipiosLoaded()}
-                  placeholder="Ex: Avenida Frei Serafim, Centro..."
-                  className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all ${isMobile ? 'ibge-field-13' : ''}`}
-                />
-                {textoBusca.trim() !== '' && (
-                  <div className="absolute right-2.5 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleSaveSearch(textoBusca)}
-                      className={`p-1.5 transition-colors cursor-pointer rounded-xl ${
-                        savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
-                          ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50'
-                          : 'text-slate-400 hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      title={
-                        savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
-                          ? "Remover das pesquisas salvas"
-                          : "Salvar esta pesquisa nos favoritos"
+              <div className="flex items-center gap-2">
+                <div className={`relative flex-1 flex items-center ${isMobile ? 'ibge-input-wrapper' : ''}`}>
+                  <input 
+                    type="text" 
+                    value={textoBusca}
+                    onChange={(e) => {
+                      setTextoBusca(e.target.value);
+                      if (hasSearched && results.length === 0) {
+                        setHasSearched(false);
                       }
-                    >
-                      <Star className={`w-4 h-4 ${savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca)) ? 'fill-amber-500' : ''}`} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTextoBusca('')}
-                      className="p-1.5 text-slate-400 hover:text-[#FF3B30] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer rounded-xl transition-colors"
-                      title="Limpar texto"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                    }}
+                    onFocus={() => ensureMunicipiosLoaded()}
+                    placeholder="Ex: Avenida Frei Serafim, Centro..."
+                    className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all ${isMobile ? 'ibge-field-13' : ''}`}
+                  />
+                  {textoBusca.trim() !== '' && (
+                    <div className="absolute right-2.5 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleSaveSearch(textoBusca)}
+                        className={`p-1.5 transition-colors cursor-pointer rounded-xl ${
+                          savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
+                            ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50'
+                            : 'text-slate-400 hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                        title={
+                          savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
+                            ? "Remover das pesquisas salvas"
+                            : "Salvar esta pesquisa nos favoritos"
+                        }
+                      >
+                        <Star className={`w-4 h-4 ${savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca)) ? 'fill-amber-500' : ''}`} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTextoBusca('');
+                          if (hasSearched && results.length === 0) {
+                            setHasSearched(false);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-[#FF3B30] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer rounded-xl transition-colors"
+                        title="Limpar texto"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botão Recentes (Apenas Mobile, ao lado do campo) */}
+                {isMobile && (
+                  <button
+                    ref={mobileKeywordHistoryBtnRef}
+                    type="button"
+                    onClick={() => {
+                      updateHistoryPopoverPos(mobileKeywordHistoryBtnRef.current);
+                      setIsHistoryPopoverOpen(prev => !prev);
+                    }}
+                    className={`min-h-[44px] min-w-[44px] px-3 rounded-2xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs font-bold shrink-0 active:scale-95 ${
+                      isHistoryPopoverOpen
+                        ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-xs'
+                        : 'bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 border-black/10 dark:border-white/10'
+                    }`}
+                    title="Buscas recentes e salvas"
+                    aria-label="Buscas recentes e salvas"
+                  >
+                    <History size={15} className={isHistoryPopoverOpen ? 'text-white' : 'text-[#007AFF] dark:text-[#64D2FF]'} />
+                    <span className="text-[12px]">Recentes</span>
+                  </button>
                 )}
               </div>
+
+              {/* Mensagem fixa e neutra de nenhum resultado no Mobile */}
+              {isMobile && hasSearched && results.length === 0 && !isSearching && !errorMsg && (
+                <div 
+                  role="status"
+                  className="mt-2 p-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-slate-600 dark:text-slate-300 text-xs font-medium flex items-start gap-2 animate-fadeIn"
+                >
+                  <Search size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                  <div className="leading-snug">
+                    {polygonSearchTitle ? (
+                      <span>Nenhum endereço cadastrado no CNEFE foi localizado para <strong>"{polygonSearchTitle}"</strong>.</span>
+                    ) : (
+                      <span>
+                        Nenhum endereço encontrado para <strong>"{textoBusca || 'sua busca'}"</strong> em <strong>{municipio === 'Todos' ? 'todos os municípios do Piauí' : municipio}</strong>. Verifique a grafia ou tente sem o número.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Limite de Resultados */}
@@ -1412,7 +1467,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
         )}
 
         {/* Tabela de Resultados do Dashboard (Estilo Apple Glass) */}
-        {hasSearched && (
+        {hasSearched && (!isMobile || results.length > 0) && (
           <div className={`border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-lg bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl ${isMobile ? 'flex-1 min-h-0' : ''}`}>
             {/* Barra KPI e Ações Principais */}
             <div className={`bg-slate-50/90 dark:bg-[#2c2c2e]/90 backdrop-blur-md border-b border-black/10 dark:border-white/10 ${
@@ -1792,6 +1847,13 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Mensagem quando não houver buscas recentes ou salvas */}
+                {recentSearches.length === 0 && savedSearches.length === 0 && (
+                  <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
+                    Nenhuma busca recente ainda
                   </div>
                 )}
               </div>,

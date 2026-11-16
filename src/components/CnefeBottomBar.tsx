@@ -109,6 +109,11 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     if (!isMobile || !isExpanded) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (typeof document !== 'undefined' && mobileSheetRef.current) {
+          if (document.activeElement && mobileSheetRef.current.contains(document.activeElement)) {
+            (document.activeElement as HTMLElement)?.blur();
+          }
+        }
         if (onToggleMaximizeRef.current && isMaximizedRef.current) {
           onToggleMaximizeRef.current();
         }
@@ -118,6 +123,18 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobile, isExpanded]);
+
+  // Evitar aviso de foco retido em elemento aria-hidden ao recolher gaveta no mobile
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!isExpanded || !isOpen) {
+      if (typeof document !== 'undefined' && mobileSheetRef.current) {
+        if (document.activeElement && mobileSheetRef.current.contains(document.activeElement)) {
+          (document.activeElement as HTMLElement)?.blur();
+        }
+      }
+    }
+  }, [isMobile, isExpanded, isOpen]);
 
   const handleMobileDragPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -601,8 +618,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
         aria-modal={isVisible && mobileSnap === 'full' ? 'true' : 'false'}
         aria-label="Busca de Endereços Avançada"
         aria-hidden={!isVisible ? 'true' : undefined}
-        // @ts-expect-error inert is standard HTML5 attribute supported in React 19
-        inert={!isVisible ? '' : undefined}
+        inert={!isVisible}
       >
         {/* Backdrop Translúcido: Apenas ativo/clicável quando em tela cheia (em meia tela o mapa fica livre) */}
         <div 

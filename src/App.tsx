@@ -892,7 +892,19 @@ export default function App() {
       if (reqId !== addressSearchRequestIdRef.current) return;
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum endereço cadastrado no CNEFE foi localizado dentro de "${featTitle}".`);
+        if (isMobile) {
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: `${featTitle} (${feat.sourceName || 'Polígono'})`,
+            sourceLayerName: feat.sourceName,
+            timestamp: Date.now()
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum endereço cadastrado no CNEFE foi localizado dentro de "${featTitle}".`);
+        }
         return;
       }
 
@@ -1018,7 +1030,21 @@ export default function App() {
       if (reqId !== addressSearchRequestIdRef.current) return;
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado em "${dynamicTitle}".`);
+        if (isMobile) {
+          setSearchCoordinates(null);
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: dynamicTitle,
+            sourceLayerName: validGeoJsonList[0].sourceName || catName,
+            timestamp: Date.now(),
+            searchTerm: catName
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado em "${dynamicTitle}".`);
+        }
         return;
       }
 
@@ -1087,7 +1113,19 @@ export default function App() {
       if (reqId !== addressSearchRequestIdRef.current) return;
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum endereço com a localidade "${locClean}" foi localizado no CNEFE${munClean ? ` (${munClean})` : ''}.`);
+        if (isMobile) {
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: `Localidade: ${toTitleCase(locClean)}${munClean ? ` • ${toTitleCase(munClean)}` : ''}`,
+            sourceLayerName: 'Localidades (Piauí)',
+            timestamp: Date.now()
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum endereço com a localidade "${locClean}" foi localizado no CNEFE${munClean ? ` (${munClean})` : ''}.`);
+        }
         return;
       }
 
@@ -1145,7 +1183,21 @@ export default function App() {
       );
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum estabelecimento de saúde localizado ${munLabel}.`);
+        if (isMobile) {
+          setSearchCoordinates(null);
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: `Hospitais e Estabelecimentos de Saúde (${isTodos ? 'Piauí' : municipio})`,
+            sourceLayerName: 'Estabelecimentos de Saúde',
+            timestamp: Date.now(),
+            searchTerm: 'Estabelecimento de saúde'
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum estabelecimento de saúde localizado ${munLabel}.`);
+        }
         return;
       }
 
@@ -1206,7 +1258,21 @@ export default function App() {
       );
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} localizado ${munLabel}.`);
+        if (isMobile) {
+          setSearchCoordinates(null);
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: `${catName} (${isTodos ? 'Piauí' : municipio})`,
+            sourceLayerName: catName,
+            timestamp: Date.now(),
+            searchTerm: catName
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} localizado ${munLabel}.`);
+        }
         return;
       }
 
@@ -1299,7 +1365,21 @@ export default function App() {
       );
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum estabelecimento de saúde encontrado a até ${distLabel}.`, 5000);
+        if (isMobile) {
+          setSearchCoordinates(null);
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: `Hospitais em raio de ${distLabel} da sua localização`,
+            sourceLayerName: 'Estabelecimentos de Saúde (Raio GPS)',
+            timestamp: Date.now(),
+            searchTerm: 'Estabelecimento de saúde'
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum estabelecimento de saúde encontrado a até ${distLabel}.`, 5000);
+        }
         return;
       }
 
@@ -1377,7 +1457,21 @@ export default function App() {
       );
 
       if (!res.results || res.results.length === 0) {
-        showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado a até ${distLabel}.`, 5000);
+        if (isMobile) {
+          setSearchCoordinates(null);
+          setCnefeExternalResult({
+            results: [],
+            totalEncontrado: 0,
+            title: `${catName} em raio de ${distLabel} da sua localização`,
+            sourceLayerName: `${catName} (Raio GPS)`,
+            timestamp: Date.now(),
+            searchTerm: config?.keywords?.[0] || catName
+          });
+          setIsCnefeBottomBarOpen(true);
+          setIsCnefeBottomBarExpanded(true);
+        } else {
+          showToast(`Nenhum estabelecimento de ${catName.toLowerCase()} encontrado a até ${distLabel}.`, 5000);
+        }
         return;
       }
 
