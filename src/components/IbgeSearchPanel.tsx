@@ -22,7 +22,7 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
-import { toTitleCase, normalizeString, parseAddressForSort } from '../utils';
+import { toTitleCase, normalizeString, normalizeSearchText, parseAddressForSort } from '../utils';
 import { logActivity } from '../services/adminService';
 
 export interface ExternalPolygonSearchResult {
@@ -727,6 +727,20 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
             const normalizedDisplay = displayStr.replace(',', '.');
             const normalizedFilter = rawFilter.replace(',', '.');
             return normalizedDisplay.includes(normalizedFilter);
+          }
+
+          // Para CEP, se digitado com hífen, aceita sem hífen
+          if (colKey === 'cep') {
+            const cleanDisplay = displayStr.replace(/\D/g, '');
+            const cleanFilter = rawFilter.replace(/\D/g, '');
+            return cleanDisplay.includes(cleanFilter);
+          }
+
+          // Para complemento e colunas de texto em geral, normaliza sem pontuação para que 'quadra o' case com 'QUADRA: O'
+          if (colKey === 'complemento' || colKey === 'endereco' || colKey === 'bairro' || colKey === 'localidade') {
+            const normDisplay = normalizeSearchText(displayStr);
+            const normFilter = normalizeSearchText(rawFilter);
+            return normDisplay.includes(normFilter);
           }
 
           // Para colunas de texto e código, ignora maiúsculas e acentos

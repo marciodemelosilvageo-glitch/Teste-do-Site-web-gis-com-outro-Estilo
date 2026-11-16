@@ -11,6 +11,18 @@ export const normalizeString = (s: string | null | undefined): string => {
     .trim();
 };
 
+// Normalizar texto para buscas: minúsculas, sem acentos e qualquer caractere não alfanumérico vira espaço
+export const normalizeSearchText = (s: string | null | undefined): string => {
+  if (!s) return '';
+  return String(s)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 /**
  * Separa o nome base do logradouro e o número da porta para ordenação coerente.
  * Exemplo: 'Rua Radialista Jim Borralho - 475' -> streetName: 'rua radialista jim borralho', doorNumber: 475.

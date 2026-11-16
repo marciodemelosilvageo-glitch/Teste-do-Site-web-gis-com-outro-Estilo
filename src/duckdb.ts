@@ -1,7 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
-import { normalizeString, parseAddressForSort, haversineDistanceMeters, formatDistance } from './utils';
+import { normalizeString, normalizeSearchText, parseAddressForSort, haversineDistanceMeters, formatDistance } from './utils';
 
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
@@ -124,22 +124,131 @@ export async function listarMunicipios(): Promise<string[]> {
   }
 }
 
+export const COMPLEMENT_SYNONYMS: Record<string, string> = {
+  qd: 'quadra',
+  qdr: 'quadra',
+  cs: 'casa',
+  lt: 'lote',
+  bl: 'bloco',
+  blc: 'bloco',
+  ap: 'apartamento',
+  apto: 'apartamento',
+  apart: 'apartamento',
+  sl: 'sala',
+  lj: 'loja',
+  cj: 'conjunto',
+  conj: 'conjunto',
+  ed: 'edificio',
+  edif: 'edificio',
+  fundos: 'fundos',
+  andar: 'andar',
+  lado: 'lado'
+};
+
+export const COMPLEMENT_WORDS = new Set([
+  'quadra', 'casa', 'lote', 'bloco', 'apartamento', 'sala', 'andar',
+  'loja', 'conjunto', 'edificio', 'fundos', 'lado',
+  'qd', 'qdr', 'cs', 'lt', 'bl', 'blc', 'ap', 'apto', 'apart', 'sl', 'lj', 'cj', 'conj', 'ed', 'edif'
+]);
+
+function canonicalizeComplementWord(w: string): string {
+  return COMPLEMENT_SYNONYMS[w] || w;
+}
+
+export function extractComplementAndTerms(inputText: string): {
+  cleanedText: string;
+  complementTokens: Array<{ key: string; val: string }>;
+  complementPhrase: string;
+  otherWords: string[];
+  detectedTargetNumber?: string;
+} {
+  // Se contiver formato de CEP com hífen (ex: 64091-010), remove o hífen para casar com os 8 dígitos do banco
+  const cleanedText = inputText.replace(/\b(\d{5})-(\d{3})\b/g, '$1$2');
+
+  const norm = normalizeSearchText(cleanedText);
+  const words = norm.split(/\s+/).filter(Boolean);
+
+  const complementTokens: Array<{ key: string; val: string }> = [];
+  const otherWords: string[] = [];
+
+  let i = 0;
+  while (i < words.length) {
+    const w = words[i];
+    if (COMPLEMENT_WORDS.has(w)) {
+      const canonKey = canonicalizeComplementWord(w);
+      if (i + 1 < words.length) {
+        const val = words[i + 1];
+        if (COMPLEMENT_WORDS.has(val) && (canonKey === 'fundos' || canonKey === 'andar')) {
+          complementTokens.push({ key: canonKey, val: '' });
+          i += 1;
+        } else {
+          complementTokens.push({ key: canonKey, val });
+          i += 2;
+        }
+      } else {
+        complementTokens.push({ key: canonKey, val: '' });
+        i += 1;
+      }
+    } else {
+      otherWords.push(w);
+      i += 1;
+    }
+  }
+
+  // Não trata como número do logradouro um número que venha logo após palavra de complemento
+  let detectedTargetNumber: string | undefined = undefined;
+  if (otherWords.length > 1) {
+    const lastWord = otherWords[otherWords.length - 1];
+    if (/^\d+[a-zA-Z]*$/.test(lastWord)) {
+      detectedTargetNumber = lastWord;
+    }
+  } else if (otherWords.length === 1 && complementTokens.length === 0) {
+    if (/^\d+[a-zA-Z]*$/.test(otherWords[0])) {
+      detectedTargetNumber = otherWords[0];
+    }
+  }
+
+  const complementPhrase = complementTokens
+    .map(c => c.val ? `${c.key} ${c.val}` : c.key)
+    .join(' ');
+
+  return {
+    cleanedText,
+    complementTokens,
+    complementPhrase,
+    otherWords,
+    detectedTargetNumber
+  };
+}
+
 // Algoritmo de classificação por relevância e semelhança (Prioriza número e logradouro exatos no topo)
-function sortResultsByRelevance(results: any[], queryText: string, targetNumber?: string): any[] {
+function sortResultsByRelevance(results: any[], queryText: string, targetNumber?: string, complementPhrase?: string): any[] {
   if (!results || results.length <= 1) return results;
 
   const cleanQuery = normalizeString(queryText);
   const cleanTargetNum = targetNumber ? normalizeString(targetNumber) : '';
   const targetNumInt = cleanTargetNum && /^\d+$/.test(cleanTargetNum) ? parseInt(cleanTargetNum, 10) : null;
+  const cleanCompPhrase = complementPhrase ? normalizeSearchText(complementPhrase) : '';
 
   return [...results].sort((a, b) => {
-    const numA = normalizeString(a.numero_logradouro);
-    const numB = normalizeString(b.numero_logradouro);
-    const endA = normalizeString(a.endereco);
-    const endB = normalizeString(b.endereco);
+    // 0. Se foi detectada frase de complemento, prioriza quem contém a frase exata no complemento
+    if (cleanCompPhrase) {
+      const compA = normalizeSearchText(a.complemento);
+      const compB = normalizeSearchText(b.complemento);
+      const matchA = ` ${compA} `.includes(` ${cleanCompPhrase} `);
+      const matchB = ` ${compB} `.includes(` ${cleanCompPhrase} `);
+
+      if (matchA && !matchB) return -1;
+      if (!matchA && matchB) return 1;
+    }
 
     // 1. Se foi pesquisado um número específico (ex: "3625")
     if (cleanTargetNum) {
+      const numA = normalizeString(a.numero_logradouro);
+      const numB = normalizeString(b.numero_logradouro);
+      const endA = normalizeString(a.endereco);
+      const endB = normalizeString(b.endereco);
+
       const isExactNumA = numA === cleanTargetNum || endA.endsWith(`- ${cleanTargetNum}`) || endA.endsWith(` ${cleanTargetNum}`);
       const isExactNumB = numB === cleanTargetNum || endB.endsWith(`- ${cleanTargetNum}`) || endB.endsWith(` ${cleanTargetNum}`);
 
@@ -165,6 +274,8 @@ function sortResultsByRelevance(results: any[], queryText: string, targetNumber?
     }
 
     // 2. Correspondência com início do logradouro
+    const endA = normalizeString(a.endereco);
+    const endB = normalizeString(b.endereco);
     const startsA = endA.startsWith(cleanQuery);
     const startsB = endB.startsWith(cleanQuery);
     if (startsA && !startsB) return -1;
@@ -200,70 +311,80 @@ export async function buscarEnderecos(
     }
 
     const trimmedInput = (textoBusca || '').trim();
-    let detectedTargetNumber: string | undefined = undefined;
 
-    if (trimmedInput.length > 0) {
-      // Verifica se há vírgula separando endereço de bairro/número
-      const partes = trimmedInput.split(',').map(p => p.trim()).filter(p => p !== '');
+    if (trimmedInput.length === 0) {
+      return { results: [], totalEncontrado: 0 };
+    }
 
-      if (partes.length > 1) {
-        const parteRua = partes[0];
+    const parsed = extractComplementAndTerms(trimmedInput);
+    let detectedTargetNumber = parsed.detectedTargetNumber;
 
-        // Colunas de busca geral
+    // Se detectou frase de complemento, exige a expressão normalizada na coluna complemento com limites de palavra
+    if (parsed.complementPhrase) {
+      const escPhrase = escapeSqlLikePattern(parsed.complementPhrase);
+      whereClauses.push(`(' ' || regexp_replace(strip_accents(lower(COALESCE("complemento", ''))), '[^a-z0-9]+', ' ', 'g') || ' ') LIKE '% ${escPhrase} %'`);
+    }
+
+    // Verifica se há vírgula separando endereço de bairro/número
+    const partes = parsed.cleanedText.split(',').map(p => p.trim()).filter(p => p !== '');
+
+    if (partes.length > 1) {
+      // Parte 1 (Rua / Logradouro principal)
+      const normParte1 = normalizeSearchText(partes[0]);
+      const termosParte1 = normParte1.split(/\s+/).filter(w => !COMPLEMENT_WORDS.has(w) && Boolean(w));
+
+      if (termosParte1.length > 0) {
         const concatStrGeral = colunasBusca.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
-        const searchExprGeral = `strip_accents(lower(${concatStrGeral}))`;
-
-        // Parte 1 (Rua): busca geral sem acentos
-        const termosRua = normalizeString(parteRua).split(/\s+/).filter(t => t.length > 0);
-        termosRua.forEach(termo => {
+        const searchExprGeral = `regexp_replace(strip_accents(lower(${concatStrGeral})), '[^a-z0-9]+', ' ', 'g')`;
+        termosParte1.forEach(termo => {
           const t = escapeSqlLikePattern(termo);
           whereClauses.push(`${searchExprGeral} LIKE '%${t}%'`);
         });
+      }
 
-        // Processa as demais partes (separadas por vírgula)
-        for (let i = 1; i < partes.length; i++) {
-          const parte = partes[i];
-          const termosSec = normalizeString(parte).split(/\s+/).filter(t => t.length > 0);
-          if (termosSec.length === 0) continue;
+      // Processa as demais partes (separadas por vírgula)
+      for (let i = 1; i < partes.length; i++) {
+        const parte = partes[i];
+        const normParte = normalizeSearchText(parte);
+        const termosSec = normParte.split(/\s+/).filter(Boolean);
+        if (termosSec.length === 0) continue;
 
-          const primeiroTermo = termosSec[0];
-          const isNumero = /^\d+[a-zA-Z]*$/.test(primeiroTermo);
+        // Se todos os termos dessa parte já foram absorvidos pela frase de complemento, pula
+        const termosSemComp = termosSec.filter(w => !COMPLEMENT_WORDS.has(w));
+        if (termosSemComp.length === 0 && parsed.complementPhrase) continue;
 
-          if (isNumero) {
-            detectedTargetNumber = primeiroTermo;
-            const colsNum = ['numero_logradouro', 'endereco', 'complemento'];
-            const concatStrNum = colsNum.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
-            const searchExprNum = `strip_accents(lower(${concatStrNum}))`;
-            
-            termosSec.forEach(termo => {
-              const t = escapeSqlLikePattern(termo);
-              whereClauses.push(`${searchExprNum} LIKE '%${t}%'`);
-            });
-          } else {
-            const colsLoc = ['bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural'];
-            const concatStrLoc = colsLoc.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
-            const searchExprLoc = `strip_accents(lower(${concatStrLoc}))`;
-            
-            termosSec.forEach(termo => {
-              const t = escapeSqlLikePattern(termo);
-              whereClauses.push(`${searchExprLoc} LIKE '%${t}%'`);
-            });
-          }
+        const primeiroTermo = termosSec[0];
+        const isNumero = /^\d+[a-zA-Z]*$/.test(primeiroTermo) && !COMPLEMENT_WORDS.has(termosSec[0]);
+
+        if (isNumero) {
+          detectedTargetNumber = primeiroTermo;
+          const colsNum = ['numero_logradouro', 'endereco', 'complemento'];
+          const concatStrNum = colsNum.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
+          const searchExprNum = `regexp_replace(strip_accents(lower(${concatStrNum})), '[^a-z0-9]+', ' ', 'g')`;
+          
+          termosSec.forEach(termo => {
+            const t = escapeSqlLikePattern(termo);
+            whereClauses.push(`${searchExprNum} LIKE '%${t}%'`);
+          });
+        } else {
+          // PASSO 3: inclui 'complemento' além das colunas de localidade para partes que não começam com número
+          const colsLoc = ['bairro', 'localidade', 'nucleo_urbano', 'favela_comunidade', 'agromerado', 'comunidade_rural', 'complemento'];
+          const concatStrLoc = colsLoc.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
+          const searchExprLoc = `regexp_replace(strip_accents(lower(${concatStrLoc})), '[^a-z0-9]+', ' ', 'g')`;
+          
+          termosSemComp.forEach(termo => {
+            const t = escapeSqlLikePattern(termo);
+            whereClauses.push(`${searchExprLoc} LIKE '%${t}%'`);
+          });
         }
-      } else {
-        // Busca simples: normaliza removendo acentos e convertendo para minúsculas
-        const termoNormalizado = normalizeString(trimmedInput.replace(/,/g, ' '));
-        const termos = termoNormalizado.split(/\s+/).filter(t => t.length > 0);
-        
-        const ultimoTermo = termos[termos.length - 1];
-        if (termos.length > 1 && /^\d+[a-zA-Z]*$/.test(ultimoTermo)) {
-          detectedTargetNumber = ultimoTermo;
-        }
-
+      }
+    } else {
+      // Busca sem vírgula: se houver outros termos além do complemento, busca nas colunas gerais
+      if (parsed.otherWords.length > 0) {
         const concatStr = colunasBusca.map(col => `COALESCE(CAST("${col}" AS VARCHAR), '')`).join(" || ' ' || ");
-        const searchExpr = `strip_accents(lower(${concatStr}))`;
+        const searchExpr = `regexp_replace(strip_accents(lower(${concatStr})), '[^a-z0-9]+', ' ', 'g')`;
 
-        termos.forEach(termo => {
+        parsed.otherWords.forEach(termo => {
           const t = escapeSqlLikePattern(termo);
           whereClauses.push(`${searchExpr} LIKE '%${t}%'`);
         });
@@ -275,7 +396,18 @@ export async function buscarEnderecos(
 
     // Cláusula de ordenação por relevância no SQL do DuckDB
     let orderBySql = 'ORDER BY "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC';
-    if (detectedTargetNumber) {
+    if (parsed.complementPhrase) {
+      const escComp = escapeSqlLikePattern(parsed.complementPhrase);
+      orderBySql = `
+        ORDER BY 
+          CASE 
+            WHEN (' ' || regexp_replace(strip_accents(lower(COALESCE("complemento", ''))), '[^a-z0-9]+', ' ', 'g') || ' ') LIKE '% ${escComp} %' THEN 1
+            ELSE 10
+          END ASC,
+          "endereco" ASC,
+          TRY_CAST("numero_logradouro" AS BIGINT) ASC
+      `;
+    } else if (detectedTargetNumber) {
       const cleanNum = escapeSqlLiteral(detectedTargetNumber.toLowerCase());
       orderBySql = `
         ORDER BY 
@@ -307,7 +439,7 @@ export async function buscarEnderecos(
     const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
 
     // Refina a ordenação de relevância no JavaScript para garantir 100% de precisão no primeiro resultado
-    const sortedResults = sortResultsByRelevance(rawResults, trimmedInput, detectedTargetNumber);
+    const sortedResults = sortResultsByRelevance(rawResults, trimmedInput, detectedTargetNumber, parsed.complementPhrase);
 
     return { results: sortedResults, totalEncontrado };
   } catch (e) {
