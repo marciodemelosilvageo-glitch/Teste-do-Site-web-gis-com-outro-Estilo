@@ -21,6 +21,7 @@ import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from 
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition } from '../utils';
 import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
+import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
 // Garante que NUNCA haja pontos empilhados ou amontoados em zooms distantes (desaproximados)
@@ -545,20 +546,44 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
     return false;
   });
 
+  const [isSheetExpanded, setIsSheetExpanded] = useState<boolean>(() => {
+    if (typeof document !== 'undefined') {
+      const snap = document.documentElement.getAttribute('data-mobile-sheet-snap');
+      return snap === 'half' || snap === 'full';
+    }
+    return false;
+  });
+
   useEffect(() => {
     const handleExpandedChange = (e: Event) => {
       const customEvt = e as CustomEvent<{ isExpanded: boolean }>;
       const nextExpanded = !!customEvt.detail?.isExpanded;
       setIsBarExpanded(nextExpanded);
-      setManualLegendState(null);
+      if (!isMobile) {
+        setManualLegendState(null);
+      }
     };
     window.addEventListener('cnefe-bar-expanded-change', handleExpandedChange);
     return () => {
       window.removeEventListener('cnefe-bar-expanded-change', handleExpandedChange);
     };
-  }, []);
+  }, [isMobile]);
 
-  const isLegendOpen = manualLegendState !== null ? manualLegendState : !isBarExpanded;
+  useEffect(() => {
+    if (!isMobile) return;
+    const handleSheetResize = (e: Event) => {
+      const detail = (e as CustomEvent<{ height: number; snap: string | null }>).detail;
+      setIsSheetExpanded(detail?.snap === 'half' || detail?.snap === 'full');
+    };
+    window.addEventListener('mobile-sheet-resize', handleSheetResize);
+    return () => {
+      window.removeEventListener('mobile-sheet-resize', handleSheetResize);
+    };
+  }, [isMobile]);
+
+  const isLegendOpen = isMobile 
+    ? (manualLegendState ?? false) 
+    : (manualLegendState !== null ? manualLegendState : !isBarExpanded);
 
   if (isPrintMode) {
     return (
@@ -600,10 +625,13 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
     <>
       {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
       <div 
-        className="cnefe-drag-no-transition absolute z-[990] flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out"
+        className={`cnefe-drag-no-transition absolute flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out ${
+          isMobile && isSheetExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'
+        }`}
         style={{
-          left: isMobile ? '14px' : (isStage2Open ? 'calc(390px + 14px)' : '14px'),
-          bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 72px)' : 'calc(var(--cnefe-bottom-height, 46px) + 14px)'
+          zIndex: isMobile ? MOBILE_Z_INDEX.LEGEND : 990,
+          left: isMobile ? '12px' : (isStage2Open ? 'calc(390px + 14px)' : '14px'),
+          bottom: isMobile ? 'calc(var(--mobile-bottom-inset, 80px) + 8px)' : 'calc(var(--cnefe-bottom-height, 46px) + 14px)'
         }}
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
@@ -618,11 +646,13 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
               e.stopPropagation();
               setManualLegendState(true);
             }}
-            className="bg-white/85 dark:bg-[#1c1c1e]/85 hover:bg-white dark:hover:bg-[#2c2c2e] text-slate-800 dark:text-slate-100 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all flex items-center gap-2 cursor-pointer group active:scale-95"
+            className={`bg-white/85 dark:bg-[#1c1c1e]/85 hover:bg-white dark:hover:bg-[#2c2c2e] text-slate-800 dark:text-slate-100 font-extrabold text-xs rounded-2xl shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all flex items-center cursor-pointer group active:scale-95 ${
+              isMobile ? 'px-2.5 py-2 gap-1.5' : 'px-3.5 py-2 gap-2'
+            }`}
             title="Expandir Legenda Temática do Mapa"
           >
             <Layers className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0a84ff] shrink-0" />
-            <span className="tracking-tight">Legenda</span>
+            {!isMobile && <span className="tracking-tight">Legenda</span>}
             <span className="bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
               {activeVisibleLayers.length}
             </span>
@@ -634,7 +664,13 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 8 }}
             transition={{ duration: 0.2 }}
-            className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 w-[240px] sm:w-[270px] overflow-hidden flex flex-col transition-all"
+            style={isMobile ? {
+              maxWidth: 'min(260px, calc(100vw - 28px))',
+              maxHeight: 'min(300px, calc(100dvh - var(--mobile-bottom-inset, 80px) - 100px))'
+            } : undefined}
+            className={`bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden flex flex-col transition-all ${
+              isMobile ? 'w-full' : 'w-[240px] sm:w-[270px]'
+            }`}
           >
             {/* Cabeçalho da Legenda */}
             <div className="px-3.5 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] border-b border-black/5 dark:border-white/10 flex items-center justify-between">
@@ -759,9 +795,14 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
 
       {/* Apple Maps Legal Bar no Canto Inferior Direito */}
       <div 
-        className="cnefe-drag-no-transition absolute right-3 z-[900] select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out"
+        className={`cnefe-drag-no-transition absolute right-3 select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out ${
+          isMobile && isSheetExpanded ? 'opacity-0' : 'opacity-100'
+        }`}
         style={{
-          bottom: 'calc(var(--cnefe-bottom-height, 46px) + 10px)'
+          zIndex: isMobile ? MOBILE_Z_INDEX.LEGAL_SEAL : 900,
+          bottom: isMobile 
+            ? 'calc(var(--mobile-bottom-inset, 80px) + 8px)' 
+            : 'calc(var(--cnefe-bottom-height, 46px) + 10px)'
         }}
       >
         <span>Termos</span>
@@ -3589,17 +3630,24 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         {!isPrintMode && activeMeasureInfo && (
           <div 
             ref={measureCardRef}
-            className={`fixed z-[1100] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/10 dark:border-white/10 flex items-center select-none text-xs max-w-[95vw] pointer-events-auto ${
+            className={`fixed bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/10 dark:border-white/10 flex items-center select-none text-xs pointer-events-auto ${
               measureCardPos === null ? 'measure-card-ios-transition' : ''
             } ${
               isMeasureCardMinimized ? 'px-2.5 py-1.5 gap-2' : 'px-3.5 py-2.5 flex-wrap gap-3 sm:max-w-md'
+            } ${
+              isMobile ? 'left-3 right-3 max-w-[calc(100vw-24px)]' : 'max-w-[95vw] z-[1100]'
             }`}
             style={
               measureCardPos !== null
-                ? { left: `${measureCardPos.x}px`, top: `${measureCardPos.y}px` }
+                ? { left: `${measureCardPos.x}px`, top: `${measureCardPos.y}px`, zIndex: isMobile ? MOBILE_Z_INDEX.MEASURE_CARD : 1100 }
                 : isMobile
-                  ? { left: '14px', top: '4.5rem' }
-                  : { left: `calc(var(--sidebar-width, ${isSidebarCollapsed ? '68px' : '215px'}) + ${isStage2Open ? 390 : 0}px + 16px)`, top: '4rem' }
+                  ? { 
+                      left: '12px', 
+                      right: '12px', 
+                      bottom: 'calc(var(--mobile-bottom-inset, 80px) + 8px)',
+                      zIndex: MOBILE_Z_INDEX.MEASURE_CARD 
+                    }
+                  : { left: `calc(var(--sidebar-width, ${isSidebarCollapsed ? '68px' : '215px'}) + ${isStage2Open ? 390 : 0}px + 16px)`, top: '4rem', zIndex: 1100 }
             }
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
@@ -3803,7 +3851,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
         {/* Loading Overlay */}
         {isLoading && (
-          <div id="loading-overlay" className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center z-[1000] rounded-2xl">
+          <div 
+            id="loading-overlay" 
+            style={{ zIndex: isMobile ? MOBILE_Z_INDEX.LOADING_OVERLAY : 1000 }}
+            className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center rounded-2xl"
+          >
             <div className="text-center bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
               <svg className="animate-spin h-9 w-9 text-red-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -3819,7 +3871,15 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         {/* CARD FLUTUANTE DE MEDIÇÃO APPLE MAPS (MAPS.APPLE.COM) */}
         {isMeasuringActive && !isPrintMode && (
           <div 
-            className="absolute top-16 right-16 max-sm:top-16 max-sm:left-3 max-sm:right-3 max-sm:w-auto z-[995] w-[330px] max-w-[calc(100vw-88px)] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/10 dark:border-white/10 p-4 space-y-3 text-left transition-all select-none animate-fadeIn"
+            className={
+              isMobile 
+                ? "fixed left-3 right-3 max-w-[calc(100vw-24px)] max-h-[50vh] overflow-y-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/10 dark:border-white/10 p-3.5 space-y-2.5 text-left transition-all select-none animate-fadeIn" 
+                : "absolute top-16 right-16 max-sm:top-16 max-sm:left-3 max-sm:right-3 max-sm:w-auto z-[995] w-[330px] max-w-[calc(100vw-88px)] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/10 dark:border-white/10 p-4 space-y-3 text-left transition-all select-none animate-fadeIn"
+            }
+            style={isMobile ? {
+              bottom: activeMeasureInfo ? 'calc(var(--mobile-bottom-inset, 80px) + 64px)' : 'calc(var(--mobile-bottom-inset, 80px) + 8px)',
+              zIndex: MOBILE_Z_INDEX.MEASURE_CARD
+            } : undefined}
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
@@ -3961,8 +4021,16 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           const controlsContent = (
             <div 
               id="custom-map-controls" 
-              className={isPrintMode ? "flex flex-col gap-4 w-full" : "absolute right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden"}
-              style={!isPrintMode ? { top: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 12px)' : '12px' } : undefined}
+              className={isPrintMode 
+                ? "flex flex-col gap-4 w-full" 
+                : isMobile
+                ? "absolute right-2.5 flex flex-col items-end gap-2 print:hidden overflow-y-auto max-h-[calc(100dvh-var(--mobile-bottom-inset,80px)-var(--mobile-top-inset,12px)-16px)] pr-0.5 custom-scrollbar"
+                : "absolute right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden"
+              }
+              style={!isPrintMode ? { 
+                top: isMobile ? 'calc(var(--mobile-top-inset, 0px) + 10px)' : '12px',
+                zIndex: isMobile ? MOBILE_Z_INDEX.MAP_CONTROLS : 999 
+              } : undefined}
             >
               
               {/* Barra Superior de Botões Flutuantes (Apple Squircle Pills) */}
@@ -3994,7 +4062,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                     <div 
                       onMouseDown={(e) => e.stopPropagation()}
                       onTouchStart={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-12 w-[270px] p-2 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 z-[1001] animate-fadeIn text-left"
+                      style={{ zIndex: isMobile ? MOBILE_Z_INDEX.POPOVER : 1001 }}
+                      className="absolute right-0 top-12 w-[270px] max-w-[calc(100vw-24px)] p-2 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 animate-fadeIn text-left"
                     >
                       <div className="grid grid-cols-2 gap-1.5 p-1 bg-black/5 dark:bg-white/5 rounded-2xl">
                         <button
@@ -4216,6 +4285,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
+                  style={!isPrintMode && isMobile ? {
+                    zIndex: MOBILE_Z_INDEX.POPOVER,
+                    maxWidth: 'calc(100vw - 24px)',
+                    maxHeight: 'min(380px, calc(100dvh - var(--mobile-bottom-inset, 80px) - var(--mobile-top-inset, 12px) - 30px))'
+                  } : undefined}
                   className={`bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden flex flex-col ${isPrintMode ? 'w-full max-h-none shadow-none border-none bg-transparent' : 'mt-1 w-[270px] sm:w-[310px] max-h-[420px]'}`}
                 >
                   {/* Cabeçalho do Painel com Salvar Estilo, Carregar e Ações */}

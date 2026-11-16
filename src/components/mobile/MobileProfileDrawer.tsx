@@ -12,6 +12,7 @@ import {
   ChevronRight,
   UserCheck
 } from 'lucide-react';
+import { MOBILE_Z_INDEX } from '../../constants/mobileZIndex';
 
 export interface MobileProfileDrawerProps {
   isOpen: boolean;
@@ -67,7 +68,8 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-auto select-none"
+      className="fixed inset-0 flex flex-col justify-end pointer-events-auto select-none"
+      style={{ zIndex: MOBILE_Z_INDEX.SHEET }}
       role="dialog"
       aria-modal="true"
       aria-label="Perfil do Usuário e Configurações"
@@ -75,6 +77,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
       {/* Backdrop Translúcido */}
       <div 
         className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+        style={{ zIndex: MOBILE_Z_INDEX.SHEET_BACKDROP }}
         onClick={onClose}
         aria-hidden="true"
       />

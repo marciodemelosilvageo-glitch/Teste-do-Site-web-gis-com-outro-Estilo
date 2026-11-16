@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users, MapPin, Search, Download, User, Crown, Briefcase } from 'lucide-react';
 import { SidebarTab } from '../AppleSidebar';
+import { MOBILE_Z_INDEX } from '../../constants/mobileZIndex';
 
 export interface MobileBottomNavProps {
   activeTab: SidebarTab;
@@ -9,6 +10,7 @@ export interface MobileBottomNavProps {
   userRole?: string;
   isMaster?: boolean;
   isManager?: boolean;
+  navRef?: React.Ref<HTMLElement>;
 }
 
 /**
@@ -20,15 +22,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onSelectTab,
   selectedFeaturesCount,
   isMaster = false,
-  isManager = false
+  isManager = false,
+  navRef
 }) => {
   const ProfileIcon = isMaster ? Crown : isManager ? Briefcase : User;
 
   return (
     <nav
+      ref={navRef}
       role="navigation"
       aria-label="Navegação móvel"
-      className="fixed bottom-0 inset-x-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+8px)] pt-1.5 bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl border-t border-black/5 dark:border-white/10 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.45)] select-none pointer-events-auto transition-transform duration-300"
+      style={{ zIndex: MOBILE_Z_INDEX.BOTTOM_NAV }}
+      className="fixed bottom-0 inset-x-0 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+8px)] pt-1.5 bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl border-t border-black/5 dark:border-white/10 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.45)] select-none pointer-events-auto transition-transform duration-300"
     >
       <div className="max-w-md mx-auto flex items-center justify-around relative">
         {/* 1. Raio-X */}

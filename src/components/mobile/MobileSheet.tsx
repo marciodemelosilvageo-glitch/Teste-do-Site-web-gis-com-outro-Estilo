@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
 import { SidebarTab } from '../AppleSidebar';
+import { MOBILE_Z_INDEX } from '../../constants/mobileZIndex';
 
 export type SnapPoint = 'peek' | 'half' | 'full';
 
@@ -112,16 +113,38 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
     setSnap(closestSnap);
   };
 
-  if (!isOpen) return null;
-
   const currentHeightVh = dragCurrentHeightVh !== null ? dragCurrentHeightVh : SNAP_HEIGHTS[currentSnap];
+
+  // Sincroniza a altura visível e snap point da gaveta nas variáveis globais
+  useEffect(() => {
+    if (!isOpen) {
+      document.documentElement.removeAttribute('data-mobile-sheet-snap');
+      document.documentElement.style.setProperty('--mobile-sheet-visible-height', '0px');
+      window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: 0, snap: null } }));
+      return;
+    }
+    document.documentElement.setAttribute('data-mobile-sheet-snap', currentSnap);
+    const windowH = window.innerHeight || 800;
+    const px = Math.round((currentHeightVh / 100) * windowH);
+    document.documentElement.style.setProperty('--mobile-sheet-visible-height', `${px}px`);
+    window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: px, snap: currentSnap } }));
+
+    return () => {
+      document.documentElement.removeAttribute('data-mobile-sheet-snap');
+      document.documentElement.style.setProperty('--mobile-sheet-visible-height', '0px');
+      window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: 0, snap: null } }));
+    };
+  }, [isOpen, currentHeightVh, currentSnap]);
+
+  if (!isOpen) return null;
 
   return (
     <>
       {/* Backdrop transparente ou semitransparente em modo tela cheia (92%) */}
       {currentSnap === 'full' && (
         <div 
-          className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity duration-300 md:hidden"
+          className="fixed inset-0 bg-black/25 backdrop-blur-[2px] transition-opacity duration-300 md:hidden"
+          style={{ zIndex: MOBILE_Z_INDEX.SHEET_BACKDROP }}
           onClick={onClose}
           aria-hidden="true"
         />
@@ -134,10 +157,11 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
         aria-modal={currentSnap === 'full'}
         aria-label={title || "Painel de informações"}
         style={{
+          zIndex: MOBILE_Z_INDEX.SHEET,
           height: `${currentHeightVh}dvh`,
           transition: isDragging ? 'none' : 'height 0.32s cubic-bezier(0.2, 0.9, 0.4, 1.0)'
         }}
-        className="fixed bottom-0 inset-x-0 z-40 max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-[28px] shadow-[0_-8px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden select-none"
+        className="fixed bottom-0 inset-x-0 max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-[28px] shadow-[0_-8px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden select-none"
       >
         {/* Alça de Arraste (Handle) com Pointer Events */}
         <div
