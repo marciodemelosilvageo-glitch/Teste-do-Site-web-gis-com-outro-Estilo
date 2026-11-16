@@ -21,8 +21,10 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Pencil
+  Pencil,
+  Settings
 } from 'lucide-react';
+import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
 import { toTitleCase, normalizeString, normalizeSearchText, parseAddressForSort } from '../utils';
 import { logActivity } from '../services/adminService';
@@ -271,14 +273,18 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [columnSearchText, setColumnSearchText] = useState('');
   const columnsButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileColumnsButtonRef = useRef<HTMLButtonElement>(null);
   const columnsPortalRef = useRef<HTMLDivElement>(null);
   const [columnsPortalPos, setColumnsPortalPos] = useState<{ top: number; right: number }>({ top: 0, right: 10 });
 
   const updateColumnsPortalPos = useCallback(() => {
-    if (!columnsButtonRef.current) return;
-    const rect = columnsButtonRef.current.getBoundingClientRect();
-    const modalWidth = 320; // 20rem = 320px
-    const estimatedHeight = 390;
+    const trigger = (isMobile && mobileColumnsButtonRef.current)
+      ? mobileColumnsButtonRef.current
+      : columnsButtonRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const modalWidth = isMobile ? Math.min(320, window.innerWidth - 24) : 320;
+    const estimatedHeight = isMobile ? Math.min(360, window.innerHeight - 120) : 390;
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
 
@@ -291,22 +297,25 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
     // Alinhamento à direita do botão, confinado aos limites da janela
     let right = window.innerWidth - rect.right;
-    if (right < 10) right = 10;
+    if (right < 12) right = 12;
     if (window.innerWidth - right < modalWidth) {
-      right = Math.max(10, window.innerWidth - modalWidth - 10);
+      right = Math.max(12, window.innerWidth - modalWidth - 12);
     }
 
     setColumnsPortalPos({ top, right });
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!isColumnsModalOpen) return;
 
     updateColumnsPortalPos();
 
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node;
       if (columnsButtonRef.current && columnsButtonRef.current.contains(target)) {
+        return;
+      }
+      if (mobileColumnsButtonRef.current && mobileColumnsButtonRef.current.contains(target)) {
         return;
       }
       if (columnsPortalRef.current && columnsPortalRef.current.contains(target)) {
@@ -322,11 +331,14 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     };
 
     const handleScrollOrResize = () => {
-      if (!columnsButtonRef.current) {
+      const trigger = (isMobile && mobileColumnsButtonRef.current)
+        ? mobileColumnsButtonRef.current
+        : columnsButtonRef.current;
+      if (!trigger) {
         setIsColumnsModalOpen(false);
         return;
       }
-      const rect = columnsButtonRef.current.getBoundingClientRect();
+      const rect = trigger.getBoundingClientRect();
       if (rect.bottom < 0 || rect.top > window.innerHeight) {
         setIsColumnsModalOpen(false);
       } else {
@@ -335,17 +347,114 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     };
 
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('resize', handleScrollOrResize);
     window.addEventListener('scroll', handleScrollOrResize, true);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleScrollOrResize);
       window.removeEventListener('scroll', handleScrollOrResize, true);
     };
-  }, [isColumnsModalOpen, updateColumnsPortalPos]);
+  }, [isColumnsModalOpen, updateColumnsPortalPos, isMobile]);
+
+  // Popover de filtro por coluna no mobile
+  const [activeFilterColKey, setActiveFilterColKey] = useState<string | null>(null);
+  const [filterPopoverPos, setFilterPopoverPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 12, width: 260 });
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
+  const filterTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const toggleFilterPopover = useCallback((colKey: string) => {
+    setActiveFilterColKey(prev => {
+      if (prev === colKey) return null;
+      const trigger = filterTriggerRefs.current[colKey];
+      if (trigger) {
+        const rect = trigger.getBoundingClientRect();
+        const popoverW = Math.min(270, window.innerWidth - 24);
+        let left = rect.left - 20;
+        if (left < 12) left = 12;
+        if (left + popoverW > window.innerWidth - 12) {
+          left = Math.max(12, window.innerWidth - popoverW - 12);
+        }
+        let top = rect.bottom + 6;
+        if (top + 100 > window.innerHeight) {
+          top = Math.max(12, rect.top - 70);
+        }
+        setFilterPopoverPos({ top, left, width: popoverW });
+      }
+      return colKey;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!activeFilterColKey) return;
+    const handleClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (filterPopoverRef.current && filterPopoverRef.current.contains(target)) return;
+      const trigger = filterTriggerRefs.current[activeFilterColKey];
+      if (trigger && trigger.contains(target)) return;
+      setActiveFilterColKey(null);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveFilterColKey(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [activeFilterColKey]);
+
+  // Popover de histórico e buscas salvas no mobile após a pesquisa
+  const mobileHistorySummaryBtnRef = useRef<HTMLButtonElement>(null);
+  const mobileHistoryFormBtnRef = useRef<HTMLButtonElement>(null);
+  const [isHistoryPopoverOpen, setIsHistoryPopoverOpen] = useState(false);
+  const [historyPopoverPos, setHistoryPopoverPos] = useState<{ top: number; right: number }>({ top: 0, right: 12 });
+  const historyPopoverRef = useRef<HTMLDivElement>(null);
+
+  const updateHistoryPopoverPos = useCallback((triggerEl: HTMLElement | null) => {
+    if (!triggerEl) return;
+    const rect = triggerEl.getBoundingClientRect();
+    const popoverW = Math.min(290, window.innerWidth - 24);
+    let right = window.innerWidth - rect.right;
+    if (right < 12) right = 12;
+    if (window.innerWidth - right < popoverW) {
+      right = Math.max(12, window.innerWidth - popoverW - 12);
+    }
+    let top = rect.bottom + 6;
+    if (top + 280 > window.innerHeight) {
+      top = Math.max(12, rect.top - 290);
+    }
+    setHistoryPopoverPos({ top, right });
+  }, []);
+
+  useEffect(() => {
+    if (!isHistoryPopoverOpen) return;
+    const handleClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (historyPopoverRef.current && historyPopoverRef.current.contains(target)) return;
+      if (mobileHistorySummaryBtnRef.current && mobileHistorySummaryBtnRef.current.contains(target)) return;
+      if (mobileHistoryFormBtnRef.current && mobileHistoryFormBtnRef.current.contains(target)) return;
+      setIsHistoryPopoverOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsHistoryPopoverOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [isHistoryPopoverOpen]);
 
   const filteredModalColumns = useMemo(() => {
     const q = normalizeString(columnSearchText);
@@ -911,15 +1020,34 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsFormCollapsed(false)}
-              className="px-3 py-1.5 rounded-xl bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition-all min-h-[36px]"
-              title="Editar parâmetros da busca"
-            >
-              <Pencil size={12} />
-              <span>Editar</span>
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {(recentSearches.length > 0 || savedSearches.length > 0) && (
+                <button
+                  ref={mobileHistorySummaryBtnRef}
+                  type="button"
+                  onClick={() => {
+                    updateHistoryPopoverPos(mobileHistorySummaryBtnRef.current);
+                    setIsHistoryPopoverOpen(prev => !prev);
+                  }}
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer active:scale-90 transition-transform relative border border-black/5 dark:border-white/10"
+                  title="Buscas recentes e salvas"
+                  aria-label="Buscas recentes e salvas"
+                >
+                  <History size={15} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsFormCollapsed(false)}
+                className="px-3 py-1.5 rounded-xl bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition-all min-h-[44px]"
+                title="Editar parâmetros da busca"
+              >
+                <Pencil size={12} />
+                <span>Editar</span>
+              </button>
+            </div>
           </div>
         ) : (
           /* Formulário de Busca Estilo Apple */
@@ -1119,23 +1247,42 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                 )}
 
                 {isMobile && hasSearched && results.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsFormCollapsed(true)}
-                    className="h-10 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-slate-700 dark:text-slate-200 px-3.5 rounded-2xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0"
-                    title="Recolher formulário"
-                  >
-                    <ChevronUp size={14} />
-                    <span>Recolher</span>
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {(recentSearches.length > 0 || savedSearches.length > 0) && (
+                      <button
+                        ref={mobileHistoryFormBtnRef}
+                        type="button"
+                        onClick={() => {
+                          updateHistoryPopoverPos(mobileHistoryFormBtnRef.current);
+                          setIsHistoryPopoverOpen(prev => !prev);
+                        }}
+                        className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer active:scale-90 transition-transform relative border border-black/5 dark:border-white/10"
+                        title="Buscas recentes e salvas"
+                        aria-label="Buscas recentes e salvas"
+                      >
+                        <History size={15} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsFormCollapsed(true)}
+                      className="h-11 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-slate-700 dark:text-slate-200 px-3.5 rounded-2xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0 min-h-[44px]"
+                      title="Recolher formulário"
+                    >
+                      <ChevronUp size={14} />
+                      <span>Recolher</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
           </form>
         )}
 
-        {/* Histórico e Salvos (Apple Capsule Chips) */}
-        {(recentSearches.length > 0 || savedSearches.length > 0) && (
+        {/* Histórico e Salvos (Apple Capsule Chips) - No mobile, oculto após a busca */}
+        {(recentSearches.length > 0 || savedSearches.length > 0) && (!isMobile || !hasSearched || results.length === 0) && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-6 text-xs bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl border border-black/5 dark:border-white/10">
             {recentSearches.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -1323,14 +1470,35 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     <Download size={isMobile ? 15 : 14} />
                     {!isMobile && <span>Exportar CSV</span>}
                   </button>
+
+                  {/* Botão Configurar Colunas (Engrenagem no Mobile) */}
+                  {isMobile && (
+                    <button
+                      ref={mobileColumnsButtonRef}
+                      type="button"
+                      onClick={() => {
+                        updateColumnsPortalPos();
+                        setIsColumnsModalOpen(prev => !prev);
+                      }}
+                      className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95 border ${
+                        isColumnsModalOpen
+                          ? 'bg-[#007AFF] text-white border-[#007AFF]'
+                          : 'bg-white dark:bg-[#3a3a3c] border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                      title="Configurar colunas"
+                      aria-label="Configurar colunas"
+                    >
+                      <Settings size={15} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Sub-barra: Indicador de Filtros das Colunas e Gerenciamento */}
-            {results.length > 0 && (
+            {results.length > 0 && (!isMobile || Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim()))) && (
               <div className="bg-slate-100/60 dark:bg-[#252528]/80 px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/10 dark:border-white/10">
-                {/* Status de Filtros nas Colunas (Lupinhas) */}
+                {/* Status de Filtros nas Colunas */}
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                   {Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim())) ? (
                     <div className="flex items-center gap-2 bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-bold px-3 py-1.5 rounded-xl border border-[#007AFF]/20 shadow-2xs">
@@ -1357,120 +1525,303 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                   ) : null}
                 </div>
 
-                {/* Botões de Ação de Colunas */}
-                <div className="flex items-center gap-2 relative">
-                  <button
-                    ref={columnsButtonRef}
-                    type="button"
-                    onClick={() => {
-                      updateColumnsPortalPos();
-                      setIsColumnsModalOpen(prev => !prev);
-                    }}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 border ${
-                      isColumnsModalOpen
-                        ? 'bg-[#007AFF] text-white border-[#007AFF]'
-                        : 'bg-white dark:bg-[#3a3a3c] border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
-                    }`}
-                    title="Configurar quais colunas exibir ou ocultar"
-                  >
-                    <SlidersHorizontal size={13} />
-                    <span>Colunas ({visibleTableColumns.length}/{tableColumns.length})</span>
-                    <ChevronDown size={13} className={`transition-transform duration-200 ${isColumnsModalOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  <button 
-                    onClick={handleResetColumnWidths}
-                    className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title="Restaurar larguras padrão de todas as colunas"
-                  >
-                    <RotateCcw size={12} />
-                    <span className="hidden sm:inline">Larguras</span>
-                  </button>
-
-                  {/* Popover de Seleção de Colunas (renderizado no body via Portal para evitar overflow-hidden) */}
-                  {isColumnsModalOpen && typeof document !== 'undefined' && createPortal(
-                    <div 
-                      ref={columnsPortalRef}
-                      style={{
-                        position: 'fixed',
-                        top: `${columnsPortalPos.top}px`,
-                        right: `${columnsPortalPos.right}px`,
-                        width: '20rem',
-                        zIndex: 1200
+                {/* Botões de Ação de Colunas (apenas Desktop) */}
+                {!isMobile && (
+                  <div className="flex items-center gap-2 relative">
+                    <button
+                      ref={columnsButtonRef}
+                      type="button"
+                      onClick={() => {
+                        updateColumnsPortalPos();
+                        setIsColumnsModalOpen(prev => !prev);
                       }}
-                      className="bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-3 flex flex-col gap-2.5 animate-fadeIn pointer-events-auto"
+                      className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 border ${
+                        isColumnsModalOpen
+                          ? 'bg-[#007AFF] text-white border-[#007AFF]'
+                          : 'bg-white dark:bg-[#3a3a3c] border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                      title="Configurar quais colunas exibir ou ocultar"
                     >
-                      <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/10">
-                        <div className="flex items-center gap-1.5">
-                          <SlidersHorizontal size={14} className="text-[#007AFF]" />
-                          <span className="text-xs font-black text-slate-800 dark:text-white">Configurar Colunas</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setIsColumnsModalOpen(false)}
-                          className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg cursor-pointer"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
+                      <SlidersHorizontal size={13} />
+                      <span>Colunas ({visibleTableColumns.length}/{tableColumns.length})</span>
+                      <ChevronDown size={13} className={`transition-transform duration-200 ${isColumnsModalOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                      {/* Busca rápida de colunas */}
-                      <div className={`relative ${isMobile ? 'ibge-input-wrapper' : ''}`}>
+                    <button 
+                      onClick={handleResetColumnWidths}
+                      className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
+                      title="Restaurar larguras padrão de todas as colunas"
+                    >
+                      <RotateCcw size={12} />
+                      <span className="hidden sm:inline">Larguras</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Popover de Seleção de Colunas (renderizado no body via Portal) */}
+            {isColumnsModalOpen && typeof document !== 'undefined' && createPortal(
+              <div 
+                ref={columnsPortalRef}
+                style={{
+                  position: 'fixed',
+                  top: `${columnsPortalPos.top}px`,
+                  right: `${columnsPortalPos.right}px`,
+                  width: isMobile ? 'min(20rem, calc(100vw - 24px))' : '20rem',
+                  maxHeight: isMobile ? 'calc(100vh - 100px)' : 'none',
+                  zIndex: isMobile ? MOBILE_Z_INDEX.POPOVER : 1200
+                }}
+                className="bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-3 flex flex-col gap-2.5 animate-fadeIn pointer-events-auto select-none overflow-hidden"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/10">
+                  <div className="flex items-center gap-1.5">
+                    <SlidersHorizontal size={14} className="text-[#007AFF]" />
+                    <span className="text-xs font-black text-slate-800 dark:text-white">Configurar Colunas</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsColumnsModalOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Busca rápida de colunas */}
+                <div className={`relative ${isMobile ? 'ibge-input-wrapper' : ''}`}>
+                  <input
+                    type="text"
+                    value={columnSearchText}
+                    onChange={(e) => setColumnSearchText(e.target.value)}
+                    placeholder="Filtrar colunas..."
+                    className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
+                  />
+                  <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
+                </div>
+
+                {/* Ações rápidas */}
+                <div className="flex items-center justify-between text-[11px] font-bold text-[#007AFF] px-1">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllColumns}
+                    className="hover:underline cursor-pointer"
+                  >
+                    Marcar Todas ({tableColumns.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetColumns}
+                    className="text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                  >
+                    Padrão
+                  </button>
+                </div>
+
+                {/* Lista de colunas com checkboxes */}
+                <div className={`overflow-y-auto ${isMobile ? 'max-h-[min(240px,45vh)]' : 'max-h-60'} custom-scrollbar flex flex-col gap-0.5 pr-1`}>
+                  {filteredModalColumns.map(col => {
+                    const isChecked = userVisibleKeys.includes(col.key);
+                    return (
+                      <label
+                        key={col.key}
+                        className="flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl cursor-pointer text-xs select-none transition-colors"
+                      >
                         <input
-                          type="text"
-                          value={columnSearchText}
-                          onChange={(e) => setColumnSearchText(e.target.value)}
-                          placeholder="Filtrar colunas..."
-                          className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleColumnVisibility(col.key)}
+                          className="w-4 h-4 rounded text-[#007AFF] focus:ring-[#007AFF] border-slate-300 dark:border-slate-600 dark:bg-slate-700 cursor-pointer"
                         />
-                        <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
-                      </div>
+                        <span className={`font-medium truncate ${isChecked ? 'text-slate-800 dark:text-slate-100 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>
+                          {col.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>,
+              document.body
+            )}
 
-                      {/* Ações rápidas */}
-                      <div className="flex items-center justify-between text-[11px] font-bold text-[#007AFF] px-1">
-                        <button
-                          type="button"
-                          onClick={handleSelectAllColumns}
-                          className="hover:underline cursor-pointer"
-                        >
-                          Marcar Todas ({tableColumns.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleResetColumns}
-                          className="text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
-                        >
-                          Padrão
-                        </button>
-                      </div>
+            {/* Popover de Histórico e Buscas Salvas no Mobile */}
+            {isMobile && isHistoryPopoverOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                ref={historyPopoverRef}
+                style={{
+                  position: 'fixed',
+                  top: `${historyPopoverPos.top}px`,
+                  right: `${historyPopoverPos.right}px`,
+                  width: 'min(280px, calc(100vw - 24px))',
+                  maxHeight: 'calc(100vh - 120px)',
+                  zIndex: MOBILE_Z_INDEX.POPOVER
+                }}
+                className="bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.28)] p-3 flex flex-col gap-2.5 animate-fadeIn pointer-events-auto select-none overflow-y-auto custom-scrollbar"
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-black/5 dark:border-white/10">
+                  <div className="flex items-center gap-1.5">
+                    <History size={14} className="text-[#007AFF]" />
+                    <span className="text-xs font-black text-slate-800 dark:text-white">Buscas Recentes e Salvas</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryPopoverOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
 
-                      {/* Lista de colunas com checkboxes */}
-                      <div className="overflow-y-auto max-h-60 custom-scrollbar flex flex-col gap-0.5 pr-1">
-                        {filteredModalColumns.map(col => {
-                          const isChecked = userVisibleKeys.includes(col.key);
-                          return (
-                            <label
-                              key={col.key}
-                              className="flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl cursor-pointer text-xs select-none transition-colors"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => toggleColumnVisibility(col.key)}
-                                className="w-4 h-4 rounded text-[#007AFF] focus:ring-[#007AFF] border-slate-300 dark:border-slate-600 dark:bg-slate-700 cursor-pointer"
-                              />
-                              <span className={`font-medium truncate ${isChecked ? 'text-slate-800 dark:text-slate-100 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>
-                                {col.label}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>,
-                    document.body
+                {/* Recentes */}
+                {recentSearches.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#007AFF] flex items-center gap-1">
+                      <History size={11} /> Recentes
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      {recentSearches.map((term, idx) => (
+                        <button
+                          key={`popover-recent-${idx}`}
+                          type="button"
+                          onClick={() => {
+                            setTextoBusca(term);
+                            handleSearch(term);
+                            setIsHistoryPopoverOpen(false);
+                          }}
+                          className="w-full text-left p-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] hover:bg-[#007AFF]/10 text-slate-800 dark:text-slate-100 text-xs font-semibold truncate flex items-center justify-between gap-1 active:scale-98 transition-all cursor-pointer"
+                          title={`Refazer busca: ${term}`}
+                        >
+                          <span className="truncate">{term}</span>
+                          <Search size={12} className="text-slate-400 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Salvas */}
+                {savedSearches.length > 0 && (
+                  <div className="space-y-1 pt-1 border-t border-black/5 dark:border-white/10">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Star size={11} className="fill-amber-500" /> Salvas
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      {savedSearches.map((term, idx) => (
+                        <div
+                          key={`popover-saved-${idx}`}
+                          className="w-full p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/40 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center justify-between gap-1.5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTextoBusca(term);
+                              handleSearch(term);
+                              setIsHistoryPopoverOpen(false);
+                            }}
+                            className="truncate flex-1 text-left cursor-pointer hover:underline"
+                            title={`Buscar salva: ${term}`}
+                          >
+                            {term}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeSavedSearch(term);
+                            }}
+                            className="p-1 rounded-lg text-amber-600/70 hover:text-rose-500 cursor-pointer shrink-0"
+                            title="Remover das buscas salvas"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>,
+              document.body
+            )}
+
+            {/* Popover de Filtro por Coluna no Mobile */}
+            {isMobile && activeFilterColKey && typeof document !== 'undefined' && createPortal(
+              <div
+                ref={filterPopoverRef}
+                style={{
+                  position: 'fixed',
+                  top: `${filterPopoverPos.top}px`,
+                  left: `${filterPopoverPos.left}px`,
+                  width: `${filterPopoverPos.width}px`,
+                  zIndex: MOBILE_Z_INDEX.POPOVER
+                }}
+                className="bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.28)] p-2.5 flex flex-col gap-1.5 animate-fadeIn pointer-events-auto select-none"
+              >
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <span className="text-[12px] font-bold text-slate-700 dark:text-slate-300 truncate">
+                    Filtrar {tableColumns.find(c => c.key === activeFilterColKey)?.label || activeFilterColKey}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveFilterColKey(null)}
+                    className="w-6 h-6 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer active:bg-black/5 dark:active:bg-white/10"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+
+                {/* Input de filtro anti-zoom iOS */}
+                <div className="relative h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/10 dark:border-white/10 overflow-hidden flex items-center">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none z-10" />
+                  <div className="w-full h-full flex items-center pl-8 pr-7" style={{ transformOrigin: 'left center' }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={columnFilters[activeFilterColKey] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setColumnFilters(prev => {
+                          if (!val) {
+                            const copy = { ...prev };
+                            delete copy[activeFilterColKey];
+                            return copy;
+                          }
+                          return { ...prev, [activeFilterColKey]: val };
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                          setActiveFilterColKey(null);
+                        }
+                      }}
+                      placeholder="Filtrar nesta coluna..."
+                      style={{
+                        fontSize: '16px',
+                        transform: 'scale(0.8125)', // 16px * 0.8125 = 13px visual
+                        transformOrigin: 'left center',
+                        width: '123.07%',
+                      }}
+                      className="h-full bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 outline-none border-none p-0 font-medium"
+                    />
+                  </div>
+                  {Boolean(columnFilters[activeFilterColKey]?.trim()) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setColumnFilters(prev => {
+                          const copy = { ...prev };
+                          delete copy[activeFilterColKey];
+                          return copy;
+                        });
+                      }}
+                      className="absolute right-2 p-1 text-slate-400 hover:text-rose-500 cursor-pointer"
+                      title="Limpar filtro"
+                    >
+                      <X size={13} />
+                    </button>
                   )}
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
             
             {results.length > 0 ? (
@@ -1526,6 +1877,32 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                                       )}
                                     </span>
                                   </button>
+
+                                  {/* Ícone de Lupa para Filtro por Coluna no Mobile */}
+                                  {isMobile && (
+                                    <button
+                                      ref={el => { filterTriggerRefs.current[col.key] = el; }}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleFilterPopover(col.key);
+                                      }}
+                                      className={`min-w-[36px] min-h-[36px] w-9 h-9 -mr-1.5 rounded-xl flex items-center justify-center cursor-pointer active:scale-90 transition-all shrink-0 ${
+                                        hasActiveFilter
+                                          ? 'text-[#007AFF] bg-[#007AFF]/15 dark:bg-[#007AFF]/25 font-bold'
+                                          : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                                      }`}
+                                      title={`Filtrar por ${col.label}`}
+                                      aria-label={`Filtrar por ${col.label}`}
+                                    >
+                                      <div className="relative flex items-center justify-center">
+                                        <Search size={14} className={hasActiveFilter ? 'fill-[#007AFF] stroke-[2.5]' : 'stroke-[2]'} />
+                                        {hasActiveFilter && (
+                                          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
+                                        )}
+                                      </div>
+                                    </button>
+                                  )}
                                 </div>
                                 
                                 {/* Alça de redimensionamento estilo Excel */}
@@ -1553,71 +1930,65 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                           })}
                         </tr>
 
-                        {/* Linha 2: Caixas de Filtro Individuais por Coluna (Sempre Visíveis e Sticky) */}
-                        <tr className="bg-slate-200/75 dark:bg-[#242426]/90 border-b border-black/10 dark:border-white/10">
-                          <th className="px-1.5 py-1.5 sticky left-0 z-20 bg-slate-200 dark:bg-[#242426] shadow-r text-center">
-                            <Filter size={11} className="mx-auto text-slate-400" />
-                          </th>
-                          {visibleTableColumns.map(col => {
-                            const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                            const filterVal = columnFilters[col.key] || '';
-                            const hasActiveFilter = Boolean(filterVal && filterVal.trim());
+                        {/* Linha 2: Caixas de Filtro Individuais por Coluna (Apenas Desktop) */}
+                        {!isMobile && (
+                          <tr className="bg-slate-200/75 dark:bg-[#242426]/90 border-b border-black/10 dark:border-white/10">
+                            <th className="px-1.5 py-1.5 sticky left-0 z-20 bg-slate-200 dark:bg-[#242426] shadow-r text-center">
+                              <Filter size={11} className="mx-auto text-slate-400" />
+                            </th>
+                            {visibleTableColumns.map(col => {
+                              const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
+                              const filterVal = columnFilters[col.key] || '';
+                              const hasActiveFilter = Boolean(filterVal && filterVal.trim());
 
-                            return (
-                              <th
-                                key={`filter-${col.key}`}
-                                style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                className="px-2 py-1.5 font-normal"
-                              >
-                                <div className={`relative flex items-center w-full rounded-lg border transition-all ${
-                                  isMobile ? 'ibge-input-wrapper h-7' : ''
-                                } ${
-                                  hasActiveFilter 
-                                    ? 'border-[#007AFF] bg-white dark:bg-[#1c1c1e] ring-2 ring-[#007AFF]/25 shadow-xs' 
-                                    : 'border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20'
-                                }`}>
-                                  <input
-                                    type="text"
-                                    value={filterVal}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setColumnFilters(prev => {
-                                        if (!val) {
-                                          const copy = { ...prev };
-                                          delete copy[col.key];
-                                          return copy;
-                                        }
-                                        return { ...prev, [col.key]: val };
-                                      });
-                                    }}
-                                    placeholder="Filtrar..."
-                                    className={`w-full pl-2 pr-6 py-1 text-[11px] font-medium text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${
-                                      isMobile ? 'ibge-filter-12' : ''
-                                    }`}
-                                    title={`Filtrar por ${col.label}`}
-                                  />
-                                  {hasActiveFilter && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
+                              return (
+                                <th
+                                  key={`filter-${col.key}`}
+                                  style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+                                  className="px-2 py-1.5 font-normal"
+                                >
+                                  <div className="relative flex items-center w-full rounded-lg border transition-all border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20">
+                                    <input
+                                      type="text"
+                                      value={filterVal}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
                                         setColumnFilters(prev => {
-                                          const copy = { ...prev };
-                                          delete copy[col.key];
-                                          return copy;
+                                          if (!val) {
+                                            const copy = { ...prev };
+                                            delete copy[col.key];
+                                            return copy;
+                                          }
+                                          return { ...prev, [col.key]: val };
                                         });
                                       }}
-                                      className="absolute right-1 p-0.5 rounded text-slate-400 hover:text-rose-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                                      title={`Limpar filtro de ${col.label}`}
-                                      aria-label={`Limpar filtro de ${col.label}`}
-                                    >
-                                      <X size={11} />
-                                    </button>
-                                  )}
-                                </div>
-                              </th>
-                            );
-                          })}
-                        </tr>
+                                      placeholder="Filtrar..."
+                                      className="w-full pl-2 pr-6 py-1 text-[11px] font-medium text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
+                                      title={`Filtrar por ${col.label}`}
+                                    />
+                                    {hasActiveFilter && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setColumnFilters(prev => {
+                                            const copy = { ...prev };
+                                            delete copy[col.key];
+                                            return copy;
+                                          });
+                                        }}
+                                        className="absolute right-1 p-0.5 rounded text-slate-400 hover:text-rose-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                                        title={`Limpar filtro de ${col.label}`}
+                                        aria-label={`Limpar filtro de ${col.label}`}
+                                      >
+                                        <X size={11} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        )}
                       </thead>
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
                         {processedResults.map((row, i) => (
@@ -1648,8 +2019,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                 )}
 
                 {/* Rodapé Informativo: Total Contínuo e Dica de Uso */}
-                <div className="px-5 py-3 bg-slate-50/90 dark:bg-[#2c2c2e]/90 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  <div className="flex items-center gap-2">
+                <div className="px-3 sm:px-5 py-2.5 sm:py-3 bg-slate-50/90 dark:bg-[#2c2c2e]/90 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span>
                       Exibindo <strong>{processedResults.length.toLocaleString('pt-BR')}</strong> de <strong>{results.length.toLocaleString('pt-BR')}</strong> endereços carregados
                     </span>
@@ -1659,9 +2030,11 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    💡 Clique em qualquer linha para navegar e destacar no mapa
-                  </span>
+                  {!isMobile && (
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                      💡 Clique em qualquer linha para navegar e destacar no mapa
+                    </span>
+                  )}
                 </div>
               </>
             ) : (
