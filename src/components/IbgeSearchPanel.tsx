@@ -7,6 +7,7 @@ import {
   Download, 
   Table2, 
   ChevronDown, 
+  ChevronUp,
   Map, 
   Star, 
   History, 
@@ -19,7 +20,8 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Pencil
 } from 'lucide-react';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
 import { toTitleCase, normalizeString, normalizeSearchText, parseAddressForSort } from '../utils';
@@ -46,6 +48,7 @@ interface IbgeSearchPanelProps {
   isMaximized?: boolean;
   hasPlottedMarkers?: boolean;
   isExternalSearching?: boolean;
+  isMobile?: boolean;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -205,8 +208,11 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   embedded = false,
   isMaximized = false,
   hasPlottedMarkers = false,
-  isExternalSearching = false
+  isExternalSearching = false,
+  isMobile = false
 }) => {
+  // Estado para recolher o formulário após busca com resultados no mobile
+  const [isFormCollapsed, setIsFormCollapsed] = useState<boolean>(false);
   // Configuração de colunas visíveis pelo usuário com persistência em localStorage
   const [userVisibleKeys, setUserVisibleKeys] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -677,11 +683,19 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       setColumnFilters({});
       setSortConfig(null);
 
+      // No mobile, recolhe automaticamente o formulário em linha-resumo quando houver resultados
+      if (isMobile && res.results.length > 0) {
+        setIsFormCollapsed(true);
+      } else {
+        setIsFormCollapsed(false);
+      }
+
       logActivity('ENDERECO', `Pesquisou por "${queryText}" (${municipio}) - ${res.totalEncontrado} resultados`, 'user');
     } catch (err: any) {
       if (currentReqId !== searchRequestIdRef.current) return;
       console.error("Erro na busca de endereços:", err);
       setErrorMsg("Ocorreu um erro ao consultar os endereços. Tente novamente.");
+      setIsFormCollapsed(false);
     } finally {
       if (currentReqId === searchRequestIdRef.current) {
         setIsSearching(false);
@@ -699,6 +713,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     setErrorMsg(null);
     setColumnFilters({});
     setSortConfig(null);
+    setIsFormCollapsed(false);
     if (onClearPlot) {
       onClearPlot();
     }
@@ -831,7 +846,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     <section 
       id="ibge-search-panel"
       aria-label="Busca de Endereços Avançado" 
-      className={`w-full flex flex-col gap-4 relative z-20 ${embedded ? 'mt-1 mb-2' : 'mt-10 mb-8'}`}
+      className={`w-full flex flex-col gap-4 relative z-20 ${embedded ? 'mt-1 mb-2' : 'mt-10 mb-8'} ${isMobile ? 'ibge-mobile-search-panel' : ''}`}
     >
       {/* Separador e título da seção (apenas quando não embutido) */}
       {!embedded && (
@@ -872,204 +887,252 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
           </div>
         )}
 
-        {/* Formulário de Busca Estilo Apple */}
-        <form onSubmit={(e) => { e.preventDefault(); handleSearch(undefined, e); }} className="flex flex-col lg:flex-row items-stretch lg:items-start gap-4 mb-6">
-          {/* Município */}
-          <div className="flex-1 relative" ref={selectRef}>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              <Building2 size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-              Município
-            </label>
-            <div className="relative">
-              <div 
-                className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none flex justify-between items-center transition-all cursor-pointer ${
-                  isSelectOpen ? 'border-[#007AFF] ring-2 ring-[#007AFF]/25 bg-white dark:bg-[#2c2c2e]' : ''
-                }`}
-                onClick={() => { 
-                  ensureMunicipiosLoaded();
-                  setIsSelectOpen(prev => !prev); 
-                  setMunicipioBusca(""); 
-                }}
-              >
-                <span className="truncate pr-2">
-                  {isLoadingMunicipios 
-                    ? "Carregando municípios..." 
-                    : municipio === "Todos" ? "Todos os Municípios" : municipio}
+        {/* Linha Resumo Compacta no Mobile quando houver resultados */}
+        {isMobile && isFormCollapsed && hasSearched && results.length > 0 ? (
+          <div className="flex items-center justify-between gap-2 p-2.5 mb-4 bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-2xl animate-fadeIn">
+            <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar py-0.5 min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-[#2c2c2e] border border-black/5 dark:border-white/10 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 shrink-0 shadow-2xs">
+                <Building2 size={12} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                <span className="truncate max-w-[120px]">{municipio === 'Todos' ? 'Todos os Municípios' : municipio}</span>
+              </span>
+              {textoBusca.trim() ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-[#2c2c2e] border border-black/5 dark:border-white/10 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 shrink-0 shadow-2xs">
+                  <Search size={12} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                  <span className="truncate max-w-[140px]">{textoBusca}</span>
                 </span>
-                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isSelectOpen ? 'rotate-180 text-[#007AFF]' : ''}`} />
-              </div>
-              
-              {isSelectOpen && (
-                <div className="mt-2 w-full bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-3xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.2)] max-h-64 flex flex-col overflow-hidden transition-all animate-fadeIn z-30">
-                  <div className="p-2 border-b border-black/5 dark:border-white/10 sticky top-0 bg-white/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl z-10">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Pesquisar município..."
-                        value={municipioBusca}
-                        onChange={(e) => setMunicipioBusca(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
-                        autoFocus
-                      />
-                      <Search size={13} className="absolute left-2.5 top-2 text-slate-400" />
-                    </div>
-                  </div>
-                  <div className="overflow-y-auto py-1 custom-scrollbar max-h-48">
-                    {isLoadingMunicipios ? (
-                      <div className="px-3 py-4 text-xs text-center text-slate-400 flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
-                        <span>Carregando municípios...</span>
+              ) : null}
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-[#2c2c2e] border border-black/5 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0 shadow-2xs">
+                Lim: {limit}
+              </span>
+              {modoAvancado && (
+                <span className="inline-flex items-center px-2 py-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+                  Avançado
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsFormCollapsed(false)}
+              className="px-3 py-1.5 rounded-xl bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition-all min-h-[36px]"
+              title="Editar parâmetros da busca"
+            >
+              <Pencil size={12} />
+              <span>Editar</span>
+            </button>
+          </div>
+        ) : (
+          /* Formulário de Busca Estilo Apple */
+          <form onSubmit={(e) => { e.preventDefault(); handleSearch(undefined, e); }} className="flex flex-col lg:flex-row items-stretch lg:items-start gap-4 mb-6">
+            {/* Município */}
+            <div className="flex-1 relative" ref={selectRef}>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <Building2 size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                Município
+              </label>
+              <div className="relative">
+                <div 
+                  className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl px-3.5 py-2.5 ${isMobile ? 'text-xs' : 'text-sm'} font-semibold text-slate-800 dark:text-slate-100 outline-none flex justify-between items-center transition-all cursor-pointer ${
+                    isSelectOpen ? 'border-[#007AFF] ring-2 ring-[#007AFF]/25 bg-white dark:bg-[#2c2c2e]' : ''
+                  }`}
+                  onClick={() => { 
+                    ensureMunicipiosLoaded();
+                    setIsSelectOpen(prev => !prev); 
+                    setMunicipioBusca(""); 
+                  }}
+                >
+                  <span className="truncate pr-2">
+                    {isLoadingMunicipios 
+                      ? "Carregando municípios..." 
+                      : municipio === "Todos" ? "Todos os Municípios" : municipio}
+                  </span>
+                  <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isSelectOpen ? 'rotate-180 text-[#007AFF]' : ''}`} />
+                </div>
+                
+                {isSelectOpen && (
+                  <div className="mt-2 w-full bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-3xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.2)] max-h-64 flex flex-col overflow-hidden transition-all animate-fadeIn z-30">
+                    <div className="p-2 border-b border-black/5 dark:border-white/10 sticky top-0 bg-white/90 dark:bg-[#2c2c2e]/90 backdrop-blur-xl z-10">
+                      <div className={`relative ${isMobile ? 'ibge-input-wrapper' : ''}`}>
+                        <input
+                          type="text"
+                          placeholder="Pesquisar município..."
+                          value={municipioBusca}
+                          onChange={(e) => setMunicipioBusca(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
+                          autoFocus
+                        />
+                        <Search size={13} className="absolute left-2.5 top-2 text-slate-400" />
                       </div>
-                    ) : (
-                      <>
-                        <div 
-                          className={`px-3 py-2 text-xs font-bold transition-colors cursor-pointer rounded-xl mx-1 ${
-                            municipio === "Todos" 
-                              ? 'bg-[#007AFF] text-white font-extrabold' 
-                              : 'text-slate-700 dark:text-slate-300 hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#64D2FF]'
-                          }`}
-                          onClick={() => { setMunicipio("Todos"); setIsSelectOpen(false); }}
-                        >
-                          Todos os Municípios
+                    </div>
+                    <div className="overflow-y-auto py-1 custom-scrollbar max-h-48">
+                      {isLoadingMunicipios ? (
+                        <div className="px-3 py-4 text-xs text-center text-slate-400 flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
+                          <span>Carregando municípios...</span>
                         </div>
-                        {filteredMunicipios.map(m => (
+                      ) : (
+                        <>
                           <div 
-                            key={m} 
-                            className={`px-3 py-2 text-xs font-medium transition-colors cursor-pointer rounded-xl mx-1 ${
-                              municipio === m 
-                                ? 'bg-[#007AFF] text-white font-bold' 
+                            className={`px-3 py-2 text-xs font-bold transition-colors cursor-pointer rounded-xl mx-1 ${
+                              municipio === "Todos" 
+                                ? 'bg-[#007AFF] text-white font-extrabold' 
                                 : 'text-slate-700 dark:text-slate-300 hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#64D2FF]'
                             }`}
-                            onClick={() => { setMunicipio(m); setIsSelectOpen(false); }}
+                            onClick={() => { setMunicipio("Todos"); setIsSelectOpen(false); }}
                           >
-                            {m}
+                            Todos os Municípios
                           </div>
-                        ))}
-                        {filteredMunicipios.length === 0 && (
-                          <div className="px-3 py-4 text-xs text-center text-slate-400">
-                            Nenhum município localizado
-                          </div>
-                        )}
-                      </>
-                    )}
+                          {filteredMunicipios.map(m => (
+                            <div 
+                              key={m} 
+                              className={`px-3 py-2 text-xs font-medium transition-colors cursor-pointer rounded-xl mx-1 ${
+                                municipio === m 
+                                  ? 'bg-[#007AFF] text-white font-bold' 
+                                  : 'text-slate-700 dark:text-slate-300 hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#64D2FF]'
+                              }`}
+                              onClick={() => { setMunicipio(m); setIsSelectOpen(false); }}
+                            >
+                              {m}
+                            </div>
+                          ))}
+                          {filteredMunicipios.length === 0 && (
+                            <div className="px-3 py-4 text-xs text-center text-slate-400">
+                              Nenhum município localizado
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Campo de Busca Principal (iOS Search Bar) */}
-          <div className="flex-[2] relative">
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              <Search size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-              Endereço, número, Bairro
-            </label>
-            <div className="relative flex items-center">
-              <input 
-                type="text" 
-                value={textoBusca}
-                onChange={(e) => setTextoBusca(e.target.value)}
-                onFocus={() => ensureMunicipiosLoaded()}
-                placeholder="Ex: Avenida Frei Serafim, Centro..."
-                className="w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all"
-              />
-              {textoBusca.trim() !== '' && (
-                <div className="absolute right-2.5 flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleSaveSearch(textoBusca)}
-                    className={`p-1.5 transition-colors cursor-pointer rounded-xl ${
-                      savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
-                        ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50'
-                        : 'text-slate-400 hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/10'
-                    }`}
-                    title={
-                      savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
-                        ? "Remover das pesquisas salvas"
-                        : "Salvar esta pesquisa nos favoritos"
-                    }
-                  >
-                    <Star className={`w-4 h-4 ${savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca)) ? 'fill-amber-500' : ''}`} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTextoBusca('')}
-                    className="p-1.5 text-slate-400 hover:text-[#FF3B30] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer rounded-xl transition-colors"
-                    title="Limpar texto"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Limite de Resultados */}
-          <div className="w-full lg:w-28">
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              <Filter size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-              Limite
-            </label>
-            <select 
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl px-3 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all cursor-pointer"
-            >
-              <option value={100}>100</option>
-              <option value={500}>500</option>
-              <option value={1000}>1000</option>
-              <option value={5000}>5000</option>
-              <option value={10000}>10000</option>
-            </select>
-          </div>
-          
-          {/* Opção Avançada (Apple iPhone Switch) */}
-          <div className="flex flex-col">
-            <div className="h-[22px] hidden lg:block" />
-            <div 
-              onClick={() => setModoAvancado(prev => !prev)}
-              className="flex items-center justify-between gap-3 bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 px-3.5 py-2 rounded-2xl h-10 transition-all cursor-pointer select-none shadow-2xs"
-              title="Alternar busca avançada (correspondência aproximada e fonética)"
-            >
-              <span className="whitespace-nowrap font-bold text-xs text-slate-700 dark:text-slate-200">Avançado</span>
-              <div className={`w-9 h-5 rounded-full transition-colors duration-200 p-0.5 flex items-center relative ${
-                modoAvancado ? 'bg-[#34C759]' : 'bg-slate-300 dark:bg-slate-600'
-              }`}>
-                <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform duration-200 ${
-                  modoAvancado ? 'translate-x-4' : 'translate-x-0'
-                }`} />
+                )}
               </div>
             </div>
-          </div>
-
-          {/* Botões de Ação */}
-          <div className="flex flex-col w-full lg:w-auto">
-            <div className="h-[22px] hidden lg:block" />
-            <div className="flex items-center gap-2 w-full lg:w-auto">
-              <button 
-                type="submit" 
-                disabled={isSearching || isExternalSearching}
-                aria-busy={isSearching || isExternalSearching}
-                className={`h-10 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 disabled:opacity-50 text-white px-6 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all w-full lg:w-auto cursor-pointer ${(isSearching || isExternalSearching) ? 'cnefe-btn-searching' : ''}`}
-              >
-                {(isSearching || isExternalSearching) ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
-                <span>{(isSearching || isExternalSearching) ? 'Buscando...' : 'Buscar'}</span>
-              </button>
-              
-              {hasSearched && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="h-10 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-slate-700 dark:text-slate-200 px-4 rounded-2xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0"
-                  title="Limpar Pesquisa"
-                >
-                  Limpar
-                </button>
-              )}
+            
+            {/* Campo de Busca Principal (iOS Search Bar) */}
+            <div className="flex-[2] relative">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <Search size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                Endereço, número, Bairro
+              </label>
+              <div className={`relative flex items-center ${isMobile ? 'ibge-input-wrapper' : ''}`}>
+                <input 
+                  type="text" 
+                  value={textoBusca}
+                  onChange={(e) => setTextoBusca(e.target.value)}
+                  onFocus={() => ensureMunicipiosLoaded()}
+                  placeholder="Ex: Avenida Frei Serafim, Centro..."
+                  className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all ${isMobile ? 'ibge-field-13' : ''}`}
+                />
+                {textoBusca.trim() !== '' && (
+                  <div className="absolute right-2.5 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSaveSearch(textoBusca)}
+                      className={`p-1.5 transition-colors cursor-pointer rounded-xl ${
+                        savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
+                          ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50'
+                          : 'text-slate-400 hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                      title={
+                        savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca))
+                          ? "Remover das pesquisas salvas"
+                          : "Salvar esta pesquisa nos favoritos"
+                      }
+                    >
+                      <Star className={`w-4 h-4 ${savedSearches.some(s => s && typeof s === 'string' && normalizeString(s) === normalizeString(textoBusca)) ? 'fill-amber-500' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTextoBusca('')}
+                      className="p-1.5 text-slate-400 hover:text-[#FF3B30] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer rounded-xl transition-colors"
+                      title="Limpar texto"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </form>
+
+            {/* Limite de Resultados */}
+            <div className="w-full lg:w-28">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <Filter size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                Limite
+              </label>
+              <select 
+                value={limit}
+                onChange={(e) => setLimit(Number(e.target.value))}
+                className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl px-3 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all cursor-pointer ${isMobile ? 'ibge-field-13' : ''}`}
+              >
+                <option value={100}>100</option>
+                <option value={500}>500</option>
+                <option value={1000}>1000</option>
+                <option value={5000}>5000</option>
+                <option value={10000}>10000</option>
+              </select>
+            </div>
+            
+            {/* Opção Avançada (Apple iPhone Switch) */}
+            <div className="flex flex-col">
+              <div className="h-[22px] hidden lg:block" />
+              <div 
+                onClick={() => setModoAvancado(prev => !prev)}
+                className="flex items-center justify-between gap-3 bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 px-3.5 py-2 rounded-2xl h-10 transition-all cursor-pointer select-none shadow-2xs"
+                title="Alternar busca avançada (correspondência aproximada e fonética)"
+              >
+                <span className="whitespace-nowrap font-bold text-xs text-slate-700 dark:text-slate-200">Avançado</span>
+                <div className={`w-9 h-5 rounded-full transition-colors duration-200 p-0.5 flex items-center relative ${
+                  modoAvancado ? 'bg-[#34C759]' : 'bg-slate-300 dark:bg-slate-600'
+                }`}>
+                  <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                    modoAvancado ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </div>
+              </div>
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="flex flex-col w-full lg:w-auto">
+              <div className="h-[22px] hidden lg:block" />
+              <div className="flex items-center gap-2 w-full lg:w-auto">
+                <button 
+                  type="submit" 
+                  disabled={isSearching || isExternalSearching}
+                  aria-busy={isSearching || isExternalSearching}
+                  className={`h-10 bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 disabled:opacity-50 text-white px-6 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all w-full lg:w-auto cursor-pointer ${(isSearching || isExternalSearching) ? 'cnefe-btn-searching' : ''}`}
+                >
+                  {(isSearching || isExternalSearching) ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
+                  <span>{(isSearching || isExternalSearching) ? 'Buscando...' : 'Buscar'}</span>
+                </button>
+                
+                {hasSearched && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="h-10 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-slate-700 dark:text-slate-200 px-4 rounded-2xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0"
+                    title="Limpar Pesquisa"
+                  >
+                    Limpar
+                  </button>
+                )}
+
+                {isMobile && hasSearched && results.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsFormCollapsed(true)}
+                    className="h-10 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-slate-700 dark:text-slate-200 px-3.5 rounded-2xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0"
+                    title="Recolher formulário"
+                  >
+                    <ChevronUp size={14} />
+                    <span>Recolher</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        )}
 
         {/* Histórico e Salvos (Apple Capsule Chips) */}
         {(recentSearches.length > 0 || savedSearches.length > 0) && (
@@ -1152,48 +1215,67 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
         {hasSearched && (
           <div className="border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-lg bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl">
             {/* Barra KPI e Ações Principais */}
-            <div className="bg-slate-50/90 dark:bg-[#2c2c2e]/90 backdrop-blur-md px-5 py-3.5 flex flex-wrap justify-between items-center gap-3 border-b border-black/10 dark:border-white/10">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-black px-3.5 py-1.5 rounded-xl border border-[#007AFF]/20 flex items-center gap-1.5 shadow-2xs">
-                  <Sparkles size={14} />
-                  <span>{totalEncontrado.toLocaleString('pt-BR')} {totalEncontrado === 1 ? 'Endereço' : 'Endereços'}</span>
+            <div className={`bg-slate-50/90 dark:bg-[#2c2c2e]/90 backdrop-blur-md border-b border-black/10 dark:border-white/10 ${
+              isMobile 
+                ? 'px-3 py-2 flex items-center justify-between gap-1.5' 
+                : 'px-5 py-3.5 flex flex-wrap justify-between items-center gap-3'
+            }`}>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className={`bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] font-black rounded-xl border border-[#007AFF]/20 flex items-center gap-1 shadow-2xs shrink-0 ${
+                  isMobile ? 'text-[11.5px] px-2.5 py-1.5' : 'text-xs px-3.5 py-1.5'
+                }`}>
+                  <Sparkles size={isMobile ? 12 : 14} />
+                  <span>
+                    {isMobile 
+                      ? `${totalEncontrado.toLocaleString('pt-BR')} ${totalEncontrado === 1 ? 'end.' : 'end.'}`
+                      : `${totalEncontrado.toLocaleString('pt-BR')} ${totalEncontrado === 1 ? 'Endereço' : 'Endereços'}`
+                    }
+                  </span>
                 </div>
                 {polygonSearchTitle && (
-                  <div className="bg-amber-500/10 dark:bg-amber-950/70 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
-                    <MapPin size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>{polygonSearchTitle.startsWith('Localidade:') ? polygonSearchTitle : `Polígono: ${polygonSearchTitle}`}</span>
+                  <div className={`bg-amber-500/10 dark:bg-amber-950/70 border border-amber-500/20 text-amber-900 dark:text-amber-200 font-black rounded-xl flex items-center gap-1 shadow-2xs truncate ${
+                    isMobile ? 'text-[11px] px-2 py-1 max-w-[130px]' : 'text-xs px-3.5 py-1.5'
+                  }`}>
+                    <MapPin size={isMobile ? 11 : 13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="truncate">{polygonSearchTitle.startsWith('Localidade:') ? polygonSearchTitle : `Polígono: ${polygonSearchTitle}`}</span>
                     <button
                       type="button"
                       onClick={handleClear}
-                      className="ml-1 p-0.5 rounded-md hover:bg-amber-200/80 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer"
+                      className="ml-0.5 p-0.5 rounded-md hover:bg-amber-200/80 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer shrink-0"
                       title="Limpar pesquisa"
                     >
-                      <X size={12} />
+                      <X size={11} />
                     </button>
                   </div>
                 )}
                 {totalEncontrado > limit && (
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    (Exibindo primeiros {limit})
+                  <span className={`font-semibold text-slate-500 dark:text-slate-400 truncate ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>
+                    {isMobile ? `(1ºs ${limit})` : `(Exibindo primeiros ${limit})`}
                   </span>
                 )}
               </div>
               
               {results.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {onPlotAllAddresses && !isPlotted && (
                     <button 
+                      type="button"
                       onClick={() => {
                         onPlotAllAddresses(processedResults);
                         setIsPlotted(true);
                       }}
-                      className="text-xs font-bold bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                      className={`text-xs font-bold bg-gradient-to-r from-[#007AFF] to-[#0062cc] hover:brightness-105 active:scale-95 text-white rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/25 transition-all cursor-pointer ${
+                        isMobile ? 'px-2.5 py-2 min-h-[44px]' : 'px-4 py-2 gap-1.5'
+                      }`}
+                      title={`Plotar ${processedResults.length} endereços no mapa`}
                     >
-                      <Map size={14} /> Plotar no Mapa ({processedResults.length})
+                      <Map size={14} />
+                      <span>{isMobile ? `Plotar (${processedResults.length})` : `Plotar no Mapa (${processedResults.length})`}</span>
                     </button>
                   )}
                   {(onUnplot || onClearPlot) && isPlotted && (
                     <button 
+                      type="button"
                       onClick={() => {
                         if (onUnplot) {
                           onUnplot();
@@ -1202,24 +1284,44 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                         }
                         setIsPlotted(false);
                       }}
-                      className="text-xs font-bold bg-black/10 hover:bg-black/15 dark:bg-white/15 dark:hover:bg-white/20 active:scale-95 text-slate-800 dark:text-white px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                      className={`text-xs font-bold bg-black/10 hover:bg-black/15 dark:bg-white/15 dark:hover:bg-white/20 active:scale-95 text-slate-800 dark:text-white rounded-xl flex items-center gap-1 transition-all cursor-pointer ${
+                        isMobile ? 'px-2.5 py-2 min-h-[44px]' : 'px-4 py-2 gap-1.5'
+                      }`}
+                      title="Desplotar marcadores do mapa"
                     >
-                      <Map size={14} /> Desplotar do Mapa
+                      <Map size={14} />
+                      <span>{isMobile ? 'Desplotar' : 'Desplotar do Mapa'}</span>
                     </button>
                   )}
+                  {/* Botão Limpar */}
                   <button 
                     type="button"
                     onClick={handleClear}
-                    className="text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-[#FF3B30] dark:text-[#FF453A] px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                    className={`font-bold bg-rose-500/10 hover:bg-rose-500/20 text-[#FF3B30] dark:text-[#FF453A] rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                      isMobile 
+                        ? 'w-11 h-11 min-w-[44px] min-h-[44px]' 
+                        : 'text-xs px-3.5 py-2 gap-1.5'
+                    }`}
                     title="Limpar pesquisa e remover resultados"
+                    aria-label="Limpar pesquisa"
                   >
-                    <Trash2 size={13} /> Limpar
+                    <Trash2 size={isMobile ? 15 : 13} />
+                    {!isMobile && <span>Limpar</span>}
                   </button>
+                  {/* Botão Exportar CSV */}
                   <button 
+                    type="button"
                     onClick={exportToCSV}
-                    className="text-xs font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    className={`font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                      isMobile 
+                        ? 'w-11 h-11 min-w-[44px] min-h-[44px]' 
+                        : 'text-xs px-3.5 py-2 gap-1.5'
+                    }`}
+                    title="Exportar CSV"
+                    aria-label="Exportar CSV"
                   >
-                    <Download size={14} /> Exportar CSV
+                    <Download size={isMobile ? 15 : 14} />
+                    {!isMobile && <span>Exportar CSV</span>}
                   </button>
                 </div>
               )}
@@ -1227,9 +1329,9 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
             {/* Sub-barra: Indicador de Filtros das Colunas e Gerenciamento */}
             {results.length > 0 && (
-              <div className="bg-slate-100/60 dark:bg-[#252528]/80 px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 dark:border-white/10">
+              <div className="bg-slate-100/60 dark:bg-[#252528]/80 px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/10 dark:border-white/10">
                 {/* Status de Filtros nas Colunas (Lupinhas) */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
                   {Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim())) ? (
                     <div className="flex items-center gap-2 bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF] text-xs font-bold px-3 py-1.5 rounded-xl border border-[#007AFF]/20 shadow-2xs">
                       <Search size={13} className="shrink-0" />
@@ -1247,12 +1349,12 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                         <X size={12} /> Limpar Filtros
                       </button>
                     </div>
-                  ) : (
+                  ) : !isMobile ? (
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
                       <Filter size={12} className="text-[#007AFF]" />
                       <span>Dica: Use os campos <strong>Filtrar...</strong> abaixo de cada coluna para refinar os resultados exibidos.</span>
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Botões de Ação de Colunas */}
@@ -1313,13 +1415,13 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                       </div>
 
                       {/* Busca rápida de colunas */}
-                      <div className="relative">
+                      <div className={`relative ${isMobile ? 'ibge-input-wrapper' : ''}`}>
                         <input
                           type="text"
                           value={columnSearchText}
                           onChange={(e) => setColumnSearchText(e.target.value)}
                           placeholder="Filtrar colunas..."
-                          className="w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF]"
+                          className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
                         />
                         <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
                       </div>
@@ -1468,6 +1570,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                                 className="px-2 py-1.5 font-normal"
                               >
                                 <div className={`relative flex items-center w-full rounded-lg border transition-all ${
+                                  isMobile ? 'ibge-input-wrapper h-7' : ''
+                                } ${
                                   hasActiveFilter 
                                     ? 'border-[#007AFF] bg-white dark:bg-[#1c1c1e] ring-2 ring-[#007AFF]/25 shadow-xs' 
                                     : 'border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20'
@@ -1487,7 +1591,9 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                                       });
                                     }}
                                     placeholder="Filtrar..."
-                                    className="w-full pl-2 pr-6 py-1 text-[11px] font-medium text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
+                                    className={`w-full pl-2 pr-6 py-1 text-[11px] font-medium text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${
+                                      isMobile ? 'ibge-filter-12' : ''
+                                    }`}
                                     title={`Filtrar por ${col.label}`}
                                   />
                                   {hasActiveFilter && (

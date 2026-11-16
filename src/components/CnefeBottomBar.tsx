@@ -60,6 +60,82 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
 
+  // Estados e Refs para gesto de arrasto da gaveta no mobile (< 768px)
+  const [mobileDragY, setMobileDragY] = useState<number>(0);
+  const [isMobileDragging, setIsMobileDragging] = useState<boolean>(false);
+  const [isMobileClosing, setIsMobileClosing] = useState<boolean>(false);
+  const mobileDragStartYRef = useRef<number>(0);
+  const mobileDragStartTimeRef = useRef<number>(0);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  // Fechar gaveta mobile com tecla Escape
+  useEffect(() => {
+    if (!isMobile || !isExpanded) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (onToggleMaximizeRef.current && isMaximizedRef.current) {
+          onToggleMaximizeRef.current();
+        }
+        onToggleExpandRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobile, isExpanded]);
+
+  const handleMobileDragPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button')) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    mobileDragStartYRef.current = e.clientY;
+    mobileDragStartTimeRef.current = Date.now();
+    setIsMobileDragging(true);
+    setMobileDragY(0);
+  };
+
+  const handleMobileDragPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isMobileDragging) return;
+    const deltaY = Math.max(0, e.clientY - mobileDragStartYRef.current);
+    setMobileDragY(deltaY);
+  };
+
+  const handleMobileDragPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isMobileDragging) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+    setIsMobileDragging(false);
+
+    const deltaY = Math.max(0, e.clientY - mobileDragStartYRef.current);
+    const elapsed = Math.max(1, Date.now() - mobileDragStartTimeRef.current);
+    const velocityY = deltaY / elapsed;
+
+    if (deltaY > 90 || velocityY > 0.4) {
+      if (prefersReducedMotion) {
+        setMobileDragY(0);
+        handleToggleExpand();
+      } else {
+        setIsMobileClosing(true);
+        setTimeout(() => {
+          setIsMobileClosing(false);
+          setMobileDragY(0);
+          handleToggleExpand();
+        }, 220);
+      }
+    } else {
+      setMobileDragY(0);
+    }
+  };
+
   // Altura personalizada definida pelo usuário via arrasto
   const [customHeight, setCustomHeight] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -389,6 +465,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           <IbgeSearchPanel
             embedded={true}
             isMaximized={false}
+            isMobile={true}
             onPlotAddress={onPlotAddress}
             onPlotAllAddresses={onPlotAllAddresses}
             onClearPlot={onClearPlot}
@@ -421,6 +498,18 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
         {/* Conteúdo da Gaveta em Tela Quase Cheia */}
         <div 
           ref={barContainerRef}
+          style={{
+            transform: isMobileClosing
+              ? 'translateY(100%)'
+              : mobileDragY > 0
+              ? `translateY(${mobileDragY}px)`
+              : undefined,
+            transition: isMobileDragging
+              ? 'none'
+              : isMobileClosing
+              ? 'transform 0.22s cubic-bezier(0.32, 0.72, 0, 1)'
+              : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+          }}
           className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col h-[90dvh] max-h-[92dvh] overflow-hidden animate-slideUp"
         >
           {/* Barra de Progresso Indeterminada durante Busca Externa */}
@@ -430,66 +519,65 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             </div>
           )}
 
-          {/* Alça de Arraste Superior */}
-          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0 mt-3 mb-1" />
+          {/* Zona de Arraste Superior: Alça + Cabeçalho (touch-action: none) */}
+          <div
+            onPointerDown={handleMobileDragPointerDown}
+            onPointerMove={handleMobileDragPointerMove}
+            onPointerUp={handleMobileDragPointerUp}
+            onPointerCancel={handleMobileDragPointerUp}
+            className="touch-none select-none shrink-0 cursor-grab active:cursor-grabbing"
+          >
+            {/* Alça de Arraste Superior */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0 mt-3 mb-1" />
 
-          {/* Cabeçalho Limpo */}
-          <div className="w-full px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 border-b border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shrink-0 shadow-sm">
-                <Home className="w-4 h-4" />
-              </div>
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight">
-                  Busca de Endereços Avançada
-                </span>
-                {!isSearchingExternal && externalPolygonResult && (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 pl-2 pr-1.5 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60 truncate max-w-[170px] shadow-2xs">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    <span className="truncate">{externalPolygonResult.title}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onClearExternalResult) onClearExternalResult();
-                        if (onClearPlot) onClearPlot();
-                      }}
-                      className="p-0.5 hover:bg-emerald-200/70 dark:hover:bg-emerald-800/60 rounded-full text-emerald-700 dark:text-emerald-200 transition-colors cursor-pointer shrink-0"
-                      title="Limpar pesquisa desta feição"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+            {/* Cabeçalho Limpo */}
+            <div className="w-full px-4 py-2.5 flex items-center justify-between gap-3 border-b border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Home className="w-4 h-4" />
+                </div>
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <span className="font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight">
+                    Busca de Endereços Avançada
                   </span>
+                  {!isSearchingExternal && externalPolygonResult && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 pl-2 pr-1.5 py-0.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/60 truncate max-w-[170px] shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <span className="truncate">{externalPolygonResult.title}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onClearExternalResult) onClearExternalResult();
+                          if (onClearPlot) onClearPlot();
+                        }}
+                        className="p-0.5 hover:bg-emerald-200/70 dark:hover:bg-emerald-800/60 rounded-full text-emerald-700 dark:text-emerald-200 transition-colors cursor-pointer shrink-0"
+                        title="Limpar pesquisa desta feição"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Ações: Limpar (Botão Recolher removido conforme especificação) */}
+              <div className="flex items-center gap-2 shrink-0">
+                {(hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClearPlot();
+                      if (onClearExternalResult) onClearExternalResult();
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    title="Limpar pesquisa e marcadores do mapa"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline">Limpar</span>
+                  </button>
                 )}
               </div>
-            </div>
-
-            {/* Ações: Limpar e Botão Claro de Recolher */}
-            <div className="flex items-center gap-2 shrink-0">
-              {(hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClearPlot();
-                    if (onClearExternalResult) onClearExternalResult();
-                  }}
-                  className="px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
-                  title="Limpar pesquisa e marcadores do mapa"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline">Limpar</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => handleToggleExpand()}
-                className="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs active:scale-95"
-                title="Recolher busca de endereços"
-              >
-                <span>Recolher</span>
-                <ChevronDown className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
@@ -498,6 +586,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             <IbgeSearchPanel
               embedded={true}
               isMaximized={true}
+              isMobile={true}
               onPlotAddress={onPlotAddress}
               onPlotAllAddresses={onPlotAllAddresses}
               onClearPlot={onClearPlot}

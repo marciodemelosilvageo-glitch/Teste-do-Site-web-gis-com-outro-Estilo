@@ -61,6 +61,30 @@ body,
   textarea {
     font-size: 16px !important;
   }
+
+  /* Escopo exclusivo para o painel de busca avançada mobile:
+     Fontes visuais de ~13px no formulário e ~12px nos filtros por coluna
+     sem disparar auto-zoom no iOS Safari (mantendo font-size 16px e escalando via transform) */
+  .ibge-mobile-search-panel .ibge-field-13 {
+    font-size: 16px !important;
+    transform: scale(0.8125);
+    transform-origin: left center;
+    width: 123.08% !important;
+  }
+  .ibge-mobile-search-panel select.ibge-field-13 {
+    font-size: 13px !important;
+    transform: none;
+    width: 100% !important;
+  }
+  .ibge-mobile-search-panel .ibge-filter-12 {
+    font-size: 16px !important;
+    transform: scale(0.75);
+    transform-origin: left center;
+    width: 133.33% !important;
+  }
+  .ibge-mobile-search-panel .ibge-input-wrapper {
+    overflow: hidden;
+  }
 }
 
 .h-screen-dynamic {
