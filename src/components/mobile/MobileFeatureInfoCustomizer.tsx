@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, Reorder, useDragControls } from 'motion/react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { motion, Reorder, useDragControls, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft,
   Search,
@@ -59,10 +59,10 @@ const MobileReorderItem: React.FC<MobileReorderItemProps> = ({
       dragListener={false}
       dragControls={dragControls}
       transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 38 }}
-      className="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/10 flex items-center justify-between gap-2 select-none relative"
+      className="p-2.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/10 flex items-center justify-between gap-2 select-none relative"
       style={{ touchAction: 'pan-y' }}
     >
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
         {/* Alça de arrasto touch */}
         <button
           type="button"
@@ -71,25 +71,25 @@ const MobileReorderItem: React.FC<MobileReorderItemProps> = ({
           className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-black/5 dark:bg-white/10 text-slate-500 dark:text-slate-400 flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0"
           style={{ touchAction: 'none' }}
         >
-          <GripVertical className="w-5 h-5" />
+          <GripVertical className="w-4 h-4" />
         </button>
 
-        <span className="w-6 h-6 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/20 text-[#007AFF] dark:text-[#0A84FF] text-[12px] font-bold flex items-center justify-center shrink-0">
+        <span className="w-5 h-5 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/20 text-[#007AFF] dark:text-[#0A84FF] text-[12px] font-bold flex items-center justify-center shrink-0">
           {index + 1}
         </span>
 
-        <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">
+        <span className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate">
           {opt.label}
         </span>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-0.5 shrink-0">
         {/* Botão Subir */}
         <button
           type="button"
           disabled={index === 0}
           onClick={() => onMove(-1)}
-          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-500 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center active:bg-black/5 dark:active:bg-white/10"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-500 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center active:bg-black/5 dark:active:bg-white/10 cursor-pointer"
           aria-label={`Mover ${opt.label} para cima`}
         >
           <ChevronUp className="w-4 h-4" />
@@ -100,7 +100,7 @@ const MobileReorderItem: React.FC<MobileReorderItemProps> = ({
           type="button"
           disabled={index === total - 1}
           onClick={() => onMove(1)}
-          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-500 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center active:bg-black/5 dark:active:bg-white/10"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-500 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center active:bg-black/5 dark:active:bg-white/10 cursor-pointer"
           aria-label={`Mover ${opt.label} para baixo`}
         >
           <ChevronDown className="w-4 h-4" />
@@ -111,7 +111,7 @@ const MobileReorderItem: React.FC<MobileReorderItemProps> = ({
           type="button"
           disabled={total <= 1}
           onClick={onRemove}
-          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-rose-500 dark:text-rose-400 disabled:opacity-20 flex items-center justify-center active:bg-rose-500/10"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-rose-500 dark:text-rose-400 disabled:opacity-20 flex items-center justify-center active:bg-rose-500/10 cursor-pointer"
           aria-label={`Remover ${opt.label}`}
         >
           <X className="w-4 h-4" />
@@ -126,7 +126,7 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
   availableOptions,
   allOptionsMap,
   selectedIds,
-  historyIds = [],
+  historyIds: _historyIds = [],
   onSave,
   onReset,
   maxItems = 8,
@@ -135,6 +135,8 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
   const [currentSelected, setCurrentSelected] = useState<string[]>([...selectedIds]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const prefersReducedMotion = typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -142,6 +144,21 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
   useEffect(() => {
     setCurrentSelected([...selectedIds]);
   }, [selectedIds]);
+
+  // Indicador discreto de auto-salvamento
+  const triggerSavedIndicator = useCallback(() => {
+    setShowSavedIndicator(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => {
+      setShowSavedIndicator(false);
+    }, 1600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
 
   const optionsMap = useMemo(() => {
     return new Map(availableOptions.map(opt => [opt.id, opt]));
@@ -155,30 +172,49 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
     };
   }, [optionsMap, allOptionsMap]);
 
-  // Reordenação por botões de acessibilidade
+  // Reordenação com auto-salvamento imediato
+  const handleReorder = (newOrder: string[]) => {
+    setCurrentSelected(newOrder);
+    onSave(newOrder);
+    triggerSavedIndicator();
+  };
+
+  // Reordenação por botões de acessibilidade com auto-save
   const handleMove = (index: number, dir: -1 | 1) => {
     const target = index + dir;
     if (target < 0 || target >= currentSelected.length) return;
-    setCurrentSelected(prev => {
-      const next = [...prev];
-      const temp = next[target];
-      next[target] = next[index];
-      next[index] = temp;
-      return next;
-    });
+    const next = [...currentSelected];
+    const temp = next[target];
+    next[target] = next[index];
+    next[index] = temp;
+    setCurrentSelected(next);
+    onSave(next);
+    triggerSavedIndicator();
   };
 
-  // Toggle de seleção
-  const handleToggle = (id: string) => {
-    setCurrentSelected(prev => {
-      if (prev.includes(id)) {
-        if (prev.length <= 1) return prev; // mínimo 1
-        return prev.filter(item => item !== id);
-      } else {
-        if (prev.length >= maxItems) return prev; // limite atingido
-        return [...prev, id];
-      }
-    });
+  // Adicionar item à seleção com auto-save
+  const handleAdd = (id: string) => {
+    if (currentSelected.length >= maxItems) return;
+    if (currentSelected.includes(id)) return;
+    const next = [...currentSelected, id];
+    setCurrentSelected(next);
+    onSave(next);
+    triggerSavedIndicator();
+  };
+
+  // Remover item com auto-save (retorna para o catálogo de disponíveis)
+  const handleRemove = (id: string) => {
+    if (currentSelected.length <= 1) return; // mínimo 1 cartão
+    const next = currentSelected.filter(item => item !== id);
+    setCurrentSelected(next);
+    onSave(next);
+    triggerSavedIndicator();
+  };
+
+  // Restaurar padrão com auto-save
+  const handleReset = () => {
+    onReset();
+    triggerSavedIndicator();
   };
 
   // Categorias disponíveis
@@ -191,34 +227,28 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
     { id: 'atributo', label: 'Atributos' }
   ], []);
 
-  // Catálogo ordenado: Selecionados primeiro, depois histórico, depois demais
-  const filteredCatalog = useMemo(() => {
+  // Catálogo dinâmico: NÃO exibe itens já selecionados
+  const availableCatalog = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return availableOptions.filter(opt => {
-      const matchesQuery = !query || opt.label.toLowerCase().includes(query) || opt.id.toLowerCase().includes(query);
-      const matchesCategory = selectedCategory === 'todos' || opt.category === selectedCategory;
-      return matchesQuery && matchesCategory;
-    });
-  }, [availableOptions, searchQuery, selectedCategory]);
+    return availableOptions
+      .filter(opt => !currentSelected.includes(opt.id))
+      .filter(opt => {
+        const matchesQuery = !query || opt.label.toLowerCase().includes(query) || opt.id.toLowerCase().includes(query);
+        const matchesCategory = selectedCategory === 'todos' || opt.category === selectedCategory;
+        return matchesQuery && matchesCategory;
+      });
+  }, [availableOptions, currentSelected, searchQuery, selectedCategory]);
 
-  const handleApply = () => {
-    onSave(currentSelected);
-    onClose();
-  };
-
-  const handleReset = () => {
-    onReset();
-    onClose();
-  };
+  const isLimitReached = currentSelected.length >= maxItems;
 
   return (
     <div className="flex flex-col h-full w-full select-none">
-      {/* 1. BARRA SUPERIOR ESTILO IOS (‹ Detalhes + Título + Contador) */}
-      <div className="px-3 py-2 border-b border-black/5 dark:border-white/10 flex items-center justify-between gap-2 shrink-0 bg-white/95 dark:bg-[#1c1c1e]/95">
+      {/* 1. BARRA SUPERIOR ESTILO IOS (‹ Detalhes + Título + Status Salvo + Contador) */}
+      <div className="px-3 py-1.5 border-b border-black/5 dark:border-white/10 flex items-center justify-between gap-2 shrink-0 bg-white/95 dark:bg-[#1c1c1e]/95">
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-semibold min-h-[44px] px-1 py-2 active:opacity-60 cursor-pointer"
+          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[14px] font-semibold min-h-[44px] px-1 py-2 active:opacity-60 cursor-pointer"
           aria-label="Voltar para Detalhes"
         >
           <ChevronLeft className="w-5 h-5 -ml-1 stroke-[2.5]" />
@@ -226,7 +256,7 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
         </button>
 
         <div className="flex-1 text-center min-w-0 px-1">
-          <h2 className="text-[15px] font-bold text-slate-900 dark:text-white truncate">
+          <h2 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">
             Informações úteis
           </h2>
           {layerName && (
@@ -236,31 +266,46 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
           )}
         </div>
 
-        <div className="shrink-0 flex items-center justify-end">
-          <span className="px-2 py-1 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/20 text-[#007AFF] dark:text-[#0A84FF] text-[12px] font-black">
-            {currentSelected.length} de {maxItems}
+        <div className="shrink-0 flex items-center justify-end gap-1.5 min-w-[80px]">
+          <AnimatePresence>
+            {showSavedIndicator && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.16 }}
+                className="inline-flex items-center gap-1 text-[11.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full"
+              >
+                <Check className="w-3 h-3 stroke-[3]" />
+                <span>Salvo</span>
+              </motion.span>
+            )}
+          </AnimatePresence>
+
+          <span className="px-2 py-0.5 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/20 text-[#007AFF] dark:text-[#0A84FF] text-[12px] font-black">
+            {currentSelected.length}/{maxItems}
           </span>
         </div>
       </div>
 
-      {/* 2. ÁREA ROLÁVEL COM CONTEÚDO */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+      {/* 2. ÁREA ROLÁVEL COM CONTEÚDO (Sem rodapé obstrusivo) */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
         {/* SEÇÃO A: CARTÕES ESCOLHIDOS */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-[13px] font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <h3 className="text-[12px] font-bold text-slate-700 dark:text-slate-300">
               Cartões em Exibição
             </h3>
             <span className="text-[12px] text-slate-500 dark:text-slate-400">
-              Segure na alça para ordenar
+              Arraste a alça para ordenar
             </span>
           </div>
 
           <Reorder.Group
             axis="y"
             values={currentSelected}
-            onReorder={setCurrentSelected}
-            className="space-y-2"
+            onReorder={handleReorder}
+            className="space-y-1.5"
             layoutScroll
           >
             {currentSelected.map((id, index) => {
@@ -272,7 +317,7 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
                   opt={opt}
                   index={index}
                   total={currentSelected.length}
-                  onRemove={() => handleToggle(id)}
+                  onRemove={() => handleRemove(id)}
                   onMove={(dir) => handleMove(index, dir)}
                   prefersReducedMotion={!!prefersReducedMotion}
                 />
@@ -282,15 +327,15 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
         </div>
 
         {/* SEÇÃO B: ADICIONAR INFORMAÇÃO */}
-        <div className="space-y-3 pt-2 border-t border-black/5 dark:border-white/10">
+        <div className="space-y-2.5 pt-2 border-t border-black/5 dark:border-white/10">
           <div className="flex items-center justify-between">
-            <h3 className="text-[13px] font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <h3 className="text-[12px] font-bold text-slate-700 dark:text-slate-300">
               Adicionar Informação
             </h3>
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer py-1 px-2 rounded-lg"
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer py-1 px-2 rounded-lg active:bg-black/5 dark:active:bg-white/10"
               title="Restaurar cartões padrão desta camada"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -298,26 +343,41 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
             </button>
           </div>
 
-          {/* Campo de Busca (fonte 16px obrigatória no iOS Safari) */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar campo ou informação..."
-              className="w-full h-11 pl-9 pr-3 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/5 dark:border-white/10 text-[16px] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#007AFF]"
-            />
+          {/* Aviso quando o limite de itens for atingido */}
+          {isLimitReached && (
+            <div className="py-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[12px] font-medium flex items-center gap-2">
+              <span>Limite de {maxItems} informações atingido. Remova uma para adicionar outra.</span>
+            </div>
+          )}
+
+          {/* Campo de Busca com Técnica Anti-zoom iOS (16px escalado visualmente para ~13px) */}
+          <div className="relative h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/5 dark:border-white/10 overflow-hidden flex items-center">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none z-10" />
+            <div className="w-full h-full flex items-center pl-8 pr-2" style={{ transformOrigin: 'left center' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar campo ou informação..."
+                style={{
+                  fontSize: '16px',
+                  transform: 'scale(0.8125)', // 16px * 0.8125 = 13px visual
+                  transformOrigin: 'left center',
+                  width: '123.07%', // 1 / 0.8125
+                }}
+                className="h-full bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 outline-none border-none p-0"
+              />
+            </div>
           </div>
 
           {/* Chips de Categorias Roláveis */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 custom-scrollbar">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-3.5 px-3.5 custom-scrollbar">
             {categories.map(cat => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`py-1.5 px-3 rounded-full text-[12px] font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer min-h-[36px] flex items-center ${
+                className={`py-1 px-3 rounded-full text-[12px] font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer min-h-[36px] flex items-center ${
                   selectedCategory === cat.id
                     ? 'bg-[#007AFF] text-white'
                     : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300'
@@ -328,67 +388,39 @@ export const MobileFeatureInfoCustomizer: React.FC<MobileFeatureInfoCustomizerPr
             ))}
           </div>
 
-          {/* Lista de Itens do Catálogo */}
-          <div className="space-y-1.5">
-            {filteredCatalog.map(opt => {
-              const isSelected = currentSelected.includes(opt.id);
-              const canSelect = isSelected || currentSelected.length < maxItems;
+          {/* Lista de Itens Disponíveis (apenas itens não adicionados) */}
+          <div className="space-y-1">
+            {availableCatalog.map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                disabled={isLimitReached}
+                onClick={() => handleAdd(opt.id)}
+                className={`w-full min-h-[44px] py-2 px-3 rounded-xl border text-left flex items-center justify-between gap-3 transition-colors ${
+                  isLimitReached
+                    ? 'opacity-40 cursor-not-allowed border-black/5 dark:border-white/5 text-slate-400'
+                    : 'bg-black/[0.02] dark:bg-white/[0.04] border-black/5 dark:border-white/5 text-slate-800 dark:text-slate-200 active:bg-black/5 cursor-pointer'
+                }`}
+              >
+                <span className="text-[12.5px] font-semibold truncate">
+                  {opt.label}
+                </span>
 
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  disabled={!isSelected && !canSelect}
-                  onClick={() => handleToggle(opt.id)}
-                  className={`w-full min-h-[48px] p-3 rounded-2xl border text-left flex items-center justify-between gap-3 transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 border-[#007AFF]/30 text-[#007AFF] dark:text-[#0A84FF]'
-                      : canSelect
-                      ? 'bg-black/[0.02] dark:bg-white/[0.04] border-black/5 dark:border-white/5 text-slate-800 dark:text-slate-200 active:bg-black/5'
-                      : 'opacity-40 cursor-not-allowed border-black/5 dark:border-white/5 text-slate-400'
-                  }`}
-                >
-                  <span className="text-[13px] font-bold truncate">
-                    {opt.label}
-                  </span>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border border-black/20 dark:border-white/20">
+                  <Plus className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </button>
+            ))}
 
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${
-                    isSelected
-                      ? 'bg-[#007AFF] text-white border-transparent'
-                      : 'border-black/20 dark:border-white/20'
-                  }`}>
-                    {isSelected ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Plus className="w-3.5 h-3.5 text-slate-400" />}
-                  </div>
-                </button>
-              );
-            })}
-
-            {filteredCatalog.length === 0 && (
-              <p className="text-center py-4 text-[13px] text-slate-400 italic">
-                Nenhuma informação encontrada nesta categoria.
+            {availableCatalog.length === 0 && (
+              <p className="text-center py-4 text-[12px] text-slate-400 italic">
+                {availableOptions.length === currentSelected.length
+                  ? "Todas as informações disponíveis já estão adicionadas."
+                  : "Nenhuma informação encontrada nesta busca ou categoria."}
               </p>
             )}
           </div>
         </div>
-      </div>
-
-      {/* 3. RODAPÉ FIXO DE AÇÕES (Cancelar e Salvar) */}
-      <div className="p-3 border-t border-black/5 dark:border-white/10 bg-white/95 dark:bg-[#1c1c1e]/95 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] flex items-center justify-end gap-3 shrink-0">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 min-h-[44px] py-2 px-4 rounded-xl text-[14px] font-bold text-slate-600 dark:text-slate-300 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-98 transition-all cursor-pointer"
-        >
-          Cancelar
-        </button>
-
-        <button
-          type="button"
-          onClick={handleApply}
-          className="flex-1 min-h-[44px] py-2 px-4 rounded-xl text-[14px] font-bold text-white bg-[#007AFF] hover:bg-[#0071E3] active:scale-98 transition-all shadow-sm cursor-pointer"
-        >
-          Salvar
-        </button>
       </div>
     </div>
   );

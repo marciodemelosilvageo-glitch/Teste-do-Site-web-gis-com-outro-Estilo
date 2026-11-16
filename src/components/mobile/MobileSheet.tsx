@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { X, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { SidebarTab } from '../AppleSidebar';
 import { MOBILE_Z_INDEX } from '../../constants/mobileZIndex';
 
@@ -9,6 +9,8 @@ export interface MobileSheetProps {
   isOpen: boolean;
   activeTab: SidebarTab;
   onClose: () => void;
+  onDismiss?: () => void;
+  headerActions?: React.ReactNode;
   snapPoint?: SnapPoint;
   onSnapChange?: (snap: SnapPoint) => void;
   title?: string;
@@ -26,13 +28,15 @@ const SNAP_HEIGHTS: Record<SnapPoint, number> = {
 
 /**
  * MobileSheet - Bottom Sheet com 3 alturas (peek ~28%, meia ~60%, cheia ~92%).
- * Suporta arrasto suave via Pointer Events, alça dedicada, botão de recolher
- * e preserva a rolagem natural dos conteúdos internos.
+ * Arraste fluido acelerado por hardware (GPU via translateY + rAF), sem re-renders React
+ * no movimento. Ajuste de altura exclusivo via alça de arrasto.
  */
 export const MobileSheet: React.FC<MobileSheetProps> = ({
   isOpen,
   activeTab: _activeTab,
   onClose,
+  onDismiss,
+  headerActions,
   snapPoint = 'half',
   onSnapChange,
   title,
@@ -43,83 +47,193 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
 }) => {
   const [currentSnap, setCurrentSnap] = useState<SnapPoint>(snapPoint);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragCurrentHeightVh, setDragCurrentHeightVh] = useState<number | null>(null);
 
+  const isDraggingRef = useRef(false);
   const startYRef = useRef<number>(0);
-  const startHeightVhRef = useRef<number>(SNAP_HEIGHTS[snapPoint]);
+  const lastYRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+  const velocityYRef = useRef<number>(0);
+  const totalDeltaYRef = useRef<number>(0);
+  const rAFIdRef = useRef<number | null>(null);
+  const currentSnapRef = useRef<SnapPoint>(snapPoint);
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  // Sincroniza com a prop externa se ela mudar
+  // Sincroniza ref e estado com a prop externa se ela mudar
   useEffect(() => {
     setCurrentSnap(snapPoint);
+    currentSnapRef.current = snapPoint;
   }, [snapPoint]);
+
+  useEffect(() => {
+    currentSnapRef.current = currentSnap;
+  }, [currentSnap]);
 
   const setSnap = useCallback((nextSnap: SnapPoint) => {
     setCurrentSnap(nextSnap);
+    currentSnapRef.current = nextSnap;
     onSnapChange?.(nextSnap);
   }, [onSnapChange]);
 
-  // Gestão de arrasto com Pointer Events na alça superior
+  // Gestão de arrasto com Pointer Events na alça superior (GPU transform, zero setState por quadro)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Apenas clique principal / toque
     if (e.button !== 0) return;
     
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Ignora erro se pointer não puder ser capturado
+    }
+
+    isDraggingRef.current = true;
     startYRef.current = e.clientY;
-    startHeightVhRef.current = SNAP_HEIGHTS[currentSnap];
+    lastYRef.current = e.clientY;
+    lastTimeRef.current = performance.now();
+    velocityYRef.current = 0;
+    totalDeltaYRef.current = 0;
+
     setIsDragging(true);
-    setDragCurrentHeightVh(SNAP_HEIGHTS[currentSnap]);
+    document.documentElement.setAttribute('data-sheet-dragging', 'true');
+
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = 'none';
+      sheetRef.current.style.willChange = 'transform';
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
+    if (!isDraggingRef.current) return;
     
-    const deltaY = e.clientY - startYRef.current;
-    const windowHeight = window.innerHeight || 800;
-    const deltaVh = (deltaY / windowHeight) * 100;
-    
-    // Como a gaveta é fixada embaixo, deltaY para baixo diminui a altura
-    const newHeightVh = Math.max(15, Math.min(95, startHeightVhRef.current - deltaVh));
-    setDragCurrentHeightVh(newHeightVh);
+    const now = performance.now();
+    const dt = now - lastTimeRef.current;
+    if (dt > 8) {
+      velocityYRef.current = (e.clientY - lastYRef.current) / dt;
+      lastYRef.current = e.clientY;
+      lastTimeRef.current = now;
+    }
+
+    const rawDeltaY = e.clientY - startYRef.current;
+    totalDeltaYRef.current = rawDeltaY;
+
+    // Resistência elástica ao tentar puxar para cima além do limite 'full' (92vh)
+    const windowH = window.innerHeight || 800;
+    const currentSnapH = (SNAP_HEIGHTS[currentSnapRef.current] / 100) * windowH;
+    const maxSnapH = (SNAP_HEIGHTS['full'] / 100) * windowH;
+    const maxDeltaUp = -(maxSnapH - currentSnapH);
+
+    let appliedDeltaY = rawDeltaY;
+    if (rawDeltaY < maxDeltaUp) {
+      const overscroll = maxDeltaUp - rawDeltaY;
+      appliedDeltaY = maxDeltaUp - Math.pow(overscroll, 0.72) * 2.5;
+    }
+
+    if (rAFIdRef.current) cancelAnimationFrame(rAFIdRef.current);
+    rAFIdRef.current = requestAnimationFrame(() => {
+      if (sheetRef.current && isDraggingRef.current) {
+        sheetRef.current.style.transform = `translate3d(0, ${appliedDeltaY}px, 0)`;
+      }
+    });
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
+    if (!isDraggingRef.current) return;
+    
     try {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
       // Ignora erro se pointer já foi liberado
     }
+
+    if (rAFIdRef.current) cancelAnimationFrame(rAFIdRef.current);
+    isDraggingRef.current = false;
     setIsDragging(false);
+    document.documentElement.removeAttribute('data-sheet-dragging');
 
-    const currentH = dragCurrentHeightVh ?? SNAP_HEIGHTS[currentSnap];
-    setDragCurrentHeightVh(null);
+    const totalDeltaY = totalDeltaYRef.current;
+    const velocity = velocityYRef.current; // positivo = arrastando para baixo
+    const windowH = window.innerHeight || 800;
+    const startHeightPx = (SNAP_HEIGHTS[currentSnapRef.current] / 100) * windowH;
+    const actualHeightPx = Math.max(0, startHeightPx - totalDeltaY);
+    const actualHeightVh = (actualHeightPx / windowH) * 100;
 
-    // Se arrastou muito para baixo (abaixo de 20vh), fecha
-    if (currentH < 20) {
-      onClose();
+    // Se arrastou muito para baixo (abaixo de ~18vh) ou flick rápido para baixo, fecha/recolhe
+    const isDismissing =
+      actualHeightVh < 18 ||
+      (totalDeltaY > 100 && velocity > 0.45) ||
+      (currentSnapRef.current === 'peek' && totalDeltaY > 50 && velocity > 0.2);
+
+    if (isDismissing) {
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = 'transform 0.28s cubic-bezier(0.32, 1, 0.23, 1)';
+        sheetRef.current.style.transform = 'translate3d(0, 105%, 0)';
+      }
+      setTimeout(() => {
+        if (sheetRef.current) {
+          sheetRef.current.style.transform = '';
+          sheetRef.current.style.transition = '';
+          sheetRef.current.style.willChange = 'auto';
+        }
+        if (onDismiss) {
+          onDismiss();
+        } else {
+          onClose();
+        }
+      }, 280);
       return;
     }
 
-    // Encontra o snap point mais próximo
-    const snaps: SnapPoint[] = ['peek', 'half', 'full'];
-    let closestSnap: SnapPoint = 'half';
-    let minDiff = Infinity;
-
-    snaps.forEach(s => {
-      const diff = Math.abs(currentH - SNAP_HEIGHTS[s]);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestSnap = s;
+    // Determina o snap point de destino considerando inércia e proximidade
+    let targetSnap: SnapPoint = currentSnapRef.current;
+    if (velocity < -0.4) {
+      // Flick para cima
+      if (currentSnapRef.current === 'peek') targetSnap = 'half';
+      else if (currentSnapRef.current === 'half') targetSnap = 'full';
+      else targetSnap = 'full';
+    } else if (velocity > 0.4) {
+      // Flick para baixo
+      if (currentSnapRef.current === 'full') targetSnap = 'half';
+      else if (currentSnapRef.current === 'half') targetSnap = 'peek';
+      else targetSnap = 'peek';
+    } else {
+      // Por proximidade de altura
+      if (actualHeightVh < 44) {
+        targetSnap = 'peek';
+      } else if (actualHeightVh < 76) {
+        targetSnap = 'half';
+      } else {
+        targetSnap = 'full';
       }
-    });
+    }
 
-    setSnap(closestSnap);
+    // Animação FLIP no snap final: compensa a nova altura via transform para transição 100% contínua
+    const targetHeightPx = (SNAP_HEIGHTS[targetSnap] / 100) * windowH;
+    const initialTranslateY = targetHeightPx - actualHeightPx;
+
+    setSnap(targetSnap);
+
+    if (sheetRef.current) {
+      const el = sheetRef.current;
+      el.style.transition = 'none';
+      el.style.transform = `translate3d(0, ${initialTranslateY}px, 0)`;
+
+      // Força layout síncrono no elemento antes de engatar a curva cúbica suave
+      void el.offsetHeight;
+
+      el.style.transition = 'transform 0.32s cubic-bezier(0.2, 0.9, 0.4, 1.0)';
+      el.style.transform = 'translate3d(0, 0, 0)';
+
+      const cleanup = () => {
+        if (sheetRef.current) {
+          sheetRef.current.style.transition = '';
+          sheetRef.current.style.transform = '';
+          sheetRef.current.style.willChange = 'auto';
+        }
+        el.removeEventListener('transitionend', cleanup);
+      };
+      el.addEventListener('transitionend', cleanup, { once: true });
+    }
   };
 
-  const currentHeightVh = dragCurrentHeightVh !== null ? dragCurrentHeightVh : SNAP_HEIGHTS[currentSnap];
-
-  // Sincroniza a altura visível e snap point da gaveta nas variáveis globais
+  // Sincroniza a altura visível e snap point nas variáveis globais APENAS quando troca de snap ou abre/fecha
   useEffect(() => {
     if (!isOpen) {
       document.documentElement.removeAttribute('data-mobile-sheet-snap');
@@ -127,9 +241,10 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
       window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: 0, snap: null } }));
       return;
     }
+
     document.documentElement.setAttribute('data-mobile-sheet-snap', currentSnap);
     const windowH = window.innerHeight || 800;
-    const px = Math.round((currentHeightVh / 100) * windowH);
+    const px = Math.round((SNAP_HEIGHTS[currentSnap] / 100) * windowH);
     document.documentElement.style.setProperty('--mobile-sheet-visible-height', `${px}px`);
     window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: px, snap: currentSnap } }));
 
@@ -138,7 +253,7 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
       document.documentElement.style.setProperty('--mobile-sheet-visible-height', '0px');
       window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: 0, snap: null } }));
     };
-  }, [isOpen, currentHeightVh, currentSnap]);
+  }, [isOpen, currentSnap]);
 
   if (!isOpen) return null;
 
@@ -149,7 +264,7 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
         <div 
           className="fixed inset-0 bg-black/25 backdrop-blur-[2px] transition-opacity duration-300 md:hidden"
           style={{ zIndex: MOBILE_Z_INDEX.SHEET_BACKDROP }}
-          onClick={onClose}
+          onClick={onDismiss || onClose}
           aria-hidden="true"
         />
       )}
@@ -162,10 +277,14 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
         aria-label={title || "Painel de informações"}
         style={{
           zIndex: MOBILE_Z_INDEX.SHEET,
-          height: `${currentHeightVh}dvh`,
-          transition: isDragging ? 'none' : 'height 0.32s cubic-bezier(0.2, 0.9, 0.4, 1.0)'
+          height: `${SNAP_HEIGHTS[currentSnap]}dvh`,
+          contain: 'content'
         }}
-        className="fixed bottom-0 inset-x-0 max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-[28px] shadow-[0_-8px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden select-none"
+        className={`fixed bottom-0 inset-x-0 max-w-lg mx-auto border-t border-black/10 dark:border-white/10 rounded-t-[28px] shadow-[0_-8px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden select-none ${
+          isDragging
+            ? 'bg-white dark:bg-[#1c1c1e]'
+            : 'bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl'
+        }`}
       >
         {/* Alça de Arraste (Handle) com Pointer Events */}
         <div
@@ -188,64 +307,20 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
               </h2>
             </div>
 
-            <div className="flex items-center gap-1">
-              {/* Alternador de Altura Rápido (Minimizar / Maximizar) */}
-              {currentSnap === 'peek' && (
-                <button
-                  type="button"
-                  onClick={() => setSnap('half')}
-                  className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                  title="Expandir para metade"
-                  aria-label="Expandir gaveta"
-                >
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-              )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {headerActions}
 
-              {currentSnap === 'half' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setSnap('peek')}
-                    className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                    title="Recolher para barra compacta"
-                    aria-label="Compactar gaveta"
-                  >
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSnap('full')}
-                    className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                    title="Expandir em tela quase cheia"
-                    aria-label="Expandir em tela cheia"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
-
-              {currentSnap === 'full' && (
-                <button
-                  type="button"
-                  onClick={() => setSnap('half')}
-                  className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                  title="Reduzir para metade"
-                  aria-label="Restaurar tamanho da gaveta"
-                >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {/* Botão Recolher / Fechar */}
+              {/* Botão Fechar (X) com alvo de toque iOS de 44px */}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-transform active:scale-90 ml-1"
-                title="Recolher gaveta"
-                aria-label="Recolher gaveta"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] -mr-1.5 flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
+                title="Fechar"
+                aria-label="Fechar gaveta"
               >
-                <X className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                  <X className="w-4 h-4 stroke-[2.5]" />
+                </div>
               </button>
             </div>
           </div>

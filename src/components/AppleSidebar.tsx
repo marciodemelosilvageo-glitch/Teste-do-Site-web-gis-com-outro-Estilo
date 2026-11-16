@@ -1325,68 +1325,70 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <span className="truncate">Buscar Endereços desta Localidade</span>
                 </button>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className={isMobile ? "w-full" : "grid grid-cols-2 gap-2"}>
                   {/* Botão Focar */}
                   <button
                     type="button"
                     onClick={() => onZoomToFeature(activeDetailFeature)}
-                    className="py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                    className="w-full py-2.5 px-2 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
                   >
                     <Navigation className="w-4 h-4 fill-white text-white" />
                     <span>Focar no Ponto</span>
                   </button>
 
-                  {/* Botão Exportar com Download Rápido e Feedback Inline */}
-                  <button
-                    type="button"
-                    disabled={exportButtonState !== 'idle'}
-                    onClick={handleExportButtonClick}
-                    className={`py-2.5 px-2 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
-                      exportButtonState === 'success'
-                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                        : exportButtonState === 'error'
-                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
-                        : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
-                    }`}
-                    title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
-                  >
-                    {exportButtonState === 'preparing' ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
-                        <span>Baixando...</span>
-                      </>
-                    ) : exportButtonState === 'success' ? (
-                      <>
-                        <svg className="w-4 h-4 stroke-emerald-600 dark:stroke-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <motion.path
-                            d="M20 6L9 17L4 12"
-                            initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
-                            animate={{ pathLength: 1 }}
-                            transition={{ duration: 0.35, ease: "easeOut" }}
-                          />
-                        </svg>
-                        <span>Baixado</span>
-                      </>
-                    ) : exportButtonState === 'error' ? (
-                      <>
-                        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                        <span>Erro</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 text-slate-700 dark:text-slate-200" />
-                        <span>Exportar</span>
-                      </>
-                    )}
-                  </button>
+                  {/* Botão Exportar com Download Rápido e Feedback Inline (apenas desktop; no mobile fica no cabeçalho) */}
+                  {!isMobile && (
+                    <button
+                      type="button"
+                      disabled={exportButtonState !== 'idle'}
+                      onClick={handleExportButtonClick}
+                      className={`py-2.5 px-2 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
+                        exportButtonState === 'success'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          : exportButtonState === 'error'
+                          ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                          : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
+                      }`}
+                      title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
+                    >
+                      {exportButtonState === 'preparing' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
+                          <span>Baixando...</span>
+                        </>
+                      ) : exportButtonState === 'success' ? (
+                        <>
+                          <svg className="w-4 h-4 stroke-emerald-600 dark:stroke-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <motion.path
+                              d="M20 6L9 17L4 12"
+                              initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
+                              animate={{ pathLength: 1 }}
+                              transition={{ duration: 0.35, ease: "easeOut" }}
+                            />
+                          </svg>
+                          <span>Baixado</span>
+                        </>
+                      ) : exportButtonState === 'error' ? (
+                        <>
+                          <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Erro</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+                          <span>Exportar</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ) : isCoordenadaSearch ? (
               /* Para Coordenadas pesquisadas: não exibir as ferramentas do topo (focar, raio x, exportar, cnefe), pois já existem na primeira barra lateral */
               null
             ) : (
-              /* Ações padrão para camadas poligonais / territoriais: 3 colunas (Focar, Buscar endereços, Exportar) */
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              /* Ações padrão para camadas poligonais / territoriais: 2 colunas no mobile (Focar, Buscar endereços), 3 colunas no desktop (+ Exportar) */
+              <div className={`${isMobile ? 'grid grid-cols-2' : 'grid grid-cols-3'} gap-2 pt-1`}>
                 {/* Botão Trajetos / Focar (Azul Apple #007AFF) */}
                 <button
                   type="button"
@@ -1449,49 +1451,51 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   </button>
                 )}
 
-                {/* Botão Exportar com Download Rápido e Feedback Inline */}
-                <button
-                  type="button"
-                  disabled={exportButtonState !== 'idle'}
-                  onClick={handleExportButtonClick}
-                  className={`py-2.5 px-2 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer ${
-                    exportButtonState === 'success'
-                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                      : exportButtonState === 'error'
-                      ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
-                      : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
-                  }`}
-                  title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
-                >
-                  {exportButtonState === 'preparing' ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
-                      <span className="truncate">Baixando...</span>
-                    </>
-                  ) : exportButtonState === 'success' ? (
-                    <>
-                      <svg className="w-5 h-5 stroke-emerald-600 dark:stroke-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <motion.path
-                          d="M20 6L9 17L4 12"
-                          initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
-                          animate={{ pathLength: 1 }}
-                          transition={{ duration: 0.35, ease: "easeOut" }}
-                        />
-                      </svg>
-                      <span>Baixado</span>
-                    </>
-                  ) : exportButtonState === 'error' ? (
-                    <>
-                      <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
-                      <span>Erro</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-                      <span>Exportar</span>
-                    </>
-                  )}
-                </button>
+                {/* Botão Exportar com Download Rápido e Feedback Inline (apenas desktop; no mobile fica no cabeçalho) */}
+                {!isMobile && (
+                  <button
+                    type="button"
+                    disabled={exportButtonState !== 'idle'}
+                    onClick={handleExportButtonClick}
+                    className={`py-2.5 px-2 rounded-2xl flex flex-col items-center justify-center gap-1 text-[11px] font-bold transition-all cursor-pointer ${
+                      exportButtonState === 'success'
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                        : exportButtonState === 'error'
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                        : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200'
+                    }`}
+                    title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
+                  >
+                    {exportButtonState === 'preparing' ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-[#007AFF]" />
+                        <span className="truncate">Baixando...</span>
+                      </>
+                    ) : exportButtonState === 'success' ? (
+                      <>
+                        <svg className="w-5 h-5 stroke-emerald-600 dark:stroke-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <motion.path
+                            d="M20 6L9 17L4 12"
+                            initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
+                            animate={{ pathLength: 1 }}
+                            transition={{ duration: 0.35, ease: "easeOut" }}
+                          />
+                        </svg>
+                        <span>Baixado</span>
+                      </>
+                    ) : exportButtonState === 'error' ? (
+                      <>
+                        <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+                        <span>Erro</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                        <span>Exportar</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
 
@@ -2266,6 +2270,39 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
     if (!isSheetOpen) return null;
 
+    const renderMobileDetailsHeaderExport = () => {
+      if (activeTab !== 'details' || !activeDetailFeature) return null;
+
+      return (
+        <button
+          type="button"
+          disabled={exportButtonState !== 'idle'}
+          onClick={handleExportButtonClick}
+          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer active:scale-90 transition-transform disabled:opacity-50"
+          title={exportPrefs.quickDownload && exportPrefs.format ? `Baixar seleção em ${(exportPrefs.format === 'csv' && getGeometryKind(selectedFeatures) === 'polygon' ? 'geojson' : exportPrefs.format).toUpperCase()}` : "Exportar feição"}
+          aria-label="Exportar"
+        >
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+            exportButtonState === 'success'
+              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+              : exportButtonState === 'error'
+              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+              : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300'
+          }`}>
+            {exportButtonState === 'preparing' ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#007AFF]" />
+            ) : exportButtonState === 'success' ? (
+              <Check className="w-4 h-4 stroke-[2.5] text-emerald-600 dark:text-emerald-400" />
+            ) : exportButtonState === 'error' ? (
+              <AlertTriangle className="w-4 h-4 text-rose-500" />
+            ) : (
+              <Download className="w-4 h-4 stroke-[2.2]" />
+            )}
+          </div>
+        </button>
+      );
+    };
+
     return (
       <MobileSheet
         isOpen={isSheetOpen}
@@ -2277,8 +2314,23 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
           }
           setOpenedFromSearch(false);
           setActiveCategorySearchId(null);
+          // Raio-X e Detalhes: o botão X fecha a gaveta e desmarca as feições
+          if (activeTab === 'dashboard' || activeTab === 'details') {
+            onClearSelection();
+          }
           setActiveTab(null);
         }}
+        onDismiss={() => {
+          if (isCustomizerModalOpen) {
+            setIsCustomizerModalOpen(false);
+            setCustomizerLayer(null);
+          }
+          setOpenedFromSearch(false);
+          setActiveCategorySearchId(null);
+          // Arrasto para baixo abaixo do limiar (onDismiss): fecha a gaveta SEM desmarcar feições
+          setActiveTab(null);
+        }}
+        headerActions={renderMobileDetailsHeaderExport()}
         title={isCustomizerModalOpen ? undefined : sheetTitle}
         icon={isCustomizerModalOpen ? undefined : sheetIcon}
         snapPoint={isCustomizerModalOpen ? 'full' : (activeTab === 'help' || activeTab === 'export' ? 'full' : 'half')}
