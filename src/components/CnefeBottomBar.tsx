@@ -378,6 +378,27 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     }
   }, [isMobile, isExpanded, mobileSnap]);
 
+  // Sincronizar variável CSS --cnefe-sheet-h e atributo data-cnefe-snap para cálculo exato de altura no mobile
+  useEffect(() => {
+    if (!isMobile) {
+      document.documentElement.style.removeProperty('--cnefe-sheet-h');
+      document.documentElement.removeAttribute('data-cnefe-snap');
+      return;
+    }
+    if (isExpanded) {
+      const snapVal = mobileSnap === 'full' ? '90dvh' : '55dvh';
+      document.documentElement.style.setProperty('--cnefe-sheet-h', snapVal);
+      document.documentElement.setAttribute('data-cnefe-snap', mobileSnap);
+    } else {
+      document.documentElement.style.setProperty('--cnefe-sheet-h', '0px');
+      document.documentElement.removeAttribute('data-cnefe-snap');
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--cnefe-sheet-h');
+      document.documentElement.removeAttribute('data-cnefe-snap');
+    };
+  }, [isMobile, isExpanded, mobileSnap]);
+
   // Sincronizar data-cnefe-expanded no html e evento customizado para controle limpo de minimização da legenda
   useEffect(() => {
     if (isExpanded) {
@@ -402,7 +423,9 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       document.documentElement.removeAttribute('data-cnefe-dragging');
       document.documentElement.removeAttribute('data-cnefe-animating');
       document.documentElement.removeAttribute('data-cnefe-expanded');
+      document.documentElement.removeAttribute('data-cnefe-snap');
       document.documentElement.style.removeProperty('--cnefe-bottom-height');
+      document.documentElement.style.removeProperty('--cnefe-sheet-h');
     };
   }, []);
 
@@ -596,6 +619,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
         {/* Conteúdo da Gaveta com snap dinâmico (half / full) e GPU transform direto */}
         <div 
           ref={mobileSheetRef}
+          data-snap={mobileSnap}
           style={{
             height: `${snapVh}dvh`,
             maxHeight: `${snapVh}dvh`,
@@ -603,6 +627,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             transition: isMobileDragging
               ? 'none'
               : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), height 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+            ['--cnefe-sheet-h' as any]: `${snapVh}dvh`,
           }}
           className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden"
         >
@@ -682,7 +707,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           </div>
 
           {/* Painel Interno: Mantido montado na mesma árvore React para preservar filtros/buscas/plotagem */}
-          <div className="flex-1 overflow-hidden px-3 sm:px-6 py-2 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0 flex flex-col">
             <IbgeSearchPanel
               embedded={true}
               isMaximized={true}

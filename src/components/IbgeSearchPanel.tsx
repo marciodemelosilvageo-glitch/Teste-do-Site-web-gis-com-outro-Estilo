@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Search, 
@@ -380,6 +380,24 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   const [filterPopoverPos, setFilterPopoverPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 12, width: 260 });
   const filterPopoverRef = useRef<HTMLDivElement>(null);
   const filterTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Medição da altura real da primeira linha do cabeçalho da tabela para sticky exato
+  const firstHeaderRowRef = useRef<HTMLTableRowElement>(null);
+  const [firstRowHeight, setFirstRowHeight] = useState<number>(41);
+
+  useLayoutEffect(() => {
+    if (!firstHeaderRowRef.current) return;
+    const updateH = () => {
+      if (firstHeaderRowRef.current) {
+        const h = firstHeaderRowRef.current.getBoundingClientRect().height;
+        if (h > 0) setFirstRowHeight(Math.round(h));
+      }
+    };
+    updateH();
+    const ro = new ResizeObserver(updateH);
+    ro.observe(firstHeaderRowRef.current);
+    return () => ro.disconnect();
+  }, [visibleTableColumns, isMobile]);
 
   const toggleFilterPopover = useCallback((colKey: string) => {
     setActiveFilterColKey(prev => {
@@ -1864,17 +1882,28 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
             {results.length > 0 ? (
               <>
                 {processedResults.length > 0 ? (
-                  <div className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
-                    isMobile
-                      ? 'flex-1 min-h-0 overflow-auto'
-                      : embedded 
-                      ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
-                      : 'max-h-[580px]'
-                  }`}>
+                  <div 
+                    style={isMobile ? {
+                      height: 'calc(var(--cnefe-sheet-h, 55dvh) - 175px)',
+                      minHeight: '180px',
+                      maxHeight: 'calc(var(--cnefe-sheet-h, 90dvh) - 100px)',
+                      overflow: 'auto',
+                      overscrollBehavior: 'contain',
+                      touchAction: 'pan-x pan-y',
+                      WebkitOverflowScrolling: 'touch',
+                    } : undefined}
+                    className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
+                      isMobile
+                        ? 'w-full flex-1'
+                        : embedded 
+                        ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
+                        : 'max-h-[580px]'
+                    }`}
+                  >
                     <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
                       <thead className="bg-slate-100/95 dark:bg-[#2c2c2e]/95 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-20 shadow-xs select-none border-b border-black/10 dark:border-white/10">
                         {/* Linha 1: Títulos das Colunas, Ordenação e Alça de Redimensionamento */}
-                        <tr className="sticky top-0 z-20 bg-slate-100 dark:bg-[#2c2c2e]">
+                        <tr ref={firstHeaderRowRef} className="sticky top-0 z-20 bg-slate-100 dark:bg-[#2c2c2e]">
                           <th className="px-3 py-3 font-extrabold w-12 min-w-[48px] max-w-[48px] text-center border-b border-black/10 dark:border-white/10 sticky left-0 top-0 z-30 bg-slate-100 dark:bg-[#2c2c2e] shadow-r text-slate-500 dark:text-slate-400">
                             #
                           </th>
@@ -1888,7 +1917,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                               <th 
                                 key={col.key} 
                                 style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                className={`relative px-3 py-2.5 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th transition-colors ${
+                                className={`sticky top-0 z-20 bg-slate-100/95 dark:bg-[#2c2c2e]/95 backdrop-blur-md px-3 py-2.5 font-extrabold uppercase tracking-wider text-[11px] border-b border-black/10 dark:border-white/10 group/th transition-colors ${
                                   hasActiveFilter ? 'bg-[#007AFF]/10 dark:bg-[#007AFF]/20 text-[#007AFF] dark:text-[#64D2FF]' : ''
                                 }`}
                               >
@@ -1971,8 +2000,14 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
                         {/* Linha 2: Caixas de Filtro Individuais por Coluna (Apenas Desktop) */}
                         {!isMobile && (
-                          <tr className="bg-slate-200/95 dark:bg-[#242426]/95 border-b border-black/10 dark:border-white/10 sticky top-[41px] z-20">
-                            <th className="px-1.5 py-1.5 sticky left-0 top-[41px] z-30 bg-slate-200 dark:bg-[#242426] shadow-r text-center">
+                          <tr 
+                            style={{ top: `${firstRowHeight}px` }}
+                            className="bg-slate-200/95 dark:bg-[#242426]/95 border-b border-black/10 dark:border-white/10 sticky z-20"
+                          >
+                            <th 
+                              style={{ top: `${firstRowHeight}px` }}
+                              className="px-1.5 py-1.5 sticky left-0 z-30 bg-slate-200 dark:bg-[#242426] shadow-r text-center"
+                            >
                               <Filter size={11} className="mx-auto text-slate-400" />
                             </th>
                             {visibleTableColumns.map(col => {
@@ -1983,8 +2018,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                               return (
                                 <th
                                   key={`filter-${col.key}`}
-                                  style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
-                                  className="px-2 py-1.5 font-normal sticky top-[41px] z-20 bg-slate-200/95 dark:bg-[#242426]/95"
+                                  style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px`, top: `${firstRowHeight}px` }}
+                                  className="px-2 py-1.5 font-normal sticky z-20 bg-slate-200/95 dark:bg-[#242426]/95"
                                 >
                                   <div className="relative flex items-center w-full rounded-lg border transition-all border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20">
                                     <input
