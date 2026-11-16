@@ -60,12 +60,20 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
 
-  // Estados e Refs para gesto de arrasto da gaveta no mobile (< 768px)
-  const [mobileDragY, setMobileDragY] = useState<number>(0);
+  // Estados e Refs para gesto de arrasto da gaveta no mobile (< 768px) com dois pontos de parada (half ~55vh e full ~90vh)
+  const [mobileSnap, setMobileSnap] = useState<'half' | 'full'>('half');
+  const mobileSnapRef = useRef<'half' | 'full'>('half');
+  mobileSnapRef.current = mobileSnap;
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
+
   const [isMobileDragging, setIsMobileDragging] = useState<boolean>(false);
-  const [isMobileClosing, setIsMobileClosing] = useState<boolean>(false);
-  const mobileDragStartYRef = useRef<number>(0);
-  const mobileDragStartTimeRef = useRef<number>(0);
+  const isMobileDraggingRef = useRef<boolean>(false);
+  const mobileStartYRef = useRef<number>(0);
+  const mobileLastYRef = useRef<number>(0);
+  const mobileLastTimeRef = useRef<number>(0);
+  const mobileVelocityYRef = useRef<number>(0);
+  const mobileTotalDeltaYRef = useRef<number>(0);
+  const mobileRAFIdRef = useRef<number | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
 
   useEffect(() => {
@@ -77,7 +85,24 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
     return () => mediaQuery.removeEventListener('change', handler);
   }, []);
 
-  // Fechar gaveta mobile com tecla Escape
+  // Evento customizado para permitir que outros componentes (ex: handlePlotAddress) solicitem ajuste de snap
+  useEffect(() => {
+    if (!isMobile) return;
+    const handleSnapTo = (e: Event) => {
+      const detail = (e as CustomEvent<{ snap: 'half' | 'full' }>).detail;
+      if (detail?.snap && (detail.snap === 'half' || detail.snap === 'full')) {
+        setMobileSnap(detail.snap);
+        mobileSnapRef.current = detail.snap;
+        if (!isExpandedRef.current && onToggleExpandRef.current) {
+          onToggleExpandRef.current();
+        }
+      }
+    };
+    window.addEventListener('cnefe-snap-to', handleSnapTo);
+    return () => window.removeEventListener('cnefe-snap-to', handleSnapTo);
+  }, [isMobile]);
+
+  // Fechar/minimizar gaveta mobile com tecla Escape
   useEffect(() => {
     if (!isMobile || !isExpanded) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -95,44 +120,129 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const handleMobileDragPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button')) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    mobileDragStartYRef.current = e.clientY;
-    mobileDragStartTimeRef.current = Date.now();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    isMobileDraggingRef.current = true;
+    mobileStartYRef.current = e.clientY;
+    mobileLastYRef.current = e.clientY;
+    mobileLastTimeRef.current = performance.now();
+    mobileVelocityYRef.current = 0;
+    mobileTotalDeltaYRef.current = 0;
     setIsMobileDragging(true);
-    setMobileDragY(0);
+    document.documentElement.setAttribute('data-sheet-dragging', 'true');
+    if (mobileSheetRef.current) {
+      mobileSheetRef.current.style.transition = 'none';
+      mobileSheetRef.current.style.willChange = 'transform';
+    }
   };
 
   const handleMobileDragPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isMobileDragging) return;
-    const deltaY = Math.max(0, e.clientY - mobileDragStartYRef.current);
-    setMobileDragY(deltaY);
+    if (!isMobileDraggingRef.current) return;
+    const now = performance.now();
+    const dt = now - mobileLastTimeRef.current;
+    if (dt > 8) {
+      mobileVelocityYRef.current = (e.clientY - mobileLastYRef.current) / dt;
+      mobileLastYRef.current = e.clientY;
+      mobileLastTimeRef.current = now;
+    }
+    const rawDeltaY = e.clientY - mobileStartYRef.current;
+    mobileTotalDeltaYRef.current = rawDeltaY;
+
+    // Resistência elástica ao tentar puxar para cima além do limite 'full' (90vh)
+    const windowH = window.innerHeight || 800;
+    const currentSnapH = ((mobileSnapRef.current === 'full' ? 90 : 55) / 100) * windowH;
+    const maxSnapH = 0.90 * windowH;
+    const maxDeltaUp = -(maxSnapH - currentSnapH);
+
+    let appliedDeltaY = rawDeltaY;
+    if (rawDeltaY < maxDeltaUp) {
+      const overscroll = maxDeltaUp - rawDeltaY;
+      appliedDeltaY = maxDeltaUp - Math.pow(overscroll, 0.72) * 2.5;
+    }
+
+    if (mobileRAFIdRef.current) cancelAnimationFrame(mobileRAFIdRef.current);
+    mobileRAFIdRef.current = requestAnimationFrame(() => {
+      if (mobileSheetRef.current && isMobileDraggingRef.current) {
+        mobileSheetRef.current.style.transform = `translate3d(0, ${appliedDeltaY}px, 0)`;
+      }
+    });
   };
 
   const handleMobileDragPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isMobileDragging) return;
+    if (!isMobileDraggingRef.current) return;
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {}
+    if (mobileRAFIdRef.current) cancelAnimationFrame(mobileRAFIdRef.current);
+    isMobileDraggingRef.current = false;
     setIsMobileDragging(false);
+    document.documentElement.removeAttribute('data-sheet-dragging');
 
-    const deltaY = Math.max(0, e.clientY - mobileDragStartYRef.current);
-    const elapsed = Math.max(1, Date.now() - mobileDragStartTimeRef.current);
-    const velocityY = deltaY / elapsed;
+    const totalDeltaY = mobileTotalDeltaYRef.current;
+    const velocity = mobileVelocityYRef.current; // positivo = arrastando para baixo
+    const windowH = window.innerHeight || 800;
+    const startHPx = ((mobileSnapRef.current === 'full' ? 90 : 55) / 100) * windowH;
+    const actualHPx = Math.max(0, startHPx - totalDeltaY);
+    const actualHVh = (actualHPx / windowH) * 100;
 
-    if (deltaY > 90 || velocityY > 0.4) {
-      if (prefersReducedMotion) {
-        setMobileDragY(0);
-        handleToggleExpand();
-      } else {
-        setIsMobileClosing(true);
-        setTimeout(() => {
-          setIsMobileClosing(false);
-          setMobileDragY(0);
-          handleToggleExpand();
-        }, 220);
+    // Se arrastou muito para baixo (abaixo de 25vh) ou flick para baixo a partir de half, minimiza a gaveta
+    const isDismissing =
+      (mobileSnapRef.current === 'half' && (totalDeltaY > 80 || velocity > 0.4)) ||
+      actualHVh < 25;
+
+    if (isDismissing) {
+      if (mobileSheetRef.current) {
+        mobileSheetRef.current.style.transition = 'transform 0.28s cubic-bezier(0.32, 1, 0.23, 1)';
+        mobileSheetRef.current.style.transform = 'translate3d(0, 105%, 0)';
       }
+      setTimeout(() => {
+        if (mobileSheetRef.current) {
+          mobileSheetRef.current.style.transform = '';
+          mobileSheetRef.current.style.transition = '';
+          mobileSheetRef.current.style.willChange = 'auto';
+        }
+        onToggleExpandRef.current();
+      }, 280);
+      return;
+    }
+
+    // Determina o snap point de destino considerando inércia e proximidade
+    let targetSnap: 'half' | 'full' = mobileSnapRef.current;
+    if (velocity < -0.35) {
+      targetSnap = 'full';
+    } else if (velocity > 0.35) {
+      targetSnap = 'half';
     } else {
-      setMobileDragY(0);
+      targetSnap = actualHVh > 72 ? 'full' : 'half';
+    }
+
+    // Animação FLIP no snap final: compensa a nova altura via transform para transição suave
+    const targetHPx = ((targetSnap === 'full' ? 90 : 55) / 100) * windowH;
+    const initialTranslateY = targetHPx - actualHPx;
+
+    setMobileSnap(targetSnap);
+    mobileSnapRef.current = targetSnap;
+
+    if (mobileSheetRef.current) {
+      const el = mobileSheetRef.current;
+      el.style.transition = 'none';
+      el.style.transform = `translate3d(0, ${initialTranslateY}px, 0)`;
+
+      void el.offsetHeight;
+
+      el.style.transition = 'transform 0.32s cubic-bezier(0.2, 0.9, 0.4, 1.0)';
+      el.style.transform = 'translate3d(0, 0, 0)';
+
+      const cleanup = () => {
+        if (mobileSheetRef.current) {
+          mobileSheetRef.current.style.transition = '';
+          mobileSheetRef.current.style.transform = '';
+          mobileSheetRef.current.style.willChange = 'auto';
+        }
+        el.removeEventListener('transitionend', cleanup);
+      };
+      el.addEventListener('transitionend', cleanup, { once: true });
     }
   };
 
@@ -258,12 +368,13 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   useEffect(() => {
     if (!isMobile) return;
     if (isExpanded) {
-      const h = Math.round((window.innerHeight || 800) * 0.9);
-      window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: h, snap: 'full' } }));
+      const snapVh = mobileSnap === 'full' ? 90 : 55;
+      const h = Math.round(((window.innerHeight || 800) * snapVh) / 100);
+      window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: h, snap: mobileSnap } }));
     } else {
       window.dispatchEvent(new CustomEvent('mobile-sheet-resize', { detail: { height: 0, snap: null } }));
     }
-  }, [isMobile, isExpanded]);
+  }, [isMobile, isExpanded, mobileSnap]);
 
   // Sincronizar data-cnefe-expanded no html e evento customizado para controle limpo de minimização da legenda
   useEffect(() => {
@@ -452,66 +563,53 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   // RENDERIZAÇÃO MOBILE: NÃO MOSTRA FAIXA DE 46PX, ABRE COMO GAVETA
   // ==============================================================
   if (isMobile) {
-    if (!isExpanded) {
-      // Preserva o componente e seu estado interno montado sem renderizar visualmente no mapa
-      return (
-        <div 
-          ref={barContainerRef}
-          style={{ display: 'none' }}
-          aria-hidden="true"
-          // @ts-expect-error inert is standard HTML5 attribute supported in React 19
-          inert=""
-        >
-          <IbgeSearchPanel
-            embedded={true}
-            isMaximized={false}
-            isMobile={true}
-            onPlotAddress={onPlotAddress}
-            onPlotAllAddresses={onPlotAllAddresses}
-            onClearPlot={onClearPlot}
-            onUnplot={onUnplot}
-            onClearExternalResult={onClearExternalResult}
-            externalPolygonResult={externalPolygonResult}
-            allowedColumns={allowedColumns}
-            hasPlottedMarkers={hasPlottedMarkers}
-            isExternalSearching={isSearchingExternal}
-          />
-        </div>
-      );
-    }
+    const isVisible = isOpen && isExpanded;
+    const snapVh = mobileSnap === 'full' ? 90 : 55;
 
     return (
       <div 
-        className="fixed inset-0 flex flex-col justify-end pointer-events-auto select-none"
+        className={`fixed inset-0 flex flex-col justify-end select-none transition-[visibility] duration-300 ${
+          isVisible ? 'pointer-events-auto' : 'pointer-events-none invisible'
+        }`}
         style={{ zIndex: MOBILE_Z_INDEX.SHEET }}
         role="dialog"
-        aria-modal="true"
+        aria-modal={isVisible && mobileSnap === 'full' ? 'true' : 'false'}
         aria-label="Busca de Endereços Avançada"
+        aria-hidden={!isVisible ? 'true' : undefined}
+        // @ts-expect-error inert is standard HTML5 attribute supported in React 19
+        inert={!isVisible ? '' : undefined}
       >
-        {/* Backdrop Translúcido */}
+        {/* Backdrop Translúcido: Apenas ativo/clicável quando em tela cheia (em meia tela o mapa fica livre) */}
         <div 
-          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300 z-0"
-          onClick={() => handleToggleExpand()}
+          className={`fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300 z-0 ${
+            isVisible && mobileSnap === 'full' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => {
+            if (isMobileDragging) return;
+            onToggleExpand();
+          }}
           aria-hidden="true"
         />
 
-        {/* Conteúdo da Gaveta em Tela Quase Cheia */}
+        {/* Conteúdo da Gaveta com snap dinâmico (half / full) e GPU transform direto */}
         <div 
-          ref={barContainerRef}
+          ref={mobileSheetRef}
           style={{
-            transform: isMobileClosing
-              ? 'translateY(100%)'
-              : mobileDragY > 0
-              ? `translateY(${mobileDragY}px)`
-              : undefined,
+            height: `${snapVh}dvh`,
+            maxHeight: `${snapVh}dvh`,
+            transform: !isVisible ? 'translate3d(0, 105%, 0)' : undefined,
             transition: isMobileDragging
               ? 'none'
-              : isMobileClosing
-              ? 'transform 0.22s cubic-bezier(0.32, 0.72, 0, 1)'
-              : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+              : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), height 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
           }}
-          className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col h-[90dvh] max-h-[92dvh] overflow-hidden animate-slideUp"
+          className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden"
         >
+          {/* Fundo estendido abaixo da gaveta para não deixar vão durante puxada para cima */}
+          <div
+            aria-hidden="true"
+            className="absolute top-full left-0 right-0 h-[60vh] bg-white/95 dark:bg-[#1c1c1e]/95 pointer-events-none border-x border-black/10 dark:border-white/10"
+          />
+
           {/* Barra de Progresso Indeterminada durante Busca Externa */}
           {isSearchingExternal && (
             <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#007AFF]/20 overflow-hidden z-40">
@@ -561,7 +659,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
                 </div>
               </div>
 
-              {/* Ações: Limpar (Botão Recolher removido conforme especificação) */}
+              {/* Ações: Limpar */}
               <div className="flex items-center gap-2 shrink-0">
                 {(hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
                   <button
@@ -581,8 +679,8 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             </div>
           </div>
 
-          {/* Painel Interno Scrollable */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0">
+          {/* Painel Interno: Mantido montado na mesma árvore React para preservar filtros/buscas/plotagem */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0 flex flex-col">
             <IbgeSearchPanel
               embedded={true}
               isMaximized={true}

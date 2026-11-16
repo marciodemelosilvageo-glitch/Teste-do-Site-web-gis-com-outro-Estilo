@@ -955,7 +955,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     <section 
       id="ibge-search-panel"
       aria-label="Busca de Endereços Avançado" 
-      className={`w-full flex flex-col gap-4 relative z-20 ${embedded ? 'mt-1 mb-2' : 'mt-10 mb-8'} ${isMobile ? 'ibge-mobile-search-panel' : ''}`}
+      className={`w-full flex flex-col gap-4 relative z-20 ${embedded ? 'mt-1 mb-2' : 'mt-10 mb-8'} ${isMobile ? 'ibge-mobile-search-panel flex-1 min-h-0' : ''}`}
     >
       {/* Separador e título da seção (apenas quando não embutido) */}
       {!embedded && (
@@ -1360,7 +1360,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
         {/* Tabela de Resultados do Dashboard (Estilo Apple Glass) */}
         {hasSearched && (
-          <div className="border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-lg bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl">
+          <div className={`border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-lg bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl ${isMobile ? 'flex-1 min-h-0' : ''}`}>
             {/* Barra KPI e Ações Principais */}
             <div className={`bg-slate-50/90 dark:bg-[#2c2c2e]/90 backdrop-blur-md border-b border-black/10 dark:border-white/10 ${
               isMobile 
@@ -1828,7 +1828,9 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
               <>
                 {processedResults.length > 0 ? (
                   <div className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
-                    embedded 
+                    isMobile
+                      ? 'flex-1 min-h-[160px]'
+                      : embedded 
                       ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
                       : 'max-h-[580px]'
                   }`}>

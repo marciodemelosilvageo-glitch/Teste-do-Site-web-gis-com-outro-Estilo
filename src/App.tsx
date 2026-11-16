@@ -2496,10 +2496,25 @@ export default function App() {
       return [...filtered, plotFeature];
     });
 
-    setSidebarTab('details');
-
-    if (mapInstance) {
-      mapInstance.setView([lat, lng], 17);
+    if (isMobile) {
+      // Mobile: não abre aba de detalhes e não fecha a gaveta. Ajusta para meia tela (half) e centraliza no mapa superior
+      window.dispatchEvent(new CustomEvent('cnefe-snap-to', { detail: { snap: 'half' } }));
+      if (mapInstance) {
+        const targetZoom = 17;
+        const pt = mapInstance.project([lat, lng], targetZoom);
+        // A gaveta ocupa ~55% da tela na base. O centro da metade livre superior
+        // está deslocado para baixo em pixels (metade da altura da gaveta):
+        const drawerHeightPx = window.innerHeight * 0.55;
+        const offsetPx = Math.round(drawerHeightPx / 2);
+        const adjustedPt = L.point(pt.x, pt.y + offsetPx);
+        const adjustedLatLng = mapInstance.unproject(adjustedPt, targetZoom);
+        mapInstance.setView(adjustedLatLng, targetZoom);
+      }
+    } else {
+      setSidebarTab('details');
+      if (mapInstance) {
+        mapInstance.setView([lat, lng], 17);
+      }
     }
     
     logActivity('ENDERECO', `Plotou endereço no mapa: "${addrLabel}"`, userRole, `Município: ${row.municipio || row.MUNICIPIO || '-'}`);
@@ -2507,7 +2522,7 @@ export default function App() {
     
     // Rolar a tela para o topo para ver o mapa
     // map is already visible on screen
-  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem]);
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile]);
 
   const handlePlotAllAddresses = useCallback((results: any[]) => {
     const validCoords = results
@@ -3350,6 +3365,7 @@ export default function App() {
             setIsCnefeBottomBarOpen(true);
             setIsCnefeBottomBarExpanded(true);
           }}
+          isAddressSearchOpen={isCnefeBottomBarExpanded}
         >
           {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
           <div className="w-full h-full relative overflow-hidden">
