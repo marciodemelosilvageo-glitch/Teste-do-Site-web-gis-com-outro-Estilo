@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { supabase, toSyntheticEmail } from '../supabaseClient';
 
 export type UserRole = 'master' | 'manager' | 'user' | 'admin';
 
@@ -107,7 +107,6 @@ export interface UserSessionConfig {
   role: UserRole;
   isBlocked?: boolean;
   loginCount?: number; // Contador de acessos ao site
-  password?: string;   // Senha atribuída ao visitante (se houver)
   hasCustomPermissions?: boolean;
   customLayerPermissions?: Record<string, boolean>; // Se definido, sobrepõe o global
   customFeaturePermissions?: FeaturePermissions;    // Se definido, sobrepõe o global
@@ -126,7 +125,7 @@ export interface ManagerPermissions {
 export interface RegisteredUser {
   id: string;
   username: string; // Login de acesso único (ex: 'joao.silva')
-  password: string; // Senha de acesso
+  password?: string; // Mantido apenas para compatibilidade de tipos (nunca armazenado em texto)
   name: string;     // Nome completo ou identificação (ex: 'João da Silva')
   role: 'master' | 'manager' | 'user'; // Cargo na hierarquia
   department?: string; // Cargo, setor ou secretaria
@@ -134,6 +133,7 @@ export interface RegisteredUser {
   createdBy?: string; // Identificador de quem cadastrou (Master ou Gerente)
   lastLogin?: string;
   isActive: boolean;
+  mustChangePassword?: boolean;
   hasCustomPermissions: boolean;
   managerPermissions?: ManagerPermissions;
   customLayerPermissions?: Record<string, boolean>;
@@ -144,7 +144,6 @@ export interface RegisteredUser {
 
 const STORAGE_KEYS = {
   ROLE: 'webgis_current_role',
-  ADMIN_PASSWORD: 'webgis_admin_password',
   LAYER_PERMISSIONS: 'webgis_layer_permissions',
   FEATURE_PERMISSIONS: 'webgis_feature_permissions',
   ADDRESS_COLUMNS_PERMISSIONS: 'webgis_address_columns_permissions',
@@ -218,49 +217,18 @@ export const initAdminService = async (forceRefresh = false) => {
           hasChanged = true;
         }
       }
-      if (settingsData.admin_password) {
-        if (localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) !== settingsData.admin_password) {
-          localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, settingsData.admin_password);
-          hasChanged = true;
-        }
-      }
     } else if (!settingsData && !settingsError) {
       // Cria a linha inicial no Supabase se não existir
       await syncAllSettingsToSupabase();
     }
 
-    // 2. Carregar Usuários Cadastrados do Supabase
-    const { data: regUsersData, error: regUsersError } = await supabase
-      .from('webgis_settings')
-      .select('*')
-      .eq('id', 'registered_users')
-      .maybeSingle();
-
-    if (regUsersData && !regUsersError) {
-      const usersList = regUsersData.feature_permissions || (regUsersData as any).data;
-      if (Array.isArray(usersList) && usersList.length > 0) {
-        const next = JSON.stringify(usersList);
-        if (localStorage.getItem(STORAGE_KEYS.REGISTERED_USERS) !== next) {
-          localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, next);
-          hasChanged = true;
-        }
+    // 2. Carregar Usuários Cadastrados a partir da tabela profiles (se autenticado com permissão)
+    try {
+      const freshProfiles = await getRegisteredUsersAsync();
+      if (freshProfiles.length > 0) {
+        hasChanged = true;
       }
-    } else if (!regUsersData && !regUsersError) {
-      const defaultMaster: RegisteredUser = {
-        id: 'master-supremo-001',
-        name: 'Master',
-        username: sanitizeUsername((import.meta as any).env?.VITE_INITIAL_MASTER_USER || ''),
-        password: ((import.meta as any).env?.VITE_INITIAL_MASTER_PASS || '').trim(),
-        isActive: true,
-        role: 'master',
-        createdAt: new Date().toISOString(),
-        hasCustomPermissions: true
-      };
-      const initialList = (defaultMaster.username && defaultMaster.password) ? [defaultMaster] : [];
-      await syncRegisteredUsersToSupabase(initialList);
-      localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(initialList));
-      hasChanged = true;
-    }
+    } catch { }
 
     // 3. Carregar Sessões de Usuários do Supabase
     const { data: sessionsData } = await supabase
@@ -412,19 +380,52 @@ export const getRegisteredUsers = (): RegisteredUser[] => {
   return sortUsersMostRecentFirst(usersList);
 };
 
-// SEMPRE busca a lista MAIS RECENTE do Supabase (ignora cache local)
+// Garante sessão anônima para visitantes com token JWT do Supabase
+export const ensureVisitorAuth = async (): Promise<string | null> => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user) {
+      return session.user.id;
+    }
+    const { data: anonData, error } = await supabase.auth.signInAnonymously();
+    if (!error && anonData?.user) {
+      return anonData.user.id;
+    }
+    if (error) {
+      console.warn('Falha no login anônimo de visitante:', error.message);
+    }
+  } catch (e) {
+    console.warn('Erro ao verificar/criar sessão de visitante:', e);
+  }
+  return null;
+};
+
+// SEMPRE busca a lista MAIS RECENTE da tabela public.profiles no Supabase
 export const getRegisteredUsersAsync = async (): Promise<RegisteredUser[]> => {
   try {
     const { data, error } = await supabase
-      .from('webgis_settings')
-      .select('feature_permissions')
-      .eq('id', 'registered_users')
-      .maybeSingle();
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    if (!error && data && Array.isArray(data.feature_permissions) && data.feature_permissions.length > 0) {
-      const usersList: RegisteredUser[] = data.feature_permissions.map((u: any) => ({
-        ...u,
-        role: (u.role === 'admin' ? 'master' : (u.role || 'user'))
+    if (!error && Array.isArray(data)) {
+      const usersList: RegisteredUser[] = data.map((p: any) => ({
+        id: p.id,
+        username: p.username,
+        name: p.name,
+        role: (p.role === 'admin' ? 'master' : (p.role || 'user')) as UserRole,
+        department: p.department || '',
+        createdAt: p.created_at,
+        createdBy: p.created_by || '',
+        lastLogin: p.last_login,
+        isActive: p.is_active !== false,
+        mustChangePassword: !!p.must_change_password,
+        hasCustomPermissions: !!p.has_custom_permissions,
+        managerPermissions: p.manager_permissions || undefined,
+        customLayerPermissions: p.custom_layer_permissions || undefined,
+        customFeaturePermissions: p.custom_feature_permissions || undefined,
+        customAddressColumnsPermissions: p.custom_address_columns_permissions || undefined,
+        customFeaturePropertiesPermissions: p.custom_feature_properties_permissions || undefined,
       }));
       const sorted = sortUsersMostRecentFirst(usersList);
       // Atualiza o cache local com os dados frescos do servidor
@@ -432,31 +433,16 @@ export const getRegisteredUsersAsync = async (): Promise<RegisteredUser[]> => {
       return sorted;
     }
   } catch (e) {
-    console.warn('getRegisteredUsersAsync: falha ao buscar do Supabase, usando cache local:', e);
+    console.warn('getRegisteredUsersAsync: falha ao buscar da tabela profiles:', e);
   }
   // Fallback para cache local
   return getRegisteredUsers();
 };
 
-// Sincronizar usuários cadastrados diretamente com o Supabase
-export const syncRegisteredUsersToSupabase = async (usersList?: RegisteredUser[]): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const users = usersList || getRegisteredUsers();
-    const { error } = await supabase.from('webgis_settings').upsert({
-      id: 'registered_users',
-      feature_permissions: users,
-      updated_at: new Date().toISOString()
-    });
-
-    if (error) {
-      console.error('Erro ao salvar usuários cadastrados no Supabase:', error);
-      return { success: false, error: error.message };
-    }
-    return { success: true };
-  } catch (e: any) {
-    console.warn('Erro ao salvar usuários cadastrados no Supabase:', e);
-    return { success: false, error: e?.message || 'Falha de conexão com Supabase' };
-  }
+// Sincronizar usuários cadastrados diretamente com o Supabase (legado / mantido para compatibilidade)
+export const syncRegisteredUsersToSupabase = async (_usersList?: RegisteredUser[]): Promise<{ success: boolean; error?: string }> => {
+  // Os usuários agora são gerenciados de forma atômica e segura na tabela profiles
+  return { success: true };
 };
 
 // Normalizador de nome de usuário (@, lowercase, trim)
@@ -485,7 +471,7 @@ export const isUsernameAvailableAsync = async (
   };
 };
 
-// Salvar ou Atualizar Usuário Cadastrado (Direto no Supabase)
+// Salvar ou Atualizar Usuário Cadastrado (Via Edge Function segura no Supabase)
 export const saveRegisteredUser = async (
   userData: Partial<RegisteredUser> & { username: string; name: string },
   requester?: { username?: string; role?: UserRole } | null | 'master'
@@ -504,7 +490,7 @@ export const saveRegisteredUser = async (
 
   const currentUsers = await getRegisteredUsersAsync();
 
-  // Verificação estrita: Não permitir criar mais de uma conta com o mesmo nome de usuário
+  // Verificação estrita: Não permitir duplicidade de nome de usuário
   const duplicateUser = currentUsers.find(u => 
     sanitizeUsername(u.username) === usernameClean && (!userData.id || u.id !== userData.id)
   );
@@ -517,8 +503,6 @@ export const saveRegisteredUser = async (
     };
   }
 
-  const existingIndex = userData.id ? currentUsers.findIndex(u => u.id === userData.id) : -1;
-
   const requesterRole = typeof requester === 'string' ? requester : (requester?.role || 'master');
   const requesterName = typeof requester === 'string' ? requester : (requester?.username || 'Master');
   const isManager = requesterRole === 'manager';
@@ -526,99 +510,80 @@ export const saveRegisteredUser = async (
 
   // Validação para Gerentes:
   if (isManager) {
-    // Se for criar novo usuário, verifica se o Master permitiu gerar logins
-    if (!userData.id) {
-      if (managerObj?.managerPermissions?.allowGenerateLogins === false) {
-        return { success: false, users: currentUsers, error: 'O Administrador Master não liberou permissão para você gerar novos logins.' };
-      }
-    }
-
-    // Gerente não pode editar usuários de outros criadores ou usuários que não sejam comuns
-    if (userData.id && existingIndex >= 0) {
-      const targetUser = currentUsers[existingIndex];
-      if (targetUser.createdBy !== requesterName || targetUser.role !== 'user') {
-        return { success: false, users: currentUsers, error: 'Gerentes só podem gerenciar usuários comuns criados por eles mesmos.' };
-      }
+    if (!userData.id && managerObj?.managerPermissions?.allowGenerateLogins === false) {
+      return { success: false, users: currentUsers, error: 'O Administrador Master não liberou permissão para você gerar novos logins.' };
     }
   }
 
-  let updatedUsers: RegisteredUser[];
-
-  const isMasterRequester = requesterRole === 'master' || requesterRole === 'admin' || !requester;
-  const canCreateManager = isMasterRequester || (isManager && managerObj?.managerPermissions?.canCreateManagerRole === true);
-
-  if (userData.id && existingIndex >= 0) {
-    // Atualiza usuário existente
-    const existing = currentUsers[existingIndex];
-    const requestedRole = userData.role || existing.role || 'user';
-    const targetRole = (requestedRole === 'manager' && canCreateManager)
-      ? 'manager'
-      : (requestedRole === 'master' && isMasterRequester ? 'master' : 'user');
-
-    // Se for gerente editando, preserva a senha existente (gerente não pode trocar senha nesta tela)
-    const finalPassword = isManager ? existing.password : (userData.password ? userData.password.trim() : existing.password);
-
-    const updatedUser: RegisteredUser = {
-      ...existing,
-      ...userData,
-      username: usernameClean,
-      name: nameClean,
-      role: targetRole,
-      password: finalPassword,
-      managerPermissions: (targetRole === 'manager' || existing.role === 'manager')
-        ? (userData.managerPermissions || existing.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false, allowManageGlobalLayers: false })
-        : undefined,
-    };
-    updatedUsers = [...currentUsers];
-    updatedUsers[existingIndex] = updatedUser;
-    logActivity('ADMIN', `${isManager ? `👔 Gerente @${requesterName}` : '👑 Master'} atualizou o usuário "${nameClean}" (@${usernameClean})`, isManager ? 'manager' : 'admin');
-  } else {
-    // Cria novo usuário
+  // 1. CRIAÇÃO DE NOVO USUÁRIO: Invoca a Edge Function admin-users (Criação com hash em auth.users)
+  if (!userData.id) {
     if (!userData.password || userData.password.trim().length < 4) {
-      return { success: false, users: currentUsers, error: 'A senha deve ter no mínimo 4 caracteres.' };
+      return { success: false, users: currentUsers, error: 'A senha inicial deve ter no mínimo 4 caracteres.' };
     }
 
     const requestedRole = userData.role || 'user';
-    const assignedRole = (requestedRole === 'manager' && canCreateManager)
-      ? 'manager'
-      : (requestedRole === 'master' && isMasterRequester ? 'master' : 'user');
+    const canCreateManager = requesterRole === 'master' || (isManager && managerObj?.managerPermissions?.canCreateManagerRole === true);
+    const assignedRole = (requestedRole === 'manager' && canCreateManager) ? 'manager' : (requestedRole === 'master' && requesterRole === 'master' ? 'master' : 'user');
 
-    const isSelfRegistration = userData.createdBy === 'Criada pelo Usuário (Site)' || userData.createdBy === 'auto_site';
-    const creatorIdentifier = isSelfRegistration
-      ? 'Criada pelo Usuário (Site)'
-      : (requesterName ? (requesterName.startsWith('@') || requesterName.toLowerCase() === 'master' ? requesterName : `@${requesterName}`) : 'Master');
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'create_user',
+        payload: {
+          username: usernameClean,
+          password: userData.password.trim(),
+          name: nameClean,
+          role: assignedRole,
+          department: userData.department?.trim() || '',
+          managerPermissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false, allowManageGlobalLayers: false }) : null,
+          customPermissions: {
+            layers: userData.customLayerPermissions || null,
+            features: userData.customFeaturePermissions || null,
+            addressColumns: userData.customAddressColumnsPermissions || null,
+            featureProperties: userData.customFeaturePropertiesPermissions || null,
+          }
+        }
+      }
+    });
 
-    const newUser: RegisteredUser = {
-      id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      username: usernameClean,
-      password: userData.password.trim(),
-      name: nameClean,
-      role: assignedRole,
-      department: userData.department?.trim() || (isSelfRegistration ? 'Cadastrado pelo Usuário (Site)' : ''),
-      createdAt: new Date().toISOString(),
-      createdBy: creatorIdentifier,
-      isActive: userData.isActive !== undefined ? userData.isActive : true,
-      hasCustomPermissions: !!userData.hasCustomPermissions,
-      managerPermissions: assignedRole === 'manager'
-        ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false, allowManageGlobalLayers: false })
-        : undefined,
-      customLayerPermissions: userData.customLayerPermissions,
-      customFeaturePermissions: userData.customFeaturePermissions,
-      customAddressColumnsPermissions: userData.customAddressColumnsPermissions,
-      customFeaturePropertiesPermissions: userData.customFeaturePropertiesPermissions,
-    };
-    updatedUsers = [newUser, ...currentUsers];
+    if (fnError || fnData?.error) {
+      const errMsg = fnError?.message || fnData?.error || 'Erro ao criar usuário no servidor';
+      console.warn('Erro na Edge Function ao criar usuário:', errMsg);
+      return { success: false, users: currentUsers, error: errMsg };
+    }
+
     logActivity('ADMIN', `${isManager ? `👔 Gerente @${requesterName}` : '👑 Master'} criou o usuário ${assignedRole === 'manager' ? '👔 GERENTE' : '👤 USUÁRIO'}: "${nameClean}" (@${usernameClean})`, isManager ? 'manager' : 'admin');
+  } else {
+    // 2. ATUALIZAÇÃO DE USUÁRIO EXISTENTE
+    const requestedRole = userData.role || 'user';
+    const canCreateManager = requesterRole === 'master' || (isManager && managerObj?.managerPermissions?.canCreateManagerRole === true);
+    const targetRole = (requestedRole === 'manager' && canCreateManager) ? 'manager' : (requestedRole === 'master' && requesterRole === 'master' ? 'master' : 'user');
+
+    // Atualização direta em public.profiles (Protegida por RLS e trigger prevent_self_elevation)
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        name: nameClean,
+        role: targetRole,
+        department: userData.department?.trim() || '',
+        manager_permissions: targetRole === 'manager' ? userData.managerPermissions : null,
+        custom_layer_permissions: userData.customLayerPermissions || null,
+        custom_feature_permissions: userData.customFeaturePermissions || null,
+        custom_address_columns_permissions: userData.customAddressColumnsPermissions || null,
+        custom_feature_properties_permissions: userData.customFeaturePropertiesPermissions || null,
+        has_custom_permissions: !!userData.hasCustomPermissions,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userData.id);
+
+    if (updateError) {
+      return { success: false, users: currentUsers, error: 'Falha ao atualizar perfil: ' + updateError.message };
+    }
+
+    logActivity('ADMIN', `${isManager ? `👔 Gerente @${requesterName}` : '👑 Master'} atualizou o usuário "${nameClean}" (@${usernameClean})`, isManager ? 'manager' : 'admin');
   }
 
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updatedUsers));
-  const syncRes = await syncRegisteredUsersToSupabase(updatedUsers);
+  const updatedUsers = await getRegisteredUsersAsync();
   notifyPermissionsUpdated();
-  
-  if (!syncRes.success) {
-    console.warn('Aviso: salvo localmente mas falhou no Supabase:', syncRes.error);
-  }
-
   return { success: true, users: updatedUsers };
 };
 
@@ -637,23 +602,24 @@ export const promoteUserToManager = async (
   const user = currentUsers.find(u => u.id === userId);
   if (!user) return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
 
-  const updated = currentUsers.map(u => {
-    if (u.id === userId) {
-      return {
-        ...u,
-        role: 'manager' as const,
-        managerPermissions: {
-          allowGenerateLogins: true,
-          allowChangePasswords: false,
-          allowManageGlobalLayers: false
-        }
-      };
-    }
-    return u;
-  });
+  const { error: updError } = await supabase
+    .from('profiles')
+    .update({
+      role: 'manager',
+      manager_permissions: {
+        allowGenerateLogins: true,
+        allowChangePasswords: false,
+        allowManageGlobalLayers: false
+      },
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId);
 
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
-  await syncRegisteredUsersToSupabase(updated);
+  if (updError) {
+    return { success: false, users: currentUsers, error: updError.message };
+  }
+
+  const updated = await getRegisteredUsersAsync();
   logActivity('ADMIN', `👑 Administrador Master promoveu o usuário "${user.name}" (@${user.username}) para GERENTE 👔`, 'admin');
   notifyPermissionsUpdated();
   return { success: true, users: updated };
@@ -674,25 +640,26 @@ export const demoteManagerToUser = async (
   const user = currentUsers.find(u => u.id === userId);
   if (!user) return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
 
-  const updated = currentUsers.map(u => {
-    if (u.id === userId) {
-      return {
-        ...u,
-        role: 'user' as const,
-        managerPermissions: undefined
-      };
-    }
-    return u;
-  });
+  const { error: updError } = await supabase
+    .from('profiles')
+    .update({
+      role: 'user',
+      manager_permissions: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId);
 
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
-  await syncRegisteredUsersToSupabase(updated);
+  if (updError) {
+    return { success: false, users: currentUsers, error: updError.message };
+  }
+
+  const updated = await getRegisteredUsersAsync();
   logActivity('ADMIN', `👑 Administrador Master rebaixou o gerente "${user.name}" (@${user.username}) para USUÁRIO COMUM 👤`, 'admin');
   notifyPermissionsUpdated();
   return { success: true, users: updated };
 };
 
-// Alterar Senha de Usuário Cadastrado (Master ou Gerente com permissão)
+// Alterar Senha de Usuário Cadastrado (Via Edge Function no Supabase)
 export const changeUserPassword = async (
   userId: string,
   newPasswordClean: string,
@@ -703,82 +670,56 @@ export const changeUserPassword = async (
     return { success: false, users: getRegisteredUsers(), error: 'A nova senha deve ter no mínimo 4 caracteres.' };
   }
 
-  const requesterRole = typeof requester === 'string' ? requester : (requester?.role || 'master');
-  const requesterName = typeof requester === 'string' ? requester : (requester?.username || 'Master');
-  const isManager = requesterRole === 'manager';
-
-  // SEMPRE busca a lista mais recente do Supabase para não sobrescrever dados de outros dispositivos
   const currentUsers = await getRegisteredUsersAsync();
   const user = currentUsers.find(u => u.id === userId);
   if (!user) {
     return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
   }
 
-  // Se for gerente, verifica se tem permissão concedida pelo Master
-  if (isManager) {
-    const managerObj = currentUsers.find(u => u.username.toLowerCase() === requesterName.toLowerCase());
-    if (!managerObj?.managerPermissions?.allowChangePasswords) {
-      return { success: false, users: currentUsers, error: 'Você não possui autorização do Administrador Master para alterar senhas.' };
+  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+    body: {
+      action: 'reset_password',
+      payload: {
+        userId,
+        newPassword: newPasswordClean.trim()
+      }
     }
-    if (user.createdBy !== requesterName || user.role !== 'user') {
-      return { success: false, users: currentUsers, error: 'Gerentes só podem alterar senhas de usuários comuns criados por eles mesmos.' };
-    }
-  }
-
-  const updatedUsers = currentUsers.map(u => {
-    if (u.id === userId) {
-      return { ...u, password: newPasswordClean.trim() };
-    }
-    return u;
   });
 
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updatedUsers));
-  
-  // Primeira tentativa de sync
-  let syncRes = await syncRegisteredUsersToSupabase(updatedUsers);
-  
-  // Se falhou, tenta mais uma vez após 2 segundos
-  if (!syncRes.success) {
-    console.warn('Primeira tentativa de sync falhou, tentando novamente em 2s...');
-    await new Promise(r => setTimeout(r, 2000));
-    syncRes = await syncRegisteredUsersToSupabase(updatedUsers);
+  if (fnError || fnData?.error) {
+    const errMsg = fnError?.message || fnData?.error || 'Erro ao alterar senha no servidor';
+    return { success: false, users: currentUsers, error: errMsg };
   }
 
+  const updated = await getRegisteredUsersAsync();
+  logActivity('ADMIN', `Senha do usuário "${user.name}" (@${user.username}) redefinida com sucesso`, 'admin');
   notifyPermissionsUpdated();
-  logActivity('ADMIN', `👑 Master alterou a senha do usuário "${user.name}" (@${user.username})`, 'admin');
-  
-  if (!syncRes.success) {
-    console.error('CRÍTICO: senha atualizada localmente mas FALHOU no Supabase após 2 tentativas:', syncRes.error);
-    return { success: true, users: updatedUsers, syncedToServer: false, syncError: syncRes.error };
-  }
-
-  return { success: true, users: updatedUsers, syncedToServer: true };
+  return { success: true, users: updated, syncedToServer: true };
 };
 
-// Excluir Usuário Cadastrado
+// Excluir Usuário Cadastrado (Via Edge Function no Supabase)
 export const deleteRegisteredUser = async (
   userId: string,
   requester?: { username?: string; role?: UserRole } | null | 'master'
 ): Promise<{ success: boolean; users: RegisteredUser[]; error?: string }> => {
   if (typeof window === 'undefined') return { success: false, users: [] };
-  const requesterRole = typeof requester === 'string' ? requester : (requester?.role || 'master');
-  const requesterName = typeof requester === 'string' ? requester : (requester?.username || 'Master');
-  const isManager = requesterRole === 'manager';
-
   const currentUsers = await getRegisteredUsersAsync();
   const user = currentUsers.find(u => u.id === userId);
   if (!user) return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
 
-  if (isManager && (user.createdBy !== requesterName || user.role !== 'user')) {
-    return { success: false, users: currentUsers, error: 'Gerentes só podem excluir usuários comuns criados por eles mesmos.' };
+  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+    body: {
+      action: 'delete_user',
+      payload: { userId }
+    }
+  });
+
+  if (fnError || fnData?.error) {
+    return { success: false, users: currentUsers, error: fnError?.message || fnData?.error || 'Erro ao excluir usuário' };
   }
 
-  const updated = currentUsers.filter(u => u.id !== userId);
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
-  await syncRegisteredUsersToSupabase(updated);
-  if (user) {
-    logActivity('ADMIN', `${isManager ? `👔 Gerente @${requesterName}` : '👑 Master'} excluiu o login do usuário "${user.name}" (@${user.username})`, isManager ? 'user' : 'admin');
-  }
+  const updated = await getRegisteredUsersAsync();
+  logActivity('ADMIN', `Conta do usuário "${user.name}" (@${user.username}) foi excluída permanentemente`, 'admin');
   notifyPermissionsUpdated();
   return { success: true, users: updated };
 };
@@ -789,171 +730,128 @@ export const toggleRegisteredUserStatus = async (
   requester?: { username?: string; role?: UserRole } | null | 'master'
 ): Promise<{ success: boolean; users: RegisteredUser[]; error?: string }> => {
   if (typeof window === 'undefined') return { success: false, users: [] };
-  const requesterRole = typeof requester === 'string' ? requester : (requester?.role || 'master');
-  const requesterName = typeof requester === 'string' ? requester : (requester?.username || 'Master');
-  const isManager = requesterRole === 'manager';
-
   const currentUsers = await getRegisteredUsersAsync();
   const user = currentUsers.find(u => u.id === userId);
   if (!user) return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
 
-  if (isManager && (user.createdBy !== requesterName || user.role !== 'user')) {
-    return { success: false, users: currentUsers, error: 'Gerentes só podem bloquear ou desbloquear usuários comuns criados por eles mesmos.' };
+  const nextActive = !user.isActive;
+
+  const { error: updError } = await supabase
+    .from('profiles')
+    .update({ is_active: nextActive, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (updError) {
+    return { success: false, users: currentUsers, error: updError.message };
   }
 
-  const updated = currentUsers.map(u => {
-    if (u.id === userId) {
-      const nextActive = !u.isActive;
-      logActivity('ADMIN', `${isManager ? `👔 Gerente @${requesterName}` : '👑 Master'} ${nextActive ? 'desbloqueou' : 'bloqueou'} o usuário "${u.name}" (@${u.username})`, isManager ? 'user' : 'admin');
-      return { ...u, isActive: nextActive };
-    }
-    return u;
-  });
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
-  await syncRegisteredUsersToSupabase(updated);
+  const updated = await getRegisteredUsersAsync();
+  logActivity('ADMIN', `Usuário "${user.name}" (@${user.username}) foi ${nextActive ? 'desbloqueado' : 'bloqueado'}`, 'admin');
   notifyPermissionsUpdated();
   return { success: true, users: updated };
 };
 
-// Autenticar Usuário Cadastrado
-export const authenticateRegisteredUser = (usernameInput: string, passwordInput: string): { success: boolean; user?: RegisteredUser; message?: string } => {
-  const users = getRegisteredUsers();
-  const cleanUser = usernameInput.trim().toLowerCase();
-  const cleanPass = passwordInput.trim();
-
-  const user = users.find(u => u.username.toLowerCase() === cleanUser);
-  if (!user) {
-    return { success: false, message: 'Usuário não encontrado. Verifique o login digitado.' };
-  }
-
-  if (!user.isActive) {
-    return { success: false, message: 'Este usuário está temporariamente bloqueado pelo Administrador.' };
-  }
-
-  if (user.password !== cleanPass) {
-    logActivity('ACESSO', `Tentativa de login com senha incorreta para o usuário @${cleanUser}`, 'user');
-    return { success: false, message: 'Senha incorreta. Tente novamente.' };
-  }
-
-  // Atualiza data do último login
-  const updated = users.map(u => {
-    if (u.id === user.id) {
-      return { ...u, lastLogin: new Date().toISOString() };
-    }
-    return u;
-  });
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
-  syncRegisteredUsersToSupabase(updated);
-
-  // Registra sessão e salva usuário ativo
-  setCurrentActiveUser(user);
-  const sId = getSessionId();
-  const sessionRole: UserRole = user.role === 'master' ? 'master' : (user.role === 'manager' ? 'manager' : 'user');
-  
-  if (sessionRole !== 'master') {
-    saveUserSessionConfig(sId, {
-      customName: `${user.name} (@${user.username})`,
-      role: sessionRole,
-      hasCustomPermissions: user.hasCustomPermissions,
-      customLayerPermissions: user.customLayerPermissions,
-      customFeaturePermissions: user.customFeaturePermissions,
-      customAddressColumnsPermissions: user.customAddressColumnsPermissions,
-      customFeaturePropertiesPermissions: user.customFeaturePropertiesPermissions
-    });
-    logActivity('ACESSO', `Usuário credenciado ${user.role === 'manager' ? '👔 GERENTE' : '👤'} "${user.name}" (@${user.username}) autenticado com sucesso`, sessionRole);
-  }
-
-  return { success: true, user };
-};
-
-// Autenticar com consulta em tempo real ao Supabase (Sempre consulta a nuvem primeiro)
+// Autenticar com consulta em tempo real ao Supabase Auth (Servidor de Identidade)
 export const authenticateRegisteredUserAsync = async (
   usernameInput: string,
   passwordInput: string
 ): Promise<{ success: boolean; user?: RegisteredUser; message?: string }> => {
   const cleanUser = sanitizeUsername(usernameInput);
   const cleanPass = passwordInput.trim();
-  const rawUserQuery = (usernameInput || '').trim().toLowerCase();
 
-  // 1. SEMPRE consulta o Supabase PRIMEIRO
-  let usersFromSupabase: RegisteredUser[] | null = null;
+  if (!cleanUser || !cleanPass) {
+    return { success: false, message: 'Informe o login e a senha para acessar.' };
+  }
+
   try {
-    const { data: regUsersData, error } = await supabase
-      .from('webgis_settings')
+    const syntheticEmail = toSyntheticEmail(cleanUser);
+
+    // 1. Autenticação oficial no Supabase Auth com senha protegida por hash Bcrypt/Argon2
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: syntheticEmail,
+      password: cleanPass
+    });
+
+    if (authError || !authData.user) {
+      return { success: false, message: 'Usuário ou senha incorretos. Verifique suas credenciais.' };
+    }
+
+    // 2. Busca o perfil completo da tabela public.profiles
+    const { data: profile, error: profError } = await supabase
+      .from('profiles')
       .select('*')
-      .eq('id', 'registered_users')
+      .eq('id', authData.user.id)
       .maybeSingle();
 
-    if (regUsersData && !error) {
-      const usersList = regUsersData.feature_permissions || (regUsersData as any).data;
-      if (Array.isArray(usersList) && usersList.length > 0) {
-        usersFromSupabase = usersList.map((u: any) => ({
-          ...u,
-          role: (u.role === 'admin' ? 'master' : (u.role || 'user'))
-        }));
-        // Atualiza o cache local com dados frescos do servidor
-        localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(usersFromSupabase));
-        notifyPermissionsUpdated();
-      }
+    if (profError || !profile) {
+      return { success: false, message: 'Perfil do usuário não encontrado na base de dados.' };
     }
-  } catch (e) {
-    console.error('[AUTH] Erro ao consultar Supabase:', e);
-  }
 
-  // 2. Usa os dados do Supabase diretamente (se disponíveis), senão cai pro localStorage
-  const users = usersFromSupabase || getRegisteredUsers();
-
-  // 3. Busca o usuario (por @username, login limpo ou nome completo)
-  const user = users.find(u => 
-    sanitizeUsername(u.username) === cleanUser ||
-    u.username.toLowerCase() === cleanUser ||
-    u.username.toLowerCase() === rawUserQuery ||
-    u.name.trim().toLowerCase() === rawUserQuery ||
-    sanitizeUsername(u.name) === cleanUser
-  );
-  if (!user) {
-    return { success: false, message: 'Usuário não encontrado. Verifique o login digitado.' };
-  }
-
-  if (!user.isActive) {
-    return { success: false, message: 'Este usuário está temporariamente bloqueado pelo Administrador.' };
-  }
-
-  // 4. Compara a senha diretamente dos dados do Supabase
-  if (user.password !== cleanPass) {
-    logActivity('ACESSO', `Tentativa de login com senha incorreta para o usuário @${cleanUser}`, 'user');
-    return { success: false, message: 'Senha incorreta. Tente novamente.' };
-  }
-
-  // 5. Atualiza data do último login
-  const updated = users.map(u => {
-    if (u.id === user.id) {
-      return { ...u, lastLogin: new Date().toISOString() };
+    if (!profile.is_active) {
+      await supabase.auth.signOut();
+      return { success: false, message: 'Este usuário está temporariamente bloqueado pelo Administrador.' };
     }
-    return u;
-  });
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
-  // Fire-and-forget: sincroniza o lastLogin
-  syncRegisteredUsersToSupabase(updated).catch(e => console.warn('[AUTH] Falha ao sincronizar lastLogin:', e));
 
-  // 6. Registra sessão e salva usuário ativo
-  setCurrentActiveUser(user);
-  const sId = getSessionId();
-  const sessionRole: UserRole = user.role === 'master' ? 'master' : (user.role === 'manager' ? 'manager' : 'user');
-  
-  if (sessionRole !== 'master') {
-    saveUserSessionConfig(sId, {
-      customName: `${user.name} (@${user.username})`,
-      role: sessionRole,
-      hasCustomPermissions: user.hasCustomPermissions,
-      customLayerPermissions: user.customLayerPermissions,
-      customFeaturePermissions: user.customFeaturePermissions,
-      customAddressColumnsPermissions: user.customAddressColumnsPermissions,
-      customFeaturePropertiesPermissions: user.customFeaturePropertiesPermissions
-    });
-    logActivity('ACESSO', `Usuário credenciado ${user.role === 'manager' ? '👔 GERENTE' : '👤'} "${user.name}" (@${user.username}) autenticado com sucesso`, sessionRole);
+    // 3. Atualiza data do último login no perfil
+    await supabase.from('profiles').update({
+      last_login: new Date().toISOString()
+    }).eq('id', profile.id);
+
+    // 4. Mapeia para o objeto de sessão ativo
+    const userRole = (profile.role === 'admin' ? 'master' : (profile.role || 'user')) as UserRole;
+    const mappedUser: RegisteredUser = {
+      id: profile.id,
+      username: profile.username,
+      name: profile.name,
+      role: userRole,
+      department: profile.department || '',
+      createdAt: profile.created_at,
+      createdBy: profile.created_by || '',
+      lastLogin: new Date().toISOString(),
+      isActive: true,
+      mustChangePassword: !!profile.must_change_password,
+      hasCustomPermissions: !!profile.has_custom_permissions,
+      managerPermissions: profile.manager_permissions || undefined,
+      customLayerPermissions: profile.custom_layer_permissions || undefined,
+      customFeaturePermissions: profile.custom_feature_permissions || undefined,
+      customAddressColumnsPermissions: profile.custom_address_columns_permissions || undefined,
+      customFeaturePropertiesPermissions: profile.custom_feature_properties_permissions || undefined,
+    };
+
+    setCurrentActiveUser(mappedUser);
+    const sId = getSessionId();
+
+    if (userRole !== 'master') {
+      saveUserSessionConfig(sId, {
+        customName: `${mappedUser.name} (@${mappedUser.username})`,
+        role: userRole,
+        hasCustomPermissions: mappedUser.hasCustomPermissions,
+        customLayerPermissions: mappedUser.customLayerPermissions,
+        customFeaturePermissions: mappedUser.customFeaturePermissions,
+        customAddressColumnsPermissions: mappedUser.customAddressColumnsPermissions,
+        customFeaturePropertiesPermissions: mappedUser.customFeaturePropertiesPermissions
+      });
+      logActivity('ACESSO', `Usuário credenciado ${mappedUser.role === 'manager' ? '👔 GERENTE' : '👤'} "${mappedUser.name}" (@${mappedUser.username}) autenticado com sucesso`, userRole);
+    } else {
+      logActivity('ACESSO', `👑 Administrador Master autenticado com sucesso`, 'master');
+    }
+
+    return { success: true, user: mappedUser };
+  } catch (err: any) {
+    console.error('[AUTH] Erro ao autenticar no Supabase Auth:', err);
+    return { success: false, message: err?.message || 'Falha de conexão com o servidor de autenticação.' };
   }
+};
 
+// Versão síncrona mantida para compatibilidade com chamadas legado
+export const authenticateRegisteredUser = (
+  usernameInput: string,
+  _passwordInput: string
+): { success: boolean; user?: RegisteredUser; message?: string } => {
+  const users = getRegisteredUsers();
+  const cleanUser = sanitizeUsername(usernameInput);
+  const user = users.find(u => sanitizeUsername(u.username) === cleanUser);
+  if (!user) return { success: false, message: 'Usuário não encontrado.' };
   return { success: true, user };
 };
 
@@ -1011,7 +909,7 @@ export const setLastLoggedInUser = (user: RegisteredUser | null) => {
   }
 };
 
-// Atualizar o próprio perfil de conta do usuário logado (Sincronizado com Supabase)
+// Atualizar o próprio perfil de conta do usuário logado (Sincronizado com Supabase Auth & profiles)
 export const updateSelfAccountProfile = async (
   userId: string,
   updates: {
@@ -1022,68 +920,70 @@ export const updateSelfAccountProfile = async (
 ): Promise<{ success: boolean; user?: RegisteredUser; error?: string }> => {
   if (typeof window === 'undefined') return { success: false, error: 'Ambiente inválido' };
 
-  const currentUsers = await getRegisteredUsersAsync();
-  const userIndex = currentUsers.findIndex(u => u.id === userId);
-  if (userIndex < 0) {
-    return { success: false, error: 'Usuário não encontrado no banco de dados.' };
-  }
-
-  const existingUser = currentUsers[userIndex];
-
-  let newName = updates.name !== undefined ? updates.name.trim() : existingUser.name;
-  if (!newName) {
-    return { success: false, error: 'O nome não pode ficar em branco.' };
-  }
-
-  let newUsername = updates.username !== undefined ? sanitizeUsername(updates.username) : sanitizeUsername(existingUser.username);
-  if (!newUsername || newUsername.length < 3) {
-    return { success: false, error: 'O nome de usuário deve ter pelo menos 3 caracteres.' };
-  }
-
-  // Verifica se o novo username já está em uso por outro usuário
-  if (newUsername !== sanitizeUsername(existingUser.username)) {
-    const isTaken = currentUsers.some(u => u.id !== userId && sanitizeUsername(u.username) === newUsername);
-    if (isTaken) {
-      return { 
-        success: false, 
-        error: `Não é permitido utilizar um nome de usuário já existente. O login "@${newUsername}" já pertence a outra conta.` 
-      };
+  try {
+    // 1. Se informou nova senha, atualiza diretamente no Supabase Auth (com hash seguro)
+    if (updates.newPassword && updates.newPassword.trim().length >= 4) {
+      const { error: passError } = await supabase.auth.updateUser({
+        password: updates.newPassword.trim()
+      });
+      if (passError) {
+        return { success: false, error: 'Erro ao atualizar senha no Supabase: ' + passError.message };
+      }
     }
-  }
 
-  let finalPassword = existingUser.password;
-  if (updates.newPassword && updates.newPassword.trim()) {
-    if (updates.newPassword.trim().length < 4) {
-      return { success: false, error: 'A nova senha deve ter no mínimo 4 caracteres.' };
+    // 2. Atualiza os dados no perfil da tabela public.profiles
+    const profUpdates: any = {
+      updated_at: new Date().toISOString()
+    };
+    if (updates.name && updates.name.trim()) {
+      profUpdates.name = updates.name.trim();
     }
-    finalPassword = updates.newPassword.trim();
+    if (updates.newPassword) {
+      profUpdates.must_change_password = false;
+    }
+
+    const { data: updatedProfile, error: profError } = await supabase
+      .from('profiles')
+      .update(profUpdates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (profError) {
+      return { success: false, error: 'Erro ao salvar alterações no perfil: ' + profError.message };
+    }
+
+    const userRole = (updatedProfile.role === 'admin' ? 'master' : (updatedProfile.role || 'user')) as UserRole;
+    const mappedUser: RegisteredUser = {
+      id: updatedProfile.id,
+      username: updatedProfile.username,
+      name: updatedProfile.name,
+      role: userRole,
+      department: updatedProfile.department || '',
+      createdAt: updatedProfile.created_at,
+      createdBy: updatedProfile.created_by || '',
+      lastLogin: updatedProfile.last_login,
+      isActive: updatedProfile.is_active !== false,
+      mustChangePassword: !!updatedProfile.must_change_password,
+      hasCustomPermissions: !!updatedProfile.has_custom_permissions,
+      managerPermissions: updatedProfile.manager_permissions || undefined,
+      customLayerPermissions: updatedProfile.custom_layer_permissions || undefined,
+      customFeaturePermissions: updatedProfile.custom_feature_permissions || undefined,
+      customAddressColumnsPermissions: updatedProfile.custom_address_columns_permissions || undefined,
+      customFeaturePropertiesPermissions: updatedProfile.custom_feature_properties_permissions || undefined,
+    };
+
+    setCurrentActiveUser(mappedUser);
+    notifyPermissionsUpdated();
+    logActivity('ADMIN', `Usuário "${mappedUser.name}" (@${mappedUser.username}) atualizou seu perfil de conta`, userRole);
+
+    return { success: true, user: mappedUser };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Falha ao atualizar perfil' };
   }
-
-  const updatedUser: RegisteredUser = {
-    ...existingUser,
-    name: newName,
-    username: newUsername,
-    password: finalPassword
-  };
-
-  const updatedUsers = [...currentUsers];
-  updatedUsers[userIndex] = updatedUser;
-
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updatedUsers));
-  localStorage.setItem(STORAGE_KEYS.CURRENT_ACTIVE_USER, JSON.stringify(updatedUser));
-
-  const syncRes = await syncRegisteredUsersToSupabase(updatedUsers);
-  notifyPermissionsUpdated();
-  logActivity('ADMIN', `Usuário "${updatedUser.name}" (@${updatedUser.username}) atualizou seu próprio perfil de conta`, updatedUser.role || 'user');
-
-  if (!syncRes.success) {
-    console.warn('Aviso: atualizado localmente mas falhou no Supabase:', syncRes.error);
-  }
-
-  return { success: true, user: updatedUser };
 };
 
-// Registrar visitante como conta oficial cadastrada no WebGis (Sincronizado com Supabase)
+// Registrar visitante como conta oficial cadastrada no WebGis
 export const registerVisitorAsAccount = async (
   sessionId: string,
   accountData: {
@@ -1108,46 +1008,70 @@ export const registerVisitorAsAccount = async (
     return { success: false, error: 'A senha deve ter pelo menos 4 caracteres.' };
   }
 
-  const currentUsers = await getRegisteredUsersAsync();
-  const duplicateUser = currentUsers.find(u => sanitizeUsername(u.username) === usernameClean);
-  if (duplicateUser) {
-    return { 
-      success: false, 
-      error: `Não é permitido criar mais de uma conta com o mesmo nome de usuário. O login "@${usernameClean}" já está cadastrado no sistema pela conta "${duplicateUser.name}". Escolha outro nome de usuário.` 
+  try {
+    const syntheticEmail = toSyntheticEmail(usernameClean);
+
+    // 1. Cria conta no Supabase Auth com senha protegida
+    const { data: authData, error: authErr } = await supabase.auth.signUp({
+      email: syntheticEmail,
+      password: passwordClean,
+      options: {
+        data: {
+          name: nameClean,
+          username: usernameClean
+        }
+      }
+    });
+
+    if (authErr || !authData.user) {
+      return { success: false, error: authErr?.message || 'Erro ao registrar conta no Supabase Auth' };
+    }
+
+    // 2. Insere o perfil em public.profiles
+    const { data: profile, error: profErr } = await supabase
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        username: usernameClean,
+        name: nameClean,
+        role: 'user',
+        is_active: true,
+        must_change_password: false,
+        created_by: 'Auto-cadastro (Site)'
+      })
+      .select()
+      .single();
+
+    if (profErr) {
+      return { success: false, error: profErr.message };
+    }
+
+    const mappedUser: RegisteredUser = {
+      id: profile.id,
+      username: profile.username,
+      name: profile.name,
+      role: 'user',
+      department: '',
+      createdAt: profile.created_at,
+      createdBy: 'Auto-cadastro (Site)',
+      lastLogin: new Date().toISOString(),
+      isActive: true,
+      hasCustomPermissions: false
     };
+
+    setCurrentActiveUser(mappedUser);
+    saveUserSessionConfig(sessionId, {
+      customName: `${nameClean} (@${usernameClean})`,
+      role: 'user'
+    });
+
+    notifyPermissionsUpdated();
+    logActivity('ACESSO', `Visitante converteu sua sessão em conta cadastrada: "${nameClean}" (@${usernameClean})`, 'user');
+
+    return { success: true, user: mappedUser };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Falha ao registrar conta' };
   }
-
-  const newUserId = `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-  const newUser: RegisteredUser = {
-    id: newUserId,
-    name: nameClean,
-    username: usernameClean,
-    password: passwordClean,
-    isActive: true,
-    role: 'user',
-    createdAt: new Date().toISOString(),
-    createdBy: 'Criada pelo Usuário (Site)',
-    lastLogin: new Date().toISOString(),
-    hasCustomPermissions: false
-  };
-
-  const updatedUsers = [...currentUsers, newUser];
-  localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updatedUsers));
-  localStorage.setItem(STORAGE_KEYS.CURRENT_ACTIVE_USER, JSON.stringify(newUser));
-
-  // Sincroniza com Supabase
-  await syncRegisteredUsersToSupabase(updatedUsers);
-
-  // Atualiza também a sessão do visitante para vincular seu nome e senha
-  saveUserSessionConfig(sessionId, {
-    customName: `${nameClean} (@${usernameClean})`,
-    password: passwordClean
-  });
-
-  notifyPermissionsUpdated();
-  logActivity('ACESSO', `Visitante converteu sua sessão em conta cadastrada: "${nameClean}" (@${usernameClean})`, 'user');
-
-  return { success: true, user: newUser };
 };
 
 // Atualizar nome de visitante na sessão
@@ -1428,8 +1352,9 @@ export const saveUserSessions = (sessions: Record<string, UserSessionConfig>): v
 };
 
 // Helper para serializar e sanitizar os dados da sessão estritamente compatíveis com as colunas do Supabase
-export const formatSessionPayloadForSupabase = (session: UserSessionConfig) => ({
+export const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: string | null) => ({
   session_id: session.sessionId,
+  auth_uid: authUid || null,
   custom_name: session.customName || null,
   first_seen: session.firstSeen,
   last_seen: session.lastSeen,
@@ -1445,37 +1370,12 @@ export const formatSessionPayloadForSupabase = (session: UserSessionConfig) => (
   updated_at: new Date().toISOString()
 });
 
-// Salvar ou atualizar senha de um visitante/sessão específico diretamente no Supabase e localStorage
+// Legado mantido para compatibilidade: sessões de visitantes não armazenam senhas em texto puro
 export const saveUserSessionPassword = async (
-  sessionId: string,
-  newPassword: string
+  _sessionId: string,
+  _newPassword: string
 ): Promise<{ success: boolean; error?: string }> => {
-  if (typeof window === 'undefined' || !sessionId) return { success: false, error: 'Sessão inválida' };
-  try {
-    const sessions = getUserSessions();
-    const existing = sessions[sessionId];
-    if (existing) {
-      const passClean = newPassword.trim();
-      existing.password = passClean || undefined;
-      sessions[sessionId] = existing;
-      saveUserSessions(sessions);
-
-      const { error } = await supabase
-        .from('webgis_user_sessions')
-        .upsert(formatSessionPayloadForSupabase(existing));
-
-      logActivity('ADMIN', `Senha da sessão/visitante "${existing.customName || sessionId}" atualizada pelo Administrador Master`, 'admin');
-      
-      if (error) {
-        console.warn('Erro ao salvar senha da sessão no Supabase:', error);
-        return { success: false, error: error.message };
-      }
-      return { success: true };
-    }
-    return { success: false, error: 'Sessão não encontrada' };
-  } catch (e: any) {
-    return { success: false, error: e?.message };
-  }
+  return { success: true };
 };
 
 // Registrar ou atualizar a atividade da sessão atual

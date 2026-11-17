@@ -59,7 +59,8 @@ import {
   getRegisteredUsers,
   saveUserSessionConfig,
   logActivity, 
-  initAdminService
+  initAdminService,
+  ensureVisitorAuth
 } from './services/adminService';
 
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
@@ -272,6 +273,7 @@ export default function App() {
 
   useEffect(() => {
     initAdminService(true);
+    ensureVisitorAuth().catch(() => {});
     refreshPermissions();
     const handlePermissionsUpdated = () => {
       refreshPermissions();
@@ -1538,15 +1540,9 @@ export default function App() {
     }
   };
 
-  // Continuar com conta anterior (solicita senha se a conta tiver uma)
+  // Continuar com conta anterior (solicita senha e autentica no Supabase)
   const handleContinueWithPreviousUser = async () => {
     if (!lastPreviousUser) return;
-    
-    // Se a conta não tem senha cadastrada
-    if (!lastPreviousUser.password || lastPreviousUser.password.trim() === '') {
-      handleDirectLoginPreviousUser(lastPreviousUser);
-      return;
-    }
 
     if (!previousUserPasswordInput.trim()) {
       setPreviousUserError('Por favor, digite a senha da sua conta.');
@@ -1605,6 +1601,7 @@ export default function App() {
 
   // Entrar 100% como Visitante puro (garante que nenhuma conta anterior seja associada)
   const handleEnterPureVisitor = (customName?: string) => {
+    ensureVisitorAuth().catch(() => {});
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
     setCurrentActiveUser(null);
@@ -1628,7 +1625,6 @@ export default function App() {
     setPreviousUserPasswordInput('');
     setPreviousUserError(null);
     refreshPermissions();
-    // Removido toast intrusivo na tela (como 'Acesso como Visitante liberado!')
   };
 
   const handleEnterAsUser = async () => {
@@ -1646,79 +1642,20 @@ export default function App() {
     setIsWelcomeSubmitting(true);
 
     try {
-      // 2. Verificar se o nome ou login digitado já existe no banco de dados (Supabase / Usuários Cadastrados)
-      const existingUser = await findRegisteredUserByLoginOrNameAsync(trimmedName);
-
-      if (existingUser) {
-        // Se informou senha, tenta autenticar diretamente
-        if (trimmedPassword) {
-          const authResult = await authenticateRegisteredUserAsync(existingUser.username, trimmedPassword);
-          if (authResult.success && authResult.user) {
-            handleDirectLoginPreviousUser(authResult.user);
-            return;
-          } else {
-            setWelcomeError(authResult.message || `Senha incorreta. Digite a senha para entrar no site.`);
-            setIsWelcomeSubmitting(false);
-            return;
-          }
-        } else {
-          // Se NÃO informou senha:
-          // Se a conta não tem senha, entra diretamente nela
-          if (!existingUser.password || existingUser.password.trim() === '') {
-            handleDirectLoginPreviousUser(existingUser);
-            return;
-          }
-          // Se a conta tem senha, avisa e pede a senha de forma direta
-          setWelcomeError(`O nome de usuário já existe. Digite a senha para entrar no site.`);
-          setIsWelcomeSubmitting(false);
-          return;
-        }
-      }
-
-      // 3. Usuário NÃO existe no banco de dados:
-      // Se digitou uma senha, CADASTRA a conta no Supabase para ficar salva permanentemente!
+      // 2. Se informou senha, tenta autenticar no Supabase Auth
       if (trimmedPassword) {
-        if (trimmedPassword.length < 4) {
-          setWelcomeError('A senha deve ter no mínimo 4 caracteres para criar sua conta.');
+        const authResult = await authenticateRegisteredUserAsync(trimmedName, trimmedPassword);
+        if (authResult.success && authResult.user) {
+          handleDirectLoginPreviousUser(authResult.user);
+          return;
+        } else {
+          setWelcomeError(authResult.message || 'Usuário ou senha incorretos.');
           setIsWelcomeSubmitting(false);
           return;
         }
-
-        const cleanLogin = sanitizeUsername(trimmedName).replace(/[^a-z0-9._-]/g, '.') || `usr.${Date.now().toString().slice(-4)}`;
-        
-        const saveRes = await saveRegisteredUser({
-          name: trimmedName,
-          username: cleanLogin,
-          password: trimmedPassword,
-          role: 'user',
-          department: 'Cadastrado pelo Usuário',
-          createdBy: 'Criada pelo Usuário (Site)',
-          isActive: true,
-          hasCustomPermissions: false
-        }, 'master');
-
-        if (saveRes.success) {
-          const newUser = saveRes.users.find(u => sanitizeUsername(u.username) === cleanLogin) || {
-            id: 'usr_' + Date.now(),
-            name: trimmedName,
-            username: cleanLogin,
-            password: trimmedPassword,
-            role: 'user' as const,
-            department: 'Cadastrado pelo Usuário',
-            createdBy: 'Criada pelo Usuário (Site)',
-            createdAt: new Date().toISOString(),
-            isActive: true,
-            hasCustomPermissions: false
-          };
-          handleDirectLoginPreviousUser(newUser as RegisteredUser);
-          showToast(`🎉 Conta criada e salva com sucesso para @${cleanLogin}!`);
-          return;
-        } else {
-          console.warn('Aviso ao salvar nova conta:', saveRes.error);
-        }
       }
 
-      // 4. Sem senha digitada -> Acesso liberado como Visitante com o nome informado
+      // 3. Sem senha digitada -> Acesso liberado como Visitante com o nome informado
       handleEnterPureVisitor(trimmedName);
     } catch (err) {
       console.error('Erro na validação de entrada:', err);
@@ -1771,6 +1708,13 @@ export default function App() {
           showToast(`👔 Bem-vindo, Gerente ${result.user.name}!`);
         } else {
           showToast(`👤 Bem-vindo(a), ${result.user.name}!`);
+        }
+
+        if (result.user.mustChangePassword) {
+          setTimeout(() => {
+            setIsProfileModalOpen(true);
+            showToast('⚠️ Primeiro acesso: Por favor, altere sua senha provisória.');
+          }, 600);
         }
       } else {
         setUserLoginError(result.message || 'Credenciais inválidas.');
@@ -2905,11 +2849,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (lastPreviousUser.password && lastPreviousUser.password.trim().length > 0) {
-                          setPromptPasswordForPreviousUser(true);
-                        } else {
-                          handleDirectLoginPreviousUser(lastPreviousUser);
-                        }
+                        setPromptPasswordForPreviousUser(true);
                       }}
                       className="flex-1 py-2 bg-[#007AFF] hover:bg-[#0071eb] text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1"
                     >

@@ -204,17 +204,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [resetPassUser, setResetPassUser] = useState<RegisteredUser | null>(null);
   const [resetPassInput, setResetPassInput] = useState<string>('');
   const [resetPassError, setResetPassError] = useState<string | null>(null);
-  const [showResetPassCurrent, setShowResetPassCurrent] = useState<boolean>(false);
   const [showResetPassNew, setShowResetPassNew] = useState<boolean>(false);
-
-  // Controle de Visualização de Senhas na Lista de Usuários (Apenas Master)
-  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
-  const toggleRevealPassword = (userId: string) => {
-    setRevealedPasswords(prev => ({
-      ...prev,
-      [userId]: !prev[userId]
-    }));
-  };
 
   // Estados de Sessões / Visitantes Recentes
   const [userSessions, setUserSessions] = useState<Record<string, UserSessionConfig>>({});
@@ -1554,26 +1544,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     <span>Último Acesso: {user.lastLogin ? new Date(user.lastLogin).toLocaleString('pt-BR') : 'Nunca acessou'}</span>
                                   </div>
 
-                                  {/* Senha do Usuário (Visível para Master e Gerente) */}
+                                  {/* Senha do Usuário (Protegida com Hash Seguro) */}
                                   {(isMaster || isManager) && (
                                     <div className="flex items-center gap-2 pt-0.5">
-                                      <div className="inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 px-2.5 py-1 rounded-xl shadow-2xs">
-                                        <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                        <span className="text-[11px] font-bold text-amber-900 dark:text-amber-300">Senha:</span>
-                                        <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-100 tracking-wider select-all px-1 bg-white/70 dark:bg-slate-900/60 rounded-md border border-amber-200/40 dark:border-amber-800/40">
-                                          {revealedPasswords[user.id] ? user.password : '••••••••'}
+                                      <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/60 px-2.5 py-1 rounded-xl shadow-2xs">
+                                        <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                        <span className="text-[11px] font-bold text-emerald-900 dark:text-emerald-300">Senha:</span>
+                                        <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 px-1">
+                                          ••••••••
                                         </span>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleRevealPassword(user.id);
-                                          }}
-                                          className="p-1 text-amber-700 dark:text-amber-300 hover:text-amber-950 dark:hover:text-white hover:bg-amber-200/60 dark:hover:bg-amber-900/60 rounded-lg transition-colors cursor-pointer ml-0.5"
-                                          title={revealedPasswords[user.id] ? 'Ocultar senha' : 'Exibir senha deste usuário'}
-                                        >
-                                          {revealedPasswords[user.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                        </button>
+                                        {user.mustChangePassword && (
+                                          <span className="text-[9px] bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 px-1.5 py-0.5 rounded font-bold">
+                                            Troca pendente
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   )}
@@ -1764,15 +1748,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     <Check className="w-3 h-3" /> ATIVO
                                   </span>
                                 )}
-                                {userSessions[selectedSessionId]?.password ? (
-                                  <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-300 dark:border-amber-800">
-                                    <Lock className="w-3 h-3" /> COM SENHA
-                                  </span>
-                                ) : (
-                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border border-slate-200 dark:border-slate-700">
-                                    <Unlock className="w-3 h-3" /> SEM SENHA
-                                  </span>
-                                )}
+                                <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
+                                  <ShieldCheck className="w-3 h-3" /> TOKEN SUPABASE
+                                </span>
                               </div>
                               <p className="text-xs text-slate-500 font-mono">
                                 ID: {selectedSessionId} • 1º Acesso: {userSessions[selectedSessionId]?.formattedFirstSeen || '-'}
@@ -1855,94 +1833,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </div>
                       </div>
 
-                      {/* CARD 2: 🔑 GERENCIAMENTO DE SENHA (EXCLUSIVO ADMINISTRADOR MASTER) */}
-                      {isMaster && (
-                        <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-4 rounded-2xl space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
-                                <Key className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <h4 className="text-xs font-black text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
-                                  <span>Controle de Senha do Visitante</span>
-                                  <span className="text-[10px] font-black uppercase bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 px-1.5 py-0.5 rounded">
-                                    Apenas Master
-                                  </span>
-                                </h4>
-                                <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
-                                  {userSessions[selectedSessionId]?.password
-                                    ? 'Este visitante possui uma senha cadastrada. Você pode visualizá-la ou alterá-la.'
-                                    : 'Este visitante entrou sem senha. Você pode definir uma senha para ele no banco de dados.'}
-                                </p>
-                              </div>
-                            </div>
+                      {/* CARD 2: GESTÃO DE ACESSO */}
+                      <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 p-4 rounded-2xl space-y-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                            <Lock className="w-4 h-4" />
                           </div>
-
-                          {userSessions[selectedSessionId]?.password ? (
-                            <div className="space-y-3 pt-1">
-                              {/* Visualização da Senha Atual */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white dark:bg-slate-900 p-3 rounded-xl border border-amber-200/80 dark:border-amber-900/40">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Senha Atual:</span>
-                                  <span className="font-mono text-sm font-black text-slate-900 dark:text-white px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg select-all border border-slate-200 dark:border-slate-700">
-                                    {showSelectedUserPassword ? userSessions[selectedSessionId]?.password : '••••••••••••'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowSelectedUserPassword(!showSelectedUserPassword)}
-                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                                  >
-                                    {showSelectedUserPassword ? <EyeOff className="w-3.5 h-3.5 text-amber-600" /> : <Eye className="w-3.5 h-3.5 text-amber-600" />}
-                                    <span>{showSelectedUserPassword ? 'Ocultar Senha' : 'Ver Senha'}</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Alterar Senha */}
-                              <form onSubmit={handleSavePasswordForSession} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={selectedUserPasswordInput}
-                                  onChange={(e) => setSelectedUserPasswordInput(e.target.value)}
-                                  placeholder="Digitar nova senha para este visitante..."
-                                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                                />
-                                <button
-                                  type="submit"
-                                  disabled={isUpdatingPassword}
-                                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                                >
-                                  {isUpdatingPassword ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
-                                  <span>Salvar Nova Senha no Supabase</span>
-                                </button>
-                              </form>
-                            </div>
-                          ) : (
-                            <div className="space-y-3 pt-1">
-                              <form onSubmit={handleSavePasswordForSession} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={selectedUserPasswordInput}
-                                  onChange={(e) => setSelectedUserPasswordInput(e.target.value)}
-                                  placeholder="Definir uma senha para este visitante..."
-                                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                                />
-                                <button
-                                  type="submit"
-                                  disabled={isUpdatingPassword}
-                                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                                >
-                                  {isUpdatingPassword ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                                  <span>Definir Senha no Supabase</span>
-                                </button>
-                              </form>
-                            </div>
-                          )}
+                          <div>
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                              Sessão Segura por Token Anônimo
+                            </h4>
+                            <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80">
+                              Este visitante possui token JWT exclusivo no Supabase. Para atribuir login e senha oficiais com permissões permanentes, use a aba <strong>Contas Cadastradas</strong>.
+                            </p>
+                          </div>
                         </div>
-                      )}
+                      </div>
 
                       {/* CARD 3: ⚡ O QUE ELE FEZ NO SITE (ESTATÍSTICAS & HISTÓRICO COMPLETO) */}
                       <div className="bg-white dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
@@ -2293,15 +2199,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                           ATIVO
                                         </span>
                                       )}
-                                      {session.password ? (
-                                        <span className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
-                                          <Lock className="w-2.5 h-2.5" /> COM SENHA
-                                        </span>
-                                      ) : (
-                                        <span className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                                          SEM SENHA
-                                        </span>
-                                      )}
+                                      <span className="bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5">
+                                        <ShieldCheck className="w-2.5 h-2.5" /> TOKEN ATIVO
+                                      </span>
                                       {session.hasCustomPermissions && (
                                         <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-700">
                                           ⭐ PERMISSÕES INDIVIDUAIS
@@ -3622,34 +3522,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* Visualizador da Senha Atual (Disponível para o Master) */}
-              {isMaster && resetPassUser.password && (
-                <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-amber-200/60 dark:bg-amber-900/60 flex items-center justify-center shrink-0 text-amber-800 dark:text-amber-300">
-                      <Lock className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-800 dark:text-amber-300 block">
-                        Senha Atual Cadastrada
-                      </span>
-                      <span className="font-mono text-sm font-black text-slate-900 dark:text-slate-100 tracking-wider">
-                        {showResetPassCurrent ? resetPassUser.password : '••••••••'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassCurrent(prev => !prev)}
-                    className="p-1.5 bg-white dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-xl transition-all flex items-center gap-1 text-xs font-bold cursor-pointer shrink-0"
-                    title={showResetPassCurrent ? 'Ocultar senha' : 'Ver senha atual'}
-                  >
-                    {showResetPassCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    <span>{showResetPassCurrent ? 'Ocultar' : 'Ver'}</span>
-                  </button>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0 text-slate-600 dark:text-slate-300">
+                  <Lock className="w-4 h-4" />
                 </div>
-              )}
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400 block">
+                    Segurança de Credenciais
+                  </span>
+                  <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                    As senhas são criptografadas no servidor. Ao definir uma nova senha temporária, o usuário será instruído a alterá-la no primeiro acesso.
+                  </span>
+                </div>
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -3681,7 +3566,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   type="button"
                   onClick={() => {
                     setResetPassUser(null);
-                    setShowResetPassCurrent(false);
                     setShowResetPassNew(false);
                   }}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
@@ -3985,8 +3869,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   </span>
                                 </div>
                                 {isMaster && (
-                                  <div className="font-mono text-xs bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 px-2 py-1 rounded-lg border border-amber-200 dark:border-amber-900">
-                                    Senha: <strong>{member.password}</strong>
+                                  <div className="text-[11px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900 flex items-center gap-1 font-semibold">
+                                    <Lock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Senha Segura (Hash)
                                   </div>
                                 )}
                               </div>
