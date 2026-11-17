@@ -772,8 +772,30 @@ export const authenticateRegisteredUserAsync = async (
       password: cleanPass
     });
 
-    if (authError || !authData.user) {
-      return { success: false, message: 'Usuário ou senha incorretos. Verifique suas credenciais.' };
+    if (authError || !authData?.user) {
+      // Diagnóstico detalhado no console do navegador (sem vazar senhas)
+      if (authError) {
+        console.error('[Supabase Auth Error]', {
+          message: authError.message,
+          status: authError.status,
+          code: (authError as any)?.code
+        });
+      }
+
+      const errCode = ((authError as any)?.code || '').toLowerCase();
+      const errMsg = (authError?.message || '').toLowerCase();
+
+      let userFacingMessage = 'Usuário ou senha incorretos';
+
+      if (errCode === 'email_not_confirmed' || errMsg.includes('email not confirmed')) {
+        userFacingMessage = 'Conta ainda não confirmada: peça ao administrador para ativar';
+      } else if (errCode === 'invalid_credentials' || errMsg.includes('invalid login credentials')) {
+        userFacingMessage = 'Usuário ou senha incorretos';
+      } else if (authError?.message) {
+        userFacingMessage = authError.message;
+      }
+
+      return { success: false, message: userFacingMessage };
     }
 
     // 2. Busca o perfil completo da tabela public.profiles
