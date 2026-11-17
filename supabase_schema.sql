@@ -167,39 +167,81 @@ CREATE POLICY "profiles_delete_policy"
 ON public.profiles FOR DELETE
 USING (public.is_master());
 
--- 9. Políticas RLS: public.webgis_user_sessions
+-- 9. Políticas RLS e Triggers: public.webgis_user_sessions
+-- Triggers de segurança: garantem que visitantes e usuários comuns nunca possam se autopromover ou alterar permissões
+CREATE OR REPLACE FUNCTION public.protect_user_session_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_manager() THEN
+    NEW.role = 'user';
+    NEW.is_blocked = FALSE;
+    NEW.has_custom_permissions = FALSE;
+    NEW.custom_layer_permissions = NULL;
+    NEW.custom_feature_permissions = NULL;
+    NEW.custom_address_columns_permissions = NULL;
+    NEW.custom_feature_properties_permissions = NULL;
+  END IF;
+  IF auth.uid() IS NOT NULL THEN
+    NEW.auth_uid = auth.uid();
+  END IF;
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_user_session_insert ON public.webgis_user_sessions;
+CREATE TRIGGER trg_protect_user_session_insert
+BEFORE INSERT ON public.webgis_user_sessions
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_user_session_insert();
+
+CREATE OR REPLACE FUNCTION public.protect_user_session_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_manager() THEN
+    NEW.role = OLD.role;
+    NEW.is_blocked = OLD.is_blocked;
+    NEW.has_custom_permissions = OLD.has_custom_permissions;
+    NEW.custom_layer_permissions = OLD.custom_layer_permissions;
+    NEW.custom_feature_permissions = OLD.custom_feature_permissions;
+    NEW.custom_address_columns_permissions = OLD.custom_address_columns_permissions;
+    NEW.custom_feature_properties_permissions = OLD.custom_feature_properties_permissions;
+  END IF;
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_user_session_update ON public.webgis_user_sessions;
+CREATE TRIGGER trg_protect_user_session_update
+BEFORE UPDATE ON public.webgis_user_sessions
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_user_session_update();
+
 DROP POLICY IF EXISTS "Permitir acesso completo anon webgis_user_sessions" ON public.webgis_user_sessions;
 DROP POLICY IF EXISTS "sessions_select_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_select_policy"
 ON public.webgis_user_sessions FOR SELECT
-USING (
-  public.is_manager()
-  OR auth_uid = auth.uid()
-  OR session_id = auth.uid()::text
-);
+USING (true);
 
 DROP POLICY IF EXISTS "sessions_insert_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_insert_policy"
 ON public.webgis_user_sessions FOR INSERT
-WITH CHECK (
-  auth_uid = auth.uid()
-  OR session_id = auth.uid()::text
-  OR public.is_master()
-);
+WITH CHECK (true);
 
 DROP POLICY IF EXISTS "sessions_update_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_update_policy"
 ON public.webgis_user_sessions FOR UPDATE
-USING (
-  auth_uid = auth.uid()
-  OR session_id = auth.uid()::text
-  OR public.is_master()
-)
-WITH CHECK (
-  auth_uid = auth.uid()
-  OR session_id = auth.uid()::text
-  OR public.is_master()
-);
+USING (true)
+WITH CHECK (true);
 
 DROP POLICY IF EXISTS "sessions_delete_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_delete_policy"

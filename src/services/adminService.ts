@@ -1352,23 +1352,28 @@ export const saveUserSessions = (sessions: Record<string, UserSessionConfig>): v
 };
 
 // Helper para serializar e sanitizar os dados da sessão estritamente compatíveis com as colunas do Supabase
-export const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: string | null) => ({
-  session_id: session.sessionId,
-  auth_uid: authUid || null,
-  custom_name: session.customName || null,
-  first_seen: session.firstSeen,
-  last_seen: session.lastSeen,
-  formatted_first_seen: session.formattedFirstSeen,
-  formatted_last_seen: session.formattedLastSeen,
-  role: session.role || 'user',
-  is_blocked: !!session.isBlocked,
-  has_custom_permissions: !!session.hasCustomPermissions,
-  custom_layer_permissions: session.customLayerPermissions || null,
-  custom_feature_permissions: session.customFeaturePermissions || null,
-  custom_address_columns_permissions: session.customAddressColumnsPermissions || null,
-  custom_feature_properties_permissions: session.customFeaturePropertiesPermissions || null,
-  updated_at: new Date().toISOString()
-});
+export const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: string | null) => {
+  const payload: any = {
+    session_id: session.sessionId,
+    custom_name: session.customName || null,
+    first_seen: session.firstSeen,
+    last_seen: session.lastSeen,
+    formatted_first_seen: session.formattedFirstSeen,
+    formatted_last_seen: session.formattedLastSeen,
+    role: session.role || 'user',
+    is_blocked: !!session.isBlocked,
+    has_custom_permissions: !!session.hasCustomPermissions,
+    custom_layer_permissions: session.customLayerPermissions || null,
+    custom_feature_permissions: session.customFeaturePermissions || null,
+    custom_address_columns_permissions: session.customAddressColumnsPermissions || null,
+    custom_feature_properties_permissions: session.customFeaturePropertiesPermissions || null,
+    updated_at: new Date().toISOString()
+  };
+  if (authUid) {
+    payload.auth_uid = authUid;
+  }
+  return payload;
+};
 
 // Legado mantido para compatibilidade: sessões de visitantes não armazenam senhas em texto puro
 export const saveUserSessionPassword = async (
