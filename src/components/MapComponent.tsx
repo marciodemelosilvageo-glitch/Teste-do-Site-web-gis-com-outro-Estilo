@@ -2529,19 +2529,27 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
     // Função de limpeza do mapa ao desmontar
     return () => {
-      resizeObserver.disconnect();
+      try {
+        resizeObserver.disconnect();
+      } catch {}
       if (rightClickMarkerRef.current && map) {
-        map.removeLayer(rightClickMarkerRef.current);
+        try {
+          map.removeLayer(rightClickMarkerRef.current);
+        } catch {}
         rightClickMarkerRef.current = null;
       }
       if (searchLayerGroupRef.current) {
-        searchLayerGroupRef.current.clearLayers();
-        if (map.hasLayer(searchLayerGroupRef.current)) {
-          map.removeLayer(searchLayerGroupRef.current);
-        }
+        try {
+          searchLayerGroupRef.current.clearLayers();
+          if (map.hasLayer(searchLayerGroupRef.current)) {
+            map.removeLayer(searchLayerGroupRef.current);
+          }
+        } catch {}
         searchLayerGroupRef.current = null;
       }
-      map.remove();
+      try {
+        map.remove();
+      } catch {}
       mapRef.current = null;
       setMapInstance(null);
     };
@@ -2834,9 +2842,15 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
             }
 
             if (!map.hasLayer(layer) && passesZoomCheck) {
-              layer.addTo(map);
+              try {
+                layer.addTo(map);
+              } catch (e) {
+                console.warn(`Falha ao adicionar camada ${source.name} ao mapa:`, e);
+              }
             } else if (map.hasLayer(layer) && !passesZoomCheck) {
-              map.removeLayer(layer);
+              try {
+                map.removeLayer(layer);
+              } catch {}
             }
           } catch (err) {
             console.error(`Erro ao carregar camada: ${source.name}`, err);
@@ -2847,11 +2861,15 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         nonVisibleSources.forEach(source => {
           const layer = loadedLayersRef.current[source.name];
           if (layer && map.hasLayer(layer)) {
-            map.removeLayer(layer);
+            try {
+              map.removeLayer(layer);
+            } catch {}
           }
           map.eachLayer((lyr: any) => {
             if (lyr.customSourceName === source.name) {
-              map.removeLayer(lyr);
+              try {
+                map.removeLayer(lyr);
+              } catch {}
             }
           });
         });
@@ -2919,11 +2937,15 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         if (!allowedLayerNames.includes(source.name)) {
           const lyr = loadedLayersRef.current[source.name];
           if (lyr && map.hasLayer(lyr)) {
-            map.removeLayer(lyr);
+            try {
+              map.removeLayer(lyr);
+            } catch {}
           }
           map.eachLayer((existingLayer: any) => {
             if (existingLayer.customSourceName === source.name) {
-              map.removeLayer(existingLayer);
+              try {
+                map.removeLayer(existingLayer);
+              } catch {}
             }
           });
         }

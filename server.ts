@@ -62,6 +62,18 @@ async function startServer() {
     next();
   });
 
+  // Cabeçalhos de Segurança (CSP e proteção HTTP alinhados a vercel.json)
+  app.use((req, res, next) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://*.cartocdn.com https://*.arcgisonline.com https://server.arcgisonline.com https://*.google.com https://*.googleapis.com https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://*.tile.openstreetmap.org https://raw.githubusercontent.com https://*.githubusercontent.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://pub-2bd417d213f04fae9ffd18d26ad95d5b.r2.dev https://servicodados.ibge.gov.br https://raw.githubusercontent.com https://*.githubusercontent.com https://*.cartocdn.com https://*.arcgisonline.com https://*.google.com data: blob:; object-src 'none'; base-uri 'self'; form-action 'self';"
+    );
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    next();
+  });
+
   // Desabilitar cache para index.html garantindo que o navegador sempre receba os hashes mais atuais de CSS e JS
   app.use((req, res, next) => {
     if (req.path === "/" || req.path === "/index.html") {
