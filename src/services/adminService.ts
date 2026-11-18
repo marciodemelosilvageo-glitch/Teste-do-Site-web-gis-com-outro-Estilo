@@ -193,6 +193,9 @@ const STORAGE_KEYS = {
   REGISTERED_USERS: 'webgis_registered_users_v1',
   CURRENT_ACTIVE_USER: 'webgis_current_active_user_v1',
   CAPABILITY_AUDIT_LOGS: 'webgis_capability_audit_logs',
+  ROLE_CAPABILITIES_MATRIX: 'webgis_role_capabilities_matrix_v1',
+  USER_CAPABILITIES_OVERRIDES: 'webgis_user_capabilities_overrides_v1',
+  USER_DELEGATION_SCOPES: 'webgis_user_delegation_scopes_v1',
 };
 
 // Notificar componentes sobre mudanças de permissões
@@ -2233,6 +2236,319 @@ export const fetchEffectiveCapabilitiesAsync = async (
     localStorage.setItem(cacheKey, JSON.stringify(fallback));
   } catch (e) {}
   return fallback;
+};
+
+// ================= MATRIZ DE PODERES E CATÁLOGO RELACIONAL =================
+
+export type CapabilityGroup = 'camadas' | 'ferramentas' | 'dados' | 'conta' | 'administracao';
+
+export interface CapabilityItem {
+  key: string;
+  name: string;
+  group: CapabilityGroup;
+  description: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export type BaseRoleKey = 'visitor' | 'site_account' | 'user' | 'manager';
+
+export interface RoleCapabilityEntry {
+  can_use: boolean;
+  can_grant: boolean;
+}
+
+export type RoleCapabilitiesMatrix = Record<BaseRoleKey, Record<string, RoleCapabilityEntry>>;
+
+export type OverrideSetting = 'inherit' | 'allow' | 'deny';
+
+export interface UserCapabilityOverrideEntry {
+  override_type: OverrideSetting;
+  can_grant?: boolean;
+}
+
+export interface ManagerScopeConfig {
+  scope_type: 'team_only' | 'all_users';
+  can_manage_site_accounts: boolean;
+  can_manage_visitors: boolean;
+}
+
+export const getAllCapabilitiesCatalog = (layersList?: string[]): CapabilityItem[] => {
+  const dynamicLayers = layersList || ['Municipios', 'Bairros', 'Favelas e Comunidades'];
+  const layerItems: CapabilityItem[] = dynamicLayers.map(l => ({
+    key: `layer:${l}`,
+    name: `Camada: ${l}`,
+    group: 'camadas',
+    description: `Acesso e visualização geoespacial da camada ${l} no mapa`,
+    riskLevel: 'low'
+  }));
+
+  const standardItems: CapabilityItem[] = [
+    // Ferramentas
+    { key: 'tool:cnefe_search', name: 'Busca CNEFE de Endereços', group: 'ferramentas', description: 'Consulta geocodificada na base do CNEFE/IBGE', riskLevel: 'low' },
+    { key: 'tool:search_area_addresses', name: 'Buscar Endereços na Área', group: 'ferramentas', description: 'Extração de endereços contidos no interior do polígono', riskLevel: 'medium' },
+    { key: 'tool:search_by_type', name: 'Buscar por Categoria / Tipo', group: 'ferramentas', description: 'Filtro por estabelecimentos e tipos de edificação', riskLevel: 'low' },
+    { key: 'tool:measure', name: 'Régua e Medição', group: 'ferramentas', description: 'Medição interativa de distâncias lineares e perímetros', riskLevel: 'low' },
+    { key: 'tool:print_a4', name: 'Impressão em A4', group: 'ferramentas', description: 'Geração de prancha cartográfica A4 com escala e norte', riskLevel: 'low' },
+    { key: 'tool:layer_panel', name: 'Painel de Camadas', group: 'ferramentas', description: 'Controle de visibilidade e ordem das camadas territoriais', riskLevel: 'low' },
+    { key: 'tool:raio_x', name: 'Raio-X Territorial', group: 'ferramentas', description: 'Painel analítico agregado de indicadores demográficos', riskLevel: 'medium' },
+    { key: 'tool:selected_features', name: 'Feições Selecionadas', group: 'ferramentas', description: 'Lista e inspeção rápida das geometrias marcadas', riskLevel: 'low' },
+    { key: 'tool:feature_specs', name: 'Detalhes da Feição', group: 'ferramentas', description: 'Ficha completa de atributos censitários da geometria', riskLevel: 'low' },
+    { key: 'tool:dissolve_features', name: 'Dissolver Feições', group: 'ferramentas', description: 'União geométrica de múltiplos polígonos em contorno único', riskLevel: 'medium' },
+    { key: 'tool:multi_select', name: 'Multiseleção de Áreas', group: 'ferramentas', description: 'Seleção contínua de várias áreas com Ctrl ou botão', riskLevel: 'low' },
+    { key: 'tool:customize_useful_info', name: 'Personalizar Informações Úteis', group: 'ferramentas', description: 'Configuração individual dos cartões da ficha de feição', riskLevel: 'low' },
+    { key: 'tool:basemap_selector', name: 'Seletor de Mapa Base', group: 'ferramentas', description: 'Alternância entre mapas vetoriais, relevo e satélite', riskLevel: 'low' },
+    { key: 'tool:map_legend', name: 'Legenda do Mapa', group: 'ferramentas', description: 'Exibição da convenção cartográfica e cores das camadas', riskLevel: 'low' },
+    { key: 'tool:search_active_layers_only', name: 'Buscar Apenas em Camadas Ativas', group: 'ferramentas', description: 'Restrição da busca global às camadas visíveis', riskLevel: 'low' },
+    { key: 'tool:export_data', name: 'Exportação de Dados', group: 'ferramentas', description: 'Acesso ao painel e download de geometrias e atributos', riskLevel: 'medium' },
+
+    // Dados
+    { key: 'data:export:csv', name: 'Exportar CSV (Planilhas)', group: 'dados', description: 'Download tabular com UTF-8 BOM compatível com Excel', riskLevel: 'medium' },
+    { key: 'data:export:geojson', name: 'Exportar GeoJSON', group: 'dados', description: 'Formato aberto padrão web com atributos e geometrias', riskLevel: 'medium' },
+    { key: 'data:export:kml', name: 'Exportar KML (Google Earth)', group: 'dados', description: 'Arquivo KML para visualização no Google Earth', riskLevel: 'medium' },
+    { key: 'data:export:kmz', name: 'Exportar KMZ (Compactado)', group: 'dados', description: 'Pacote comprimido de alta performance para Google Earth', riskLevel: 'medium' },
+    { key: 'data:export:shapefile', name: 'Exportar Shapefile (ZIP)', group: 'dados', description: 'Pacote padrão ESRI SHP/SHX/DBF/PRJ para QGIS/ArcGIS', riskLevel: 'high' },
+    { key: 'data:export:geopackage', name: 'Exportar GeoPackage (GPKG)', group: 'dados', description: 'Padrão moderno OGC SQLite para geoprocessamento', riskLevel: 'high' },
+    { key: 'data:column:address', name: 'Colunas de Endereço CNEFE', group: 'dados', description: 'Visibilidade das colunas de logradouro, número e CEP', riskLevel: 'low' },
+    { key: 'data:property:feature', name: 'Propriedades Censitárias', group: 'dados', description: 'Visibilidade dos campos populacionais e domiciliares', riskLevel: 'low' },
+    { key: 'data:limit:high_volume', name: 'Exportar Mais de 50.000 Linhas', group: 'dados', description: 'Autorização especial para extrações de grande volume', riskLevel: 'high' },
+
+    // Conta
+    { key: 'account:self_register', name: 'Autocadastro', group: 'conta', description: 'Criação autônoma de conta pelo portal do site', riskLevel: 'low' },
+    { key: 'account:change_own_password', name: 'Trocar a Própria Senha', group: 'conta', description: 'Alteração de credencial pelo próprio usuário autenticado', riskLevel: 'low' },
+    { key: 'account:edit_own_profile', name: 'Editar o Próprio Perfil', group: 'conta', description: 'Atualização de nome e preferências pessoais', riskLevel: 'low' },
+
+    // Administração
+    { key: 'admin:panel:access', name: 'Abrir Painel de Administração', group: 'administracao', description: 'Acesso à interface de controle do sistema', riskLevel: 'high' },
+    { key: 'admin:users:view', name: 'Visualizar Usuários', group: 'administracao', description: 'Leitura da lista de contas cadastradas e da equipe', riskLevel: 'medium' },
+    { key: 'admin:users:create', name: 'Criar Usuários', group: 'administracao', description: 'Cadastro de novos membros com senha inicial segura', riskLevel: 'high' },
+    { key: 'admin:users:reset_password', name: 'Redefinir Senhas', group: 'administracao', description: 'Geração de nova senha obrigatória para usuários', riskLevel: 'high' },
+    { key: 'admin:users:block', name: 'Bloquear Contas', group: 'administracao', description: 'Suspensão temporária do acesso de usuários', riskLevel: 'high' },
+    { key: 'admin:users:delete', name: 'Excluir Usuários', group: 'administracao', description: 'Remoção definitiva de contas subordinadas', riskLevel: 'critical' },
+    { key: 'admin:users:promote_manager', name: 'Promover a Gerente', group: 'administracao', description: 'Delegação de prerrogativas de gerência de equipe', riskLevel: 'critical' },
+    { key: 'admin:roles:manage', name: 'Gerenciar Catálogo e Perfis Base', group: 'administracao', description: 'Edição da matriz de permissões dos papéis base', riskLevel: 'critical' },
+    { key: 'admin:logs:view', name: 'Visualizar Auditoria', group: 'administracao', description: 'Consulta à trilha de atividades e mudanças de poderes', riskLevel: 'medium' },
+    { key: 'admin:logs:export', name: 'Exportar Auditoria (CSV)', group: 'administracao', description: 'Download dos registros históricos do sistema', riskLevel: 'medium' },
+    { key: 'admin:simulate:profile', name: 'Simular Visão de Perfil', group: 'administracao', description: 'Testar a aplicação instantaneamente como outro papel', riskLevel: 'low' },
+  ];
+
+  return [...layerItems, ...standardItems];
+};
+
+export const buildDefaultRolesMatrix = (layersList?: string[]): RoleCapabilitiesMatrix => {
+  const catalog = getAllCapabilitiesCatalog(layersList);
+  const matrix: RoleCapabilitiesMatrix = {
+    visitor: {},
+    site_account: {},
+    user: {},
+    manager: {}
+  };
+
+  catalog.forEach(item => {
+    // 1. Visitante
+    const isVisitorAllowed =
+      item.group === 'camadas' ||
+      item.key === 'tool:cnefe_search' ||
+      item.key === 'tool:raio_x' ||
+      item.key === 'tool:selected_features' ||
+      item.key === 'tool:feature_specs' ||
+      item.key === 'tool:basemap_selector' ||
+      item.key === 'tool:map_legend' ||
+      item.key === 'tool:layer_panel' ||
+      item.key === 'data:column:address' ||
+      item.key === 'data:property:feature' ||
+      item.key === 'account:self_register';
+
+    matrix.visitor[item.key] = {
+      can_use: isVisitorAllowed,
+      can_grant: false
+    };
+
+    // 2. Conta do Site
+    const isSiteAllowed =
+      isVisitorAllowed ||
+      item.key === 'tool:measure' ||
+      item.key === 'tool:export_data' ||
+      item.key === 'data:export:csv' ||
+      item.key === 'data:export:geojson' ||
+      item.key === 'account:change_own_password' ||
+      item.key === 'account:edit_own_profile';
+
+    matrix.site_account[item.key] = {
+      can_use: isSiteAllowed,
+      can_grant: false
+    };
+
+    // 3. Usuário Comum
+    const isUserAllowed =
+      item.group === 'camadas' ||
+      item.group === 'ferramentas' ||
+      item.group === 'dados' ||
+      item.group === 'conta';
+
+    matrix.user[item.key] = {
+      can_use: isUserAllowed,
+      can_grant: false
+    };
+
+    // 4. Gerente
+    const isManagerUse =
+      item.group === 'camadas' ||
+      item.group === 'ferramentas' ||
+      item.group === 'dados' ||
+      item.group === 'conta' ||
+      item.key === 'admin:panel:access' ||
+      item.key === 'admin:users:view' ||
+      item.key === 'admin:users:create' ||
+      item.key === 'admin:users:reset_password' ||
+      item.key === 'admin:logs:view' ||
+      item.key === 'admin:logs:export' ||
+      item.key === 'admin:simulate:profile';
+
+    const isManagerGrant =
+      item.group === 'ferramentas' ||
+      item.group === 'camadas' ||
+      item.key === 'admin:users:create' ||
+      item.key === 'admin:users:reset_password';
+
+    matrix.manager[item.key] = {
+      can_use: isManagerUse,
+      can_grant: isManagerGrant
+    };
+  });
+
+  return matrix;
+};
+
+export const getBaseRolesMatrix = (layersList?: string[]): RoleCapabilitiesMatrix => {
+  if (typeof window === 'undefined') return buildDefaultRolesMatrix(layersList);
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.visitor && parsed.user && parsed.manager) {
+        return parsed;
+      }
+    }
+  } catch (e) {}
+
+  const defaults = buildDefaultRolesMatrix(layersList);
+  try {
+    localStorage.setItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX, JSON.stringify(defaults));
+  } catch (e) {}
+  return defaults;
+};
+
+export const saveBaseRolesMatrix = async (
+  matrix: RoleCapabilitiesMatrix
+): Promise<{ success: boolean; error?: string }> => {
+  if (typeof window === 'undefined') return { success: true };
+  try {
+    localStorage.setItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX, JSON.stringify(matrix));
+    notifyPermissionsUpdated();
+
+    // Sincronizar com Supabase se disponível
+    const roles: BaseRoleKey[] = ['visitor', 'site_account', 'user', 'manager'];
+    for (const r of roles) {
+      const perms = matrix[r];
+      if (perms) {
+        for (const [capKey, setting] of Object.entries(perms)) {
+          await supabase.from('role_capabilities').upsert({
+            role_id: `role:${r}`,
+            capability_key: capKey,
+            can_use: setting.can_use,
+            can_grant: setting.can_grant,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'role_id,capability_key' });
+        }
+      }
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Erro ao persistir role_capabilities no Supabase:', err);
+    return { success: true }; // Permite prosseguir localmente
+  }
+};
+
+export const getUserOverrides = (userId: string): Record<string, UserCapabilityOverrideEntry> => {
+  if (typeof window === 'undefined' || !userId) return {};
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEYS.USER_CAPABILITIES_OVERRIDES}_${userId}`);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {}
+  return {};
+};
+
+export const saveUserOverride = async (
+  userId: string,
+  capKey: string,
+  override: OverrideSetting,
+  canGrant = false
+): Promise<{ success: boolean }> => {
+  if (typeof window === 'undefined' || !userId) return { success: true };
+  try {
+    const current = getUserOverrides(userId);
+    if (override === 'inherit') {
+      delete current[capKey];
+      await supabase.from('user_capabilities').delete().match({ user_id: userId, capability_key: capKey });
+    } else {
+      current[capKey] = {
+        override_type: override,
+        can_grant: canGrant
+      };
+      await supabase.from('user_capabilities').upsert({
+        user_id: userId,
+        capability_key: capKey,
+        override_type: override,
+        can_grant: canGrant,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,capability_key' });
+    }
+    localStorage.setItem(`${STORAGE_KEYS.USER_CAPABILITIES_OVERRIDES}_${userId}`, JSON.stringify(current));
+    notifyPermissionsUpdated();
+    return { success: true };
+  } catch (err) {
+    console.warn('saveUserOverride: fallback local:', err);
+    return { success: true };
+  }
+};
+
+export const getManagerScope = (managerId: string): ManagerScopeConfig => {
+  if (typeof window === 'undefined' || !managerId) {
+    return { scope_type: 'team_only', can_manage_site_accounts: true, can_manage_visitors: false };
+  }
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEYS.USER_DELEGATION_SCOPES}_${managerId}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { scope_type: 'team_only', can_manage_site_accounts: true, can_manage_visitors: false };
+};
+
+export const saveManagerScope = async (
+  managerId: string,
+  scope: Partial<ManagerScopeConfig>
+): Promise<{ success: boolean }> => {
+  if (typeof window === 'undefined' || !managerId) return { success: true };
+  try {
+    const current = getManagerScope(managerId);
+    const updated = { ...current, ...scope };
+    localStorage.setItem(`${STORAGE_KEYS.USER_DELEGATION_SCOPES}_${managerId}`, JSON.stringify(updated));
+
+    await supabase.from('user_delegation_scopes').upsert({
+      manager_id: managerId,
+      scope_type: updated.scope_type,
+      can_manage_site_accounts: updated.can_manage_site_accounts,
+      can_manage_visitors: updated.can_manage_visitors,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'manager_id' });
+
+    notifyPermissionsUpdated();
+    return { success: true };
+  } catch (err) {
+    console.warn('saveManagerScope: salvo localmente:', err);
+    return { success: true };
+  }
 };
 
 // Inicialização automática do serviço

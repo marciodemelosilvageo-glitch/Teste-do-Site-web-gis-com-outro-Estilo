@@ -689,18 +689,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <AdminAccessSection
             isMaster={isMaster}
             isManager={isManager}
-            localLayerPerms={localLayerPerms}
-            onToggleLayer={handleToggleGlobalLayer}
-            onToggleAllLayers={handleToggleAllGlobalLayers}
-            localFeaturePerms={localFeaturePerms}
-            onToggleFeature={handleToggleGlobalFeature}
-            onApplyPreset={handleApplyPreset}
-            localAddressColumns={localAddressColumns}
-            onToggleAddressColumn={handleToggleGlobalAddressColumn}
-            onToggleAllAddressColumns={handleToggleAllGlobalAddressColumns}
-            localFeatureProperties={localFeatureProperties}
-            onToggleFeatureProperty={handleToggleGlobalFeatureProperty}
-            onToggleAllFeatureProperties={handleToggleAllGlobalFeatureProperties}
+            onSimulateRole={(role) => {
+              if (typeof onClose === 'function') onClose();
+              if (onSimulateUser) onSimulateUser(null, role === 'visitor' ? 'user' : (role as any));
+            }}
+            onNavigateToAudit={() => {
+              setCurrentSection('activity');
+              setMobileSection('activity');
+            }}
+            showToast={showToast}
           />
         );
 
@@ -897,6 +894,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           allUsers={registeredUsers}
           logs={logs}
           isMaster={isMaster}
+          isManager={isManager}
+          onSimulateUser={(u) => {
+            setSelectedUserDetail(null);
+            if (typeof onClose === 'function') onClose();
+            if (onSimulateUser) onSimulateUser(u.id, u.role);
+          }}
+          onNavigateToAudit={() => {
+            setSelectedUserDetail(null);
+            setCurrentSection('activity');
+            setMobileSection('activity');
+          }}
+          showToast={showToast}
         />
       )}
     </div>,
