@@ -14,7 +14,7 @@ if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
     imagePath: '/',
   });
 }
-import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine, Loader2, Sun, Moon } from 'lucide-react';
+import { Layers, ZoomIn, Compass, ExternalLink, MousePointerClick, Search, GripVertical, Save, BookmarkCheck, Trash2, RotateCcw, Eye, EyeOff, X, Check, AlertCircle, Ruler, LocateFixed, Navigation, ChevronDown, ChevronUp, MapPin, Star, Plus, Minus, Map as MapIcon, Download, Combine, Loader2, Sun, Moon, Printer } from 'lucide-react';
 import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
@@ -22,6 +22,7 @@ import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAU
 import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition, escapeHtml } from '../utils';
 import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
 import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
+import { useFeatureAccess } from '../context/FeatureAccessContext';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
 // Garante que NUNCA haja pontos empilhados ou amontoados em zooms distantes (desaproximados)
@@ -429,6 +430,7 @@ const updateLocalidadesViewport = (
 
 interface MapComponentProps {
   isPrintMode?: boolean;
+  onTogglePrintMode?: () => void;
   isMultiSelectMode: boolean;
   selectedFeatures: SelectedFeature[];
   onSelectionChange: (features: SelectedFeature[] | ((prev: SelectedFeature[]) => SelectedFeature[])) => void;
@@ -540,6 +542,7 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
   showToast,
   getZoom
 }) => {
+  const { can } = useFeatureAccess();
   const [manualLegendState, setManualLegendState] = useState<boolean | null>(null);
   const [isBarExpanded, setIsBarExpanded] = useState<boolean>(() => {
     if (typeof document !== 'undefined') {
@@ -626,6 +629,7 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
   return (
     <>
       {/* LEGENDA CARTOGRÁFICA DO MAPA (ESTILO APPLE MAPS / iOS CAPSULE) */}
+      {can('allowMapLegend') && (
       <div 
         className={`cnefe-drag-no-transition absolute flex flex-col items-start print:hidden select-none transition-all duration-300 ease-out ${
           isMobile && isSheetExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'
@@ -794,25 +798,28 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
           </motion.div>
         )}
       </div>
+      )}
 
       {/* Apple Maps Legal Bar no Canto Inferior Direito */}
-      <div 
-        className={`cnefe-drag-no-transition absolute right-3 select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out ${
-          isMobile && isSheetExpanded ? 'opacity-0' : 'opacity-100'
-        }`}
-        style={{
-          zIndex: isMobile ? MOBILE_Z_INDEX.LEGAL_SEAL : 900,
-          bottom: isMobile 
-            ? 'calc(var(--mobile-bottom-inset, 80px) + 8px)' 
-            : 'calc(var(--cnefe-bottom-height, 46px) + 10px)'
-        }}
-      >
-        <span>Termos</span>
-        <span>•</span>
-        <span>Legal</span>
-        <span>•</span>
-        <span>Dados IBGE / SSP-PI</span>
-      </div>
+      {can('allowSourcesFooter') && (
+        <div 
+          className={`cnefe-drag-no-transition absolute right-3 select-none pointer-events-none flex items-center gap-2 text-[10px] text-slate-500/80 dark:text-slate-400/80 font-medium px-2.5 py-0.5 rounded-full bg-white/60 dark:bg-black/60 backdrop-blur-md border border-black/5 dark:border-white/10 transition-all duration-300 ease-out ${
+            isMobile && isSheetExpanded ? 'opacity-0' : 'opacity-100'
+          }`}
+          style={{
+            zIndex: isMobile ? MOBILE_Z_INDEX.LEGAL_SEAL : 900,
+            bottom: isMobile 
+              ? 'calc(var(--mobile-bottom-inset, 80px) + 8px)' 
+              : 'calc(var(--cnefe-bottom-height, 46px) + 10px)'
+          }}
+        >
+          <span>Termos</span>
+          <span>•</span>
+          <span>Legal</span>
+          <span>•</span>
+          <span>Dados IBGE / SSP-PI</span>
+        </div>
+      )}
     </>
   );
 });
@@ -837,6 +844,7 @@ const SatelliteSvg: React.FC<{ className?: string }> = ({ className = "w-4 h-4" 
 
 const MapComponentInner: React.FC<MapComponentProps> = ({
   isPrintMode,
+  onTogglePrintMode,
   isMultiSelectMode,
   selectedFeatures,
   onSelectionChange,
@@ -875,6 +883,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   onOpenDetailsTab,
   onClearSearchSelectedFeatureId
 }) => {
+  const { can, guardAction } = useFeatureAccess();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const lastMeasureModelRef = useRef<any>(null);
@@ -1410,6 +1419,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
   useEffect(() => {
     (window as any).searchAddressesInPolygonByLayerId = (layerId: string) => {
+      if (!can('allowSearchAreaAddresses')) {
+        showToast('Busca de endereços na área desativada para seu perfil.');
+        return;
+      }
       const item = layerFeatureMapRef.current[String(layerId)];
       if (item && onSearchPolygonAddresses) {
         onSearchPolygonAddresses(item);
@@ -1418,7 +1431,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     return () => {
       delete (window as any).searchAddressesInPolygonByLayerId;
     };
-  }, [onSearchPolygonAddresses]);
+  }, [onSearchPolygonAddresses, can, showToast]);
 
   // Estados para Gestão de até 4 Estilos Personalizados Salvos
   const [savedStyles, setSavedStyles] = useState<SavedStylePreset[]>([]);
@@ -2084,6 +2097,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast]);
 
   const handleToggleDissolve = useCallback(() => {
+    if (!can('allowDissolveFeatures')) {
+      showToast('Dissolução de feições desativada para seu perfil.');
+      return;
+    }
     if (isDissolved) {
       clearDissolve();
       showToast('Dissolução desfeita.');
@@ -2096,7 +2113,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       computeDissolve(selectedPolygonFeatures);
       showToast('Polígonos dissolvidos em contorno único.');
     }
-  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast]);
+  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast, can]);
 
   // Inicializar o Leaflet Map
   useEffect(() => {
@@ -3744,80 +3761,90 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5 ml-auto">
-                  <button
-                    type="button"
-                    disabled={isAddressSearching}
-                    aria-busy={isAddressSearching}
-                    onClick={(e) => {
-                      if (isAddressSearching) return;
-                      e.stopPropagation();
-                      const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
-                      if (feat && onSearchPolygonAddressesRef.current) {
-                        onSearchPolygonAddressesRef.current({
-                          feature: feat,
-                          title: `Área Medida (${activeMeasureInfo.areaDisplay || 'Polígono'})`,
-                          sourceName: 'Medição',
-                          layer: null
-                        });
-                      }
-                    }}
-                    className={`px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed ${isAddressSearching ? 'cnefe-btn-searching' : ''}`}
-                    title="Buscar Endereços neste polígono medido"
-                  >
-                    {isAddressSearching ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                    ) : (
-                      <Search className="w-3.5 h-3.5" />
-                    )}
-                    <span>Buscar Endereços</span>
-                  </button>
-
-                  <div className="relative" ref={exportMenuRef}>
+                  {can('allowSearchAreaAddresses') && (
                     <button
                       type="button"
+                      disabled={isAddressSearching}
+                      aria-busy={isAddressSearching}
                       onClick={(e) => {
+                        if (isAddressSearching) return;
                         e.stopPropagation();
-                        setIsExportMenuOpen(prev => !prev);
+                        const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
+                        if (feat && onSearchPolygonAddressesRef.current) {
+                          onSearchPolygonAddressesRef.current({
+                            feature: feat,
+                            title: `Área Medida (${activeMeasureInfo.areaDisplay || 'Polígono'})`,
+                            sourceName: 'Medição',
+                            layer: null
+                          });
+                        }
                       }}
-                      className="px-2.5 py-1.5 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors active:scale-95"
-                      title="Exportar polígono medido"
+                      className={`px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed ${isAddressSearching ? 'cnefe-btn-searching' : ''}`}
+                      title="Buscar Endereços neste polígono medido"
                     >
-                      <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                      <span>Exportar</span>
-                      <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                      {isAddressSearching ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                      ) : (
+                        <Search className="w-3.5 h-3.5" />
+                      )}
+                      <span>Buscar Endereços</span>
                     </button>
+                  )}
 
-                    {isExportMenuOpen && (
-                      <div 
-                        className="absolute left-0 top-full mt-1.5 w-36 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xl border border-black/10 dark:border-white/10 py-1 z-50 animate-fadeIn"
-                        onClick={(e) => e.stopPropagation()}
+                  {can('allowExportData') && (
+                    <div className="relative" ref={exportMenuRef}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsExportMenuOpen(prev => !prev);
+                        }}
+                        className="px-2.5 py-1.5 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors active:scale-95"
+                        title="Exportar polígono medido"
                       >
-                        <button
-                          type="button"
-                          onClick={() => handleExportMeasure('geojson')}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                        <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                        <span>Exportar</span>
+                        <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isExportMenuOpen && (
+                        <div 
+                          className="absolute left-0 top-full mt-1.5 w-36 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xl border border-black/10 dark:border-white/10 py-1 z-50 animate-fadeIn"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <span className="font-semibold">GeoJSON</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExportMeasure('gpkg')}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span className="font-semibold">GeoPackage</span>
-                          <span className="text-[10px] text-slate-400">QGIS</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExportMeasure('kml')}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span className="font-semibold">KML</span>
-                          <span className="text-[10px] text-slate-400">Earth</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                          {can('allowExportGeoJson') && (
+                            <button
+                              type="button"
+                              onClick={() => handleExportMeasure('geojson')}
+                              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                            >
+                              <span className="font-semibold">GeoJSON</span>
+                            </button>
+                          )}
+                          {can('allowExportGeoPackage') && (
+                            <button
+                              type="button"
+                              onClick={() => handleExportMeasure('gpkg')}
+                              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                            >
+                              <span className="font-semibold">GeoPackage</span>
+                              <span className="text-[10px] text-slate-400">QGIS</span>
+                            </button>
+                          )}
+                          {can('allowExportKml') && (
+                            <button
+                              type="button"
+                              onClick={() => handleExportMeasure('kml')}
+                              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors"
+                            >
+                              <span className="font-semibold">KML</span>
+                              <span className="text-[10px] text-slate-400">Earth</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <button
                     type="button"
@@ -4066,6 +4093,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
               {/* Barra Superior de Botões Flutuantes (Apple Squircle Pills) */}
               <div className="flex items-center gap-2">
                 {/* 1. Seletor de Mapa Estilo Apple (Segmented Sheet Trigger) */}
+                {can('allowBasemapSelector') && (
                 <div className="relative">
                   <button
                     type="button"
@@ -4308,6 +4336,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                     document.body
                   )}
                 </div>
+                )}
 
                 {/* 1.1. Botão Modo Escuro (Mobile - ao lado do mapa base) */}
                 {isMobile && onToggleDarkMode && (
@@ -4328,23 +4357,25 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 )}
 
                 {/* 2. Botão Multiseleção Estilo Apple */}
-                <button 
-                  type="button"
-                  id="btn-multi-select" 
-                  onClick={onToggleMultiSelect}
-                  className={`h-10 px-3.5 rounded-2xl flex items-center gap-1.5 border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer ${
-                    isMultiSelectMode 
-                      ? 'bg-[#007AFF] text-white border-[#0066d6] shadow-blue-500/25' 
-                      : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10'
-                  }`}
-                  title="Permite selecionar várias áreas tocando nelas sem precisar do teclado"
-                >
-                  <MousePointerClick className="w-4 h-4" />
-                  <span className="hidden sm:inline">Multiseleção: {isMultiSelectMode ? 'ON' : 'OFF'}</span>
-                </button>
+                {can('allowMultiSelect') && (
+                  <button 
+                    type="button"
+                    id="btn-multi-select" 
+                    onClick={() => guardAction('allowMultiSelect', 'Multiseleção', onToggleMultiSelect)}
+                    className={`h-10 px-3.5 rounded-2xl flex items-center gap-1.5 border text-xs font-bold transition-all shadow-xl backdrop-blur-2xl cursor-pointer ${
+                      isMultiSelectMode 
+                        ? 'bg-[#007AFF] text-white border-[#0066d6] shadow-blue-500/25' 
+                        : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 border-black/5 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10'
+                    }`}
+                    title="Permite selecionar várias áreas tocando nelas sem precisar do teclado"
+                  >
+                    <MousePointerClick className="w-4 h-4" />
+                    <span className="hidden sm:inline">Multiseleção: {isMultiSelectMode ? 'ON' : 'OFF'}</span>
+                  </button>
+                )}
 
                 {/* 2.1. Botão Dissolver Feições Poligonais (visível com 2+ polígonos selecionados) */}
-                {selectedPolygonCount >= 2 && (
+                {can('allowDissolveFeatures') && selectedPolygonCount >= 2 && (
                   <button
                     type="button"
                     id="btn-dissolve"
@@ -4368,7 +4399,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 )}
 
                 {/* 3. Botão de Camadas Estilo Apple (Floating Pill) */}
-                {allowLayerPanel && (
+                {allowLayerPanel && can('allowLayerPanel') && (
                   <button 
                     onClick={() => {
                       setLayersPanelOpen(!layersPanelOpen);
@@ -4414,7 +4445,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 </div>
 
                 {/* Ferramenta de Medir Distâncias e Áreas (Estilo Apple Maps) */}
-                {allowMeasureTool && (
+                {allowMeasureTool && can('allowMeasureTool') && (
                   <button 
                     type="button"
                     id="btn-toggle-measure"
@@ -4460,10 +4491,27 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 >
                   <Navigation className={`w-4 h-4 ${showUserLocation ? 'text-white animate-pulse' : 'text-[#007AFF]'}`} />
                 </button>
+
+                {/* Impressão A4 */}
+                {can('allowPrintA4') && onTogglePrintMode && (
+                  <button 
+                    type="button"
+                    onClick={onTogglePrintMode}
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer ${
+                      isPrintMode 
+                        ? 'bg-[#007AFF] text-white shadow-blue-500/30' 
+                        : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+                    } active:scale-90`}
+                    title="Modo Impressão A4"
+                    aria-label="Modo Impressão A4"
+                  >
+                    <Printer className={`w-4 h-4 ${isPrintMode ? 'text-white' : 'text-orange-500'}`} />
+                  </button>
+                )}
               </div>
 
               {/* 4. Painel de Camadas Vetoriais (Apple Glass Sheet) */}
-              {allowLayerPanel && (layersPanelOpen || isPrintMode) && (
+              {allowLayerPanel && can('allowLayerPanel') && (layersPanelOpen || isPrintMode) && (
                 <div 
                   id="layers-panel" 
                   onMouseDown={(e) => e.stopPropagation()}

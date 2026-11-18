@@ -18,6 +18,21 @@ export interface FeaturePermissions {
   allowFeatureSpecs: boolean;
   allowSourcesFooter: boolean;
   allowSearchActiveLayersOnly: boolean;
+
+  // Novas ferramentas
+  allowDissolveFeatures: boolean;
+  allowMultiSelect: boolean;
+  allowSearchByType: boolean;
+  allowSearchAreaAddresses: boolean;
+  allowCustomizeUsefulInfo: boolean;
+  allowExportCsv: boolean;
+  allowExportKml: boolean;
+  allowExportKmz: boolean;
+  allowExportGeoJson: boolean;
+  allowExportShapefile: boolean;
+  allowExportGeoPackage: boolean;
+  allowBasemapSelector: boolean;
+  allowMapLegend: boolean;
 }
 
 export const ALL_ADDRESS_COLUMNS = [
@@ -1189,6 +1204,20 @@ export const getFeaturePermissions = (): FeaturePermissions => {
     allowFeatureSpecs: true,
     allowSourcesFooter: true,
     allowSearchActiveLayersOnly: true,
+
+    allowDissolveFeatures: true,
+    allowMultiSelect: true,
+    allowSearchByType: true,
+    allowSearchAreaAddresses: true,
+    allowCustomizeUsefulInfo: true,
+    allowExportCsv: true,
+    allowExportKml: true,
+    allowExportKmz: true,
+    allowExportGeoJson: true,
+    allowExportShapefile: true,
+    allowExportGeoPackage: true,
+    allowBasemapSelector: true,
+    allowMapLegend: true,
   };
 
   if (typeof window === 'undefined') return defaultFeatures;

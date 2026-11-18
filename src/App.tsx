@@ -32,6 +32,7 @@ import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase, getUserPosition } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, buscarEnderecosPorCategoriaEmPoligonos, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 import { RecentSearchItem, detectCategoryFromData } from './categories';
+import { FeatureAccessProvider } from './context/FeatureAccessContext';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const Globe = lazy(() => import('./components/Globe'));
@@ -461,6 +462,22 @@ export default function App() {
   // Estados de layout estilo Apple Maps (maps.apple.com)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
+
+  // Fechar abas restritas caso a permissão seja revogada
+  useEffect(() => {
+    if (!isMaster) {
+      if (sidebarTab === 'dashboard' && featurePermissions.allowDashboardRaioX === false) {
+        setSidebarTab(null);
+      } else if (sidebarTab === 'details' && featurePermissions.allowFeatureSpecs === false) {
+        setSidebarTab(null);
+      } else if (sidebarTab === 'export' && featurePermissions.allowExportData === false) {
+        setSidebarTab(null);
+      }
+      if (isPrintMode && featurePermissions.allowPrintA4 === false) {
+        setIsPrintMode(false);
+      }
+    }
+  }, [sidebarTab, featurePermissions, isMaster, isPrintMode]);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
   const [isHospitalSearching, setIsHospitalSearching] = useState(false);
   const [isAddressSearching, setIsAddressSearching] = useState<boolean>(false);
@@ -1880,7 +1897,9 @@ export default function App() {
     try {
       const layersToSearch: { name: string; loader: () => Promise<L.GeoJSON> }[] = [];
 
-      if (searchActiveLayersOnly && !isCoordSearch) {
+      const searchActiveOnlyEffective = (searchActiveLayersOnly || (!isMaster && featurePermissions.allowSearchActiveLayersOnly === true)) && !isCoordSearch;
+
+      if (searchActiveOnlyEffective) {
         activeLayers
           .filter(name => allowedLayerNames.includes(name))
           .forEach(name => {
@@ -3315,7 +3334,14 @@ export default function App() {
   }
 
   return (
-    <div className={`relative w-screen h-screen overflow-hidden font-sans select-none bg-slate-100 dark:bg-slate-950 ${isPrintMode ? '!bg-white dark:!bg-white text-slate-900 dark:text-slate-900' : ''}`}>
+    <FeatureAccessProvider
+      featurePermissions={featurePermissions}
+      isMaster={isMaster}
+      isManager={isManager}
+      userRole={userRole}
+      showToast={showToast}
+    >
+      <div className={`relative w-screen h-screen overflow-hidden font-sans select-none bg-slate-100 dark:bg-slate-950 ${isPrintMode ? '!bg-white dark:!bg-white text-slate-900 dark:text-slate-900' : ''}`}>
       <style>
         {`
           @media print {
@@ -3447,16 +3473,22 @@ export default function App() {
             else handleOpenAdminLogin();
           }}
           onOpenCnefeAddressSearch={() => {
+            if (!isMaster && featurePermissions.allowCnefeSearch === false) {
+              logActivity('ACESSO', 'Tentativa de abrir busca CNEFE bloqueada por permissão', userRole);
+              showToast('⚠️ Acesso restrito: Busca de endereços CNEFE desativada para seu perfil.');
+              return;
+            }
             setIsCnefeBottomBarOpen(true);
             setIsCnefeBottomBarExpanded(true);
           }}
           isAddressSearchOpen={isCnefeBottomBarExpanded}
-          hasCnefeSearch={hasCnefeSearch}
+          hasCnefeSearch={hasCnefeSearch && (isMaster || featurePermissions.allowCnefeSearch !== false)}
         >
           {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
           <div className="w-full h-full relative overflow-hidden">
             <MapComponent 
               isPrintMode={isPrintMode}
+              onTogglePrintMode={() => setIsPrintMode(prev => !prev)}
               isStage2Open={!!sidebarTab}
               isSidebarCollapsed={true}
               isMultiSelectMode={isMultiSelectMode}
@@ -3543,7 +3575,7 @@ export default function App() {
             {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) - MOBILE */}
             <CnefeBottomBar
               isMobile={true}
-              isOpen={isCnefeBottomBarOpen}
+              isOpen={isCnefeBottomBarOpen && (isMaster || featurePermissions.allowCnefeSearch !== false)}
               isStage2Open={!!sidebarTab}
               isExpanded={isCnefeBottomBarExpanded}
               onOpen={handleOpenCnefeBottomBar}
@@ -3606,6 +3638,11 @@ export default function App() {
               isHospitalSearching={isHospitalSearching}
               isAddressSearching={isAddressSearching || isHospitalSearching}
               onOpenCnefeBottomBar={() => {
+                if (!isMaster && featurePermissions.allowCnefeSearch === false) {
+                  logActivity('ACESSO', 'Tentativa de abrir busca CNEFE bloqueada por permissão', userRole);
+                  showToast('⚠️ Acesso restrito: Busca de endereços CNEFE desativada para seu perfil.');
+                  return;
+                }
                 setIsCnefeBottomBarOpen(true);
                 setIsCnefeBottomBarExpanded(true);
               }}
@@ -3703,6 +3740,11 @@ export default function App() {
               isHospitalSearching={isHospitalSearching}
               isAddressSearching={isAddressSearching || isHospitalSearching}
               onOpenCnefeBottomBar={() => {
+                if (!isMaster && featurePermissions.allowCnefeSearch === false) {
+                  logActivity('ACESSO', 'Tentativa de abrir busca CNEFE bloqueada por permissão', userRole);
+                  showToast('⚠️ Acesso restrito: Busca de endereços CNEFE desativada para seu perfil.');
+                  return;
+                }
                 setIsCnefeBottomBarOpen(true);
                 setIsCnefeBottomBarExpanded(true);
               }}
@@ -3752,6 +3794,7 @@ export default function App() {
           <div className="flex-1 w-full h-full relative overflow-hidden">
             <MapComponent 
               isPrintMode={isPrintMode}
+              onTogglePrintMode={() => setIsPrintMode(prev => !prev)}
               isStage2Open={!!sidebarTab}
               isSidebarCollapsed={isSidebarCollapsed}
               isMultiSelectMode={isMultiSelectMode}
@@ -3835,7 +3878,7 @@ export default function App() {
 
             {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) - DESKTOP */}
             <CnefeBottomBar
-              isOpen={isCnefeBottomBarOpen}
+              isOpen={isCnefeBottomBarOpen && (isMaster || featurePermissions.allowCnefeSearch !== false)}
               isStage2Open={!!sidebarTab}
               isExpanded={isCnefeBottomBarExpanded}
               onOpen={handleOpenCnefeBottomBar}
@@ -4114,6 +4157,7 @@ export default function App() {
 
 
       {/* MODAL DE AJUDA AGORA INTEGRADO NA BARRA LATERAL (AppleSidebar) */}
-    </div>
+      </div>
+    </FeatureAccessProvider>
   );
 }

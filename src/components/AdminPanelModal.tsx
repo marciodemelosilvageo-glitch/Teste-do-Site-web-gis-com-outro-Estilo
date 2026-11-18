@@ -45,6 +45,11 @@ import {
   FileCode,
   BookOpen,
   Filter,
+  Combine,
+  Globe,
+  Archive,
+  Database,
+  Map as MapIcon,
   UserPlus,
   Key,
   UserCheck2,
@@ -589,7 +594,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const handleToggleUserFeature = (featureKey: keyof FeaturePermissions) => {
     setUserCustomFeatures(prev => ({
       ...prev,
-      [featureKey]: !prev[featureKey]
+      [featureKey]: prev[featureKey] !== false ? false : true
     }));
   };
 
@@ -2075,6 +2080,215 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   <span>Impressão de Mapas</span>
                                   <input type="checkbox" checked={userCustomFeatures.allowPrintA4 !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
                                 </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowDashboardRaioX')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowDashboardRaioX !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Dashboard Raio-X</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowDashboardRaioX !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowSelectedFeaturesPanel')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowSelectedFeaturesPanel !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Painel Feições Selecionadas</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowSelectedFeaturesPanel !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowFeatureSpecs')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowFeatureSpecs !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Detalhes e Especificações</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowFeatureSpecs !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowLayerPanel')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowLayerPanel !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Painel de Camadas</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowLayerPanel !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowSearchActiveLayersOnly')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowSearchActiveLayersOnly !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Apenas Camadas Ativas</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowSearchActiveLayersOnly !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowSourcesFooter')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowSourcesFooter !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Fontes e Rodapé Legal</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowSourcesFooter !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowDissolveFeatures')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowDissolveFeatures !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Dissolver Polígonos</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowDissolveFeatures !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowMultiSelect')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowMultiSelect !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Multiseleção</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowMultiSelect !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowBasemapSelector')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowBasemapSelector !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Seletor Mapa Base</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowBasemapSelector !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowMapLegend')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowMapLegend !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Legenda Temática</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowMapLegend !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowSearchByType')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowSearchByType !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Buscar por Tipo</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowSearchByType !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowSearchAreaAddresses')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowSearchAreaAddresses !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Buscar Endereços na Área</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowSearchAreaAddresses !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowCustomizeUsefulInfo')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowCustomizeUsefulInfo !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Personalizar Infos Úteis</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowCustomizeUsefulInfo !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowExportGeoJson')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowExportGeoJson !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Exportar GeoJSON</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowExportGeoJson !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowExportGeoPackage')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowExportGeoPackage !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Exportar GeoPackage (GPKG)</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowExportGeoPackage !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowExportShapefile')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowExportShapefile !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Exportar Shapefile (ZIP)</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowExportShapefile !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowExportCsv')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowExportCsv !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Exportar CSV</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowExportCsv !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowExportKml')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowExportKml !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Exportar KML</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowExportKml !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
+
+                                <div
+                                  onClick={() => handleToggleUserFeature('allowExportKmz')}
+                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${userCustomFeatures.allowExportKmz !== false
+                                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200'
+                                      : 'bg-slate-100 dark:bg-slate-950 border-slate-200/50 opacity-50'
+                                    }`}
+                                >
+                                  <span>Exportar KMZ</span>
+                                  <input type="checkbox" checked={userCustomFeatures.allowExportKmz !== false} onChange={() => { }} className="w-4 h-4 rounded text-red-600" />
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -2508,6 +2722,318 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <div className="relative inline-flex items-center shrink-0">
                     <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowPrintA4 !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
                       <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowPrintA4 !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 11. Dissolver Feições Poligonais */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowDissolveFeatures')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowDissolveFeatures !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Combine className="w-4 h-4 text-red-600" />
+                      Dissolver Feições Poligonais
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Permite fundir 2 ou mais polígonos selecionados em um contorno contínuo único.
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowDissolveFeatures !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowDissolveFeatures !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 12. Multiseleção no Mapa */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowMultiSelect')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowMultiSelect !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <MousePointerClick className="w-4 h-4 text-red-600" />
+                      Multiseleção no Mapa
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Permite selecionar múltiplas áreas e geometrias simultaneamente tocando no mapa.
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowMultiSelect !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowMultiSelect !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 13. Seletor de Mapa Base */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowBasemapSelector')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowBasemapSelector !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <MapIcon className="w-4 h-4 text-red-600" />
+                      Seletor de Mapa Base
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Permite alternar mapas de fundo (Apple Explorar, Apple Escuro, Satélite e Híbrido).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowBasemapSelector !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowBasemapSelector !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 14. Legenda do Mapa */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowMapLegend')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowMapLegend !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-red-600" />
+                      Legenda Temática do Mapa
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Exibe a cápsula flutuante com a legenda de símbolos e controle de camadas visíveis.
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowMapLegend !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowMapLegend !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 15. Buscar por Tipo */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowSearchByType')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowSearchByType !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Search className="w-4 h-4 text-red-600" />
+                      Buscar por Tipo (POIs e Serviços)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Atalhos para buscar Farmácias, Restaurantes, Postos, Hotéis e Hospitais.
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowSearchByType !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowSearchByType !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 16. Buscar Endereços na Área */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowSearchAreaAddresses')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowSearchAreaAddresses !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Search className="w-4 h-4 text-red-600" />
+                      Buscar Endereços na Área (Polígono/Medição)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Permite localizar todos os endereços do CNEFE contidos na área demarcada ou medida.
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowSearchAreaAddresses !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowSearchAreaAddresses !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 17. Personalizar Informações Úteis */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowCustomizeUsefulInfo')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowCustomizeUsefulInfo !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-red-600" />
+                      Personalizar Informações Úteis
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Permite reordenar e gerenciar os cards de contatos e utilidades nos detalhes da feição.
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowCustomizeUsefulInfo !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowCustomizeUsefulInfo !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 18. Exportar GeoJSON */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowExportGeoJson')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowExportGeoJson !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <FileCode className="w-4 h-4 text-red-600" />
+                      Exportar Formato GeoJSON
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Habilita exportação aberta para navegadores, Leaflet, Mapbox e QGIS (.geojson).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowExportGeoJson !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowExportGeoJson !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 19. Exportar GeoPackage */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowExportGeoPackage')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowExportGeoPackage !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Database className="w-4 h-4 text-red-600" />
+                      Exportar GeoPackage (GPKG)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Padrão espacial moderno OGC em SQLite para QGIS e ArcGIS (.gpkg).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowExportGeoPackage !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowExportGeoPackage !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 20. Exportar Shapefile */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowExportShapefile')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowExportShapefile !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Archive className="w-4 h-4 text-red-600" />
+                      Exportar Shapefile (ZIP)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Pacote ESRI Shapefile com .shp, .shx, .dbf, .prj (.zip).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowExportShapefile !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowExportShapefile !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 21. Exportar CSV */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowExportCsv')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowExportCsv !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-red-600" />
+                      Exportar Planilha Excel (CSV)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Tabela com coordenadas e atributos com UTF-8 BOM para Excel e Sheets (.csv).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowExportCsv !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowExportCsv !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 22. Exportar KML */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowExportKml')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowExportKml !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-red-600" />
+                      Exportar Google Earth (KML)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Estrutura vetorial XML para visualização no Google Earth e QGIS (.kml).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowExportKml !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowExportKml !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 23. Exportar KMZ */}
+                <div
+                  onClick={() => handleToggleGlobalFeature('allowExportKmz')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${localFeaturePerms.allowExportKmz !== false
+                      ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200/60 dark:border-slate-800/60 opacity-65 hover:opacity-100 hover:border-red-400'
+                    }`}
+                >
+                  <div className="pr-3">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-red-600" />
+                      Exportar Google Earth Compactado (KMZ)
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Arquivo KML comprimido de alta velocidade para o Google Earth Pro (.kmz).
+                    </p>
+                  </div>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <div className={`w-11 h-6 transition-colors rounded-full relative p-0.5 ${localFeaturePerms.allowExportKmz !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform transform ${localFeaturePerms.allowExportKmz !== false ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                 </div>
@@ -3254,7 +3780,211 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <input
                             type="checkbox"
                             checked={userFormFeatures.allowSelectedFeaturesPanel !== false}
-                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowSelectedFeaturesPanel: !prev.allowSelectedFeaturesPanel }))}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowSelectedFeaturesPanel: prev.allowSelectedFeaturesPanel !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowFeatureSpecs !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Especificações e Atributos da Feição</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowFeatureSpecs !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowFeatureSpecs: prev.allowFeatureSpecs !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowLayerPanel !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Painel de Camadas</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowLayerPanel !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowLayerPanel: prev.allowLayerPanel !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowSearchActiveLayersOnly !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Pesquisar Apenas em Camadas Ativas</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowSearchActiveLayersOnly !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowSearchActiveLayersOnly: prev.allowSearchActiveLayersOnly !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowSourcesFooter !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Rodapé de Fontes e Dados</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowSourcesFooter !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowSourcesFooter: prev.allowSourcesFooter !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowDissolveFeatures !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Dissolver Feições Poligonais</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowDissolveFeatures !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowDissolveFeatures: prev.allowDissolveFeatures !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowMultiSelect !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Multiseleção no Mapa</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowMultiSelect !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowMultiSelect: prev.allowMultiSelect !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowBasemapSelector !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Seletor de Mapa Base</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowBasemapSelector !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowBasemapSelector: prev.allowBasemapSelector !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowMapLegend !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Legenda Temática do Mapa</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowMapLegend !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowMapLegend: prev.allowMapLegend !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowSearchByType !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Buscar por Tipo (POIs e Serviços)</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowSearchByType !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowSearchByType: prev.allowSearchByType !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowSearchAreaAddresses !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Buscar Endereços na Área (Polígono)</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowSearchAreaAddresses !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowSearchAreaAddresses: prev.allowSearchAreaAddresses !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowCustomizeUsefulInfo !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Personalizar Informações Úteis</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowCustomizeUsefulInfo !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowCustomizeUsefulInfo: prev.allowCustomizeUsefulInfo !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowExportGeoJson !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Exportar GeoJSON</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowExportGeoJson !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowExportGeoJson: prev.allowExportGeoJson !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowExportGeoPackage !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Exportar GeoPackage (GPKG)</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowExportGeoPackage !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowExportGeoPackage: prev.allowExportGeoPackage !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowExportShapefile !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Exportar Shapefile (ZIP)</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowExportShapefile !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowExportShapefile: prev.allowExportShapefile !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowExportCsv !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Exportar Planilha CSV</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowExportCsv !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowExportCsv: prev.allowExportCsv !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowExportKml !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Exportar Google Earth KML</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowExportKml !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowExportKml: prev.allowExportKml !== false ? false : true }))}
+                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
+                          userFormFeatures.allowExportKmz !== false ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100' : 'bg-slate-100/60 dark:bg-slate-950/60 border-transparent text-slate-400 opacity-60'
+                        }`}>
+                          <span>Exportar KMZ Comprimido</span>
+                          <input
+                            type="checkbox"
+                            checked={userFormFeatures.allowExportKmz !== false}
+                            onChange={() => setUserFormFeatures(prev => ({ ...prev, allowExportKmz: prev.allowExportKmz !== false ? false : true }))}
                             className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
                           />
                         </label>

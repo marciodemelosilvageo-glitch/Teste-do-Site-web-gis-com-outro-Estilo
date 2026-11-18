@@ -29,6 +29,7 @@ import {
 } from '../utils';
 import { logActivity } from '../services/adminService';
 import { exportSelectedFeatures, ExportPreferences, ExportFormat } from '../exportActions';
+import { useFeatureAccess } from '../context/FeatureAccessContext';
 
 interface ExportDashboardProps {
   selectedFeatures: SelectedFeature[];
@@ -105,6 +106,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   preferences,
   onUpdatePreferences
 }) => {
+  const { can, canExport } = useFeatureAccess();
   const count = selectedFeatures?.length || 0;
   const currentFormat: ExportFormat = preferences?.format || 'geojson';
 
@@ -152,23 +154,29 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   // Formatos visíveis para a seleção filtrada (CSV apenas se for ponto)
   const visibleFilteredFormats = useMemo(() => {
     return ALL_FORMAT_CONFIGS.filter(cfg => {
+      if (!canExport(cfg.id)) return false;
       if (cfg.onlyPoint && filteredGeometryKind !== 'point') return false;
       return true;
     });
-  }, [filteredGeometryKind]);
+  }, [filteredGeometryKind, canExport]);
 
   // Formatos visíveis para a camada completa (CSV apenas se for ponto)
   const visibleFullLayerFormats = useMemo(() => {
     return ALL_FORMAT_CONFIGS.filter(cfg => {
+      if (!canExport(cfg.id)) return false;
       if (cfg.onlyPoint && fullLayerGeometryKind !== 'point') return false;
       return true;
     });
-  }, [fullLayerGeometryKind]);
+  }, [fullLayerGeometryKind, canExport]);
 
   // ==============================================================
   // EXPORTAÇÃO FILTRADA (FEIÇÕES SELECIONADAS)
   // ==============================================================
   const handleExportFiltered = useCallback(async (format: ExportFormat) => {
+    if (!canExport(format)) {
+      setExportError(`Exportação no formato ${format.toUpperCase()} bloqueada pelo administrador.`);
+      return;
+    }
     setExportError(null);
     setIsDownloading(true);
     setDownloadFormat(format);
@@ -184,7 +192,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [selectedFeatures]);
+  }, [selectedFeatures, canExport]);
 
   // ==============================================================
   // EXPORTAÇÃO DA CAMADA COMPLETA
@@ -204,6 +212,10 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
   const handleExportFullLayer = useCallback(async (format: ExportFormat) => {
     if (!currentLayer) return;
+    if (!canExport(format)) {
+      setExportError(`Exportação no formato ${format.toUpperCase()} bloqueada pelo administrador.`);
+      return;
+    }
     setExportError(null);
     setIsDownloading(true);
     setDownloadFormat(format);
@@ -243,7 +255,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [currentLayer, fullLayerGeometryKind]);
+  }, [currentLayer, fullLayerGeometryKind, canExport]);
 
   // Identificador da feição principal
   const primaryFeatureName = useMemo(() => {
@@ -262,6 +274,22 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
   // Formato efetivo exibido no seletor de download rápido (fallback de CSV para geojson quando for polígono)
   const effectiveQuickFormat = (currentFormat === 'csv' && filteredGeometryKind === 'polygon') ? 'geojson' : currentFormat;
+
+  if (!can('allowExportData')) {
+    return (
+      <div className="p-6 text-center space-y-3">
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+          <Download className="w-6 h-6" />
+        </div>
+        <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
+          Exportação de Dados Desativada
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+          A exportação de dados está bloqueada pelo administrador para o seu perfil.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
