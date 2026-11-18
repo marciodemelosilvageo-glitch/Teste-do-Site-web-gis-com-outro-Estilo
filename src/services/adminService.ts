@@ -112,6 +112,30 @@ export interface ActivityLog {
   sessionId: string;
 }
 
+export type CapabilityAuditAction =
+  | 'grant_use'
+  | 'revoke_use'
+  | 'grant_delegate'
+  | 'revoke_delegate'
+  | 'set_deny'
+  | 'remove_override';
+
+export interface CapabilityAuditLog {
+  id: string;
+  timestamp: string; // ISO string
+  formattedDate?: string;
+  performedBy?: string;
+  performedByName?: string;
+  targetType: 'user' | 'base_role' | 'global';
+  targetId: string;
+  targetName?: string;
+  capabilityKey: string;
+  action: CapabilityAuditAction;
+  beforeState?: Record<string, any> | null;
+  afterState?: Record<string, any> | null;
+  reason?: string | null;
+}
+
 export interface UserSessionConfig {
   sessionId: string;
   customName?: string;
@@ -168,6 +192,7 @@ const STORAGE_KEYS = {
   USER_SESSIONS: 'webgis_user_sessions_v1',
   REGISTERED_USERS: 'webgis_registered_users_v1',
   CURRENT_ACTIVE_USER: 'webgis_current_active_user_v1',
+  CAPABILITY_AUDIT_LOGS: 'webgis_capability_audit_logs',
 };
 
 // Notificar componentes sobre mudanças de permissões
@@ -1842,6 +1867,177 @@ export const exportActivityLogsToCSV = (logsToExport?: ActivityLog[]): void => {
   const link = document.createElement('a');
   link.href = url;
   link.download = `relatorio_atividades_webgis_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// ================= AUDITORIA DE MUDANÇA DE PODERES (auth_capability_audit) =================
+
+const DEFAULT_CAPABILITY_AUDIT_LOGS: CapabilityAuditLog[] = [
+  {
+    id: 'audit_init_001',
+    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+    formattedDate: new Date(Date.now() - 3600000 * 2).toLocaleDateString('pt-BR') + ' ' + new Date(Date.now() - 3600000 * 2).toLocaleTimeString('pt-BR'),
+    performedByName: 'Administrador Master',
+    targetType: 'base_role',
+    targetId: 'role:manager',
+    targetName: 'Perfil Base Gerente',
+    capabilityKey: 'admin:users:create',
+    action: 'grant_delegate',
+    beforeState: { can_use: true, can_grant: false },
+    afterState: { can_use: true, can_grant: true },
+    reason: 'Delegação de poderes de criação de equipe para perfil Gerente'
+  },
+  {
+    id: 'audit_init_002',
+    timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
+    formattedDate: new Date(Date.now() - 3600000 * 5).toLocaleDateString('pt-BR') + ' ' + new Date(Date.now() - 3600000 * 5).toLocaleTimeString('pt-BR'),
+    performedByName: 'Administrador Master',
+    targetType: 'base_role',
+    targetId: 'role:visitor',
+    targetName: 'Perfil Base Visitante',
+    capabilityKey: 'tool:dissolve_features',
+    action: 'set_deny',
+    beforeState: { can_use: true },
+    afterState: { can_use: false, is_denied: true },
+    reason: 'Restrição de ferramentas pesadas de geoprocessamento para visitantes anônimos'
+  },
+  {
+    id: 'audit_init_003',
+    timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
+    formattedDate: new Date(Date.now() - 3600000 * 24).toLocaleDateString('pt-BR') + ' ' + new Date(Date.now() - 3600000 * 24).toLocaleTimeString('pt-BR'),
+    performedByName: 'Administrador Master',
+    targetType: 'global',
+    targetId: 'catalog',
+    targetName: 'Catálogo de Poderes',
+    capabilityKey: 'admin:panel:access',
+    action: 'grant_use',
+    beforeState: null,
+    afterState: { can_use: true, can_grant: true },
+    reason: 'Ativação do catálogo relacional com proteção de imunidade ao Master'
+  }
+];
+
+export const getCapabilityAuditLogs = (): CapabilityAuditLog[] => {
+  if (typeof window === 'undefined') return DEFAULT_CAPABILITY_AUDIT_LOGS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CAPABILITY_AUDIT_LOGS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+    localStorage.setItem(STORAGE_KEYS.CAPABILITY_AUDIT_LOGS, JSON.stringify(DEFAULT_CAPABILITY_AUDIT_LOGS));
+    return DEFAULT_CAPABILITY_AUDIT_LOGS;
+  } catch {
+    return DEFAULT_CAPABILITY_AUDIT_LOGS;
+  }
+};
+
+export const getCapabilityAuditLogsAsync = async (): Promise<CapabilityAuditLog[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('capability_audit_logs')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(1000);
+
+    if (!error && data && data.length > 0) {
+      const logs: CapabilityAuditLog[] = data.map((row: any) => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        formattedDate: new Date(row.timestamp).toLocaleDateString('pt-BR') + ' ' + new Date(row.timestamp).toLocaleTimeString('pt-BR'),
+        performedBy: row.performed_by,
+        performedByName: row.performed_by_name || 'Sistema / Master',
+        targetType: row.target_type,
+        targetId: row.target_id,
+        targetName: row.target_type === 'base_role'
+          ? (row.target_id === 'role:visitor' ? 'Visitante' : row.target_id === 'role:site_account' ? 'Conta do Site' : row.target_id === 'role:user' ? 'Usuário' : 'Gerente')
+          : (row.target_type === 'global' ? 'Global' : `@${row.target_id}`),
+        capabilityKey: row.capability_key,
+        action: row.action,
+        beforeState: row.before_state,
+        afterState: row.after_state,
+        reason: row.reason
+      }));
+      localStorage.setItem(STORAGE_KEYS.CAPABILITY_AUDIT_LOGS, JSON.stringify(logs));
+      return logs;
+    }
+  } catch (e) {
+    console.warn('Falha ao sincronizar capability_audit_logs do Supabase:', e);
+  }
+  return getCapabilityAuditLogs();
+};
+
+export const logCapabilityAudit = async (
+  entry: Omit<CapabilityAuditLog, 'id' | 'timestamp' | 'formattedDate'>
+): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  const now = new Date();
+  const newLog: CapabilityAuditLog = {
+    id: 'audit_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    timestamp: now.toISOString(),
+    formattedDate: now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR'),
+    ...entry
+  };
+  const current = getCapabilityAuditLogs();
+  const updated = [newLog, ...current].slice(0, 1000);
+  localStorage.setItem(STORAGE_KEYS.CAPABILITY_AUDIT_LOGS, JSON.stringify(updated));
+
+  try {
+    await supabase.from('capability_audit_logs').insert({
+      id: newLog.id,
+      timestamp: newLog.timestamp,
+      performed_by: newLog.performedBy || null,
+      performed_by_name: newLog.performedByName || null,
+      target_type: newLog.targetType,
+      target_id: newLog.targetId,
+      capability_key: newLog.capabilityKey,
+      action: newLog.action,
+      before_state: newLog.beforeState || null,
+      after_state: newLog.afterState || null,
+      reason: newLog.reason || null
+    });
+  } catch (err) {
+    console.warn('Erro ao salvar auditoria de capacidade no Supabase:', err);
+  }
+};
+
+export const exportCapabilityAuditLogsToCSV = (logsToExport?: CapabilityAuditLog[]): void => {
+  const logs = logsToExport || getCapabilityAuditLogs();
+  if (logs.length === 0) return;
+
+  const actionLabels: Record<string, string> = {
+    grant_use: 'Conceder Uso',
+    revoke_use: 'Revogar Uso',
+    grant_delegate: 'Conceder Repasse (Delegação)',
+    revoke_delegate: 'Revogar Repasse',
+    set_deny: 'Negar Expressamente',
+    remove_override: 'Remover Exceção'
+  };
+
+  const headers = ['Data e Hora', 'Responsável', 'Tipo de Alvo', 'Alvo', 'Poder / Capacidade', 'Ação', 'Estado Anterior', 'Estado Novo', 'Motivo / Justificativa'];
+  const rows = logs.map(l => {
+    return [
+      `"${l.formattedDate || l.timestamp}"`,
+      `"${(l.performedByName || 'Sistema').replace(/"/g, '""')}"`,
+      `"${l.targetType.toUpperCase()}"`,
+      `"${(l.targetName || l.targetId).replace(/"/g, '""')}"`,
+      `"${l.capabilityKey}"`,
+      `"${actionLabels[l.action] || l.action}"`,
+      `"${JSON.stringify(l.beforeState || {}).replace(/"/g, '""')}"`,
+      `"${JSON.stringify(l.afterState || {}).replace(/"/g, '""')}"`,
+      `"${(l.reason || '').replace(/"/g, '""')}"`
+    ];
+  });
+
+  const csv = '\uFEFF' + headers.join(',') + '\r\n' + rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `auditoria_mudanca_poderes_${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

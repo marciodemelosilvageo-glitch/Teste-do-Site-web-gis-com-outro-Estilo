@@ -34,7 +34,12 @@ import {
   getFeaturePropertiesPermissions,
   saveFeaturePropertiesPermissions,
   notifyPermissionsUpdated,
-  logActivity
+  logActivity,
+  CapabilityAuditLog,
+  getCapabilityAuditLogs,
+  getCapabilityAuditLogsAsync,
+  logCapabilityAudit,
+  exportCapabilityAuditLogsToCSV
 } from '../services/adminService';
 import { dataSources } from '../data';
 import { useAccess } from '../context/FeatureAccessContext';
@@ -102,12 +107,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(() => getRegisteredUsers());
   const [userSessions, setUserSessions] = useState<Record<string, UserSessionConfig>>(() => getUserSessions());
   const [logs, setLogs] = useState<ActivityLog[]>(() => getActivityLogs());
+  const [capabilityAuditLogs, setCapabilityAuditLogs] = useState<CapabilityAuditLog[]>(() => getCapabilityAuditLogs());
 
   // Busca a versão mais atualizada do usuário logado na lista de registeredUsers
   const activeManagerUser = useMemo(() => {
     if (!currentActiveUser) return null;
-    const found = registeredUsers.find(u => 
-      u.id === currentActiveUser.id || 
+    const found = registeredUsers.find(u =>
+      u.id === currentActiveUser.id ||
       (u.username && currentActiveUser.username && u.username.toLowerCase() === currentActiveUser.username.toLowerCase())
     );
     return found || currentActiveUser;
@@ -168,15 +174,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       // Atualização em background via Supabase
       getActivityLogsAsync().then(liveLogs => {
         if (liveLogs && liveLogs.length > 0) setLogs(liveLogs);
-      }).catch(() => {});
+      }).catch(() => { });
 
       getUserSessionsAsync().then(s => {
         if (s && Object.keys(s).length > 0) setUserSessions(s);
-      }).catch(() => {});
+      }).catch(() => { });
 
       getRegisteredUsersAsync().then(users => {
         if (users && users.length > 0) setRegisteredUsers(users);
-      }).catch(() => {});
+      }).catch(() => { });
+
+      getCapabilityAuditLogsAsync().then(auditList => {
+        if (auditList && auditList.length > 0) setCapabilityAuditLogs(auditList);
+      }).catch(() => { });
     }
 
     return () => {
@@ -194,6 +204,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setLocalFeaturePerms(getFeaturePermissions());
       setLocalAddressColumns(getAddressColumnsPermissions());
       setLocalFeatureProperties(getFeaturePropertiesPermissions());
+      setCapabilityAuditLogs(getCapabilityAuditLogs());
     };
     window.addEventListener('webgis_permissions_updated', handlePermissionsUpdated);
     return () => {
@@ -278,11 +289,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         setRegisteredUsers(result.users);
         logActivity(
           'ADMIN',
-          editingUserId 
-            ? `Atualizou configurações da conta de @${userFormUsername}` 
+          editingUserId
+            ? `Atualizou configurações da conta de @${userFormUsername}`
             : `Criou nova conta para @${userFormUsername} (${userFormName}) [${effectiveRole.toUpperCase()}]`,
           isMaster ? 'master' : 'manager'
         );
+        logCapabilityAudit({
+          performedByName: currentActiveUser?.name || (isMaster ? 'Administrador Master' : 'Gerente'),
+          targetType: 'user',
+          targetId: userFormUsername,
+          targetName: userFormName,
+          capabilityKey: editingUserId ? 'admin:users:update' : 'admin:users:create',
+          action: 'grant_use',
+          afterState: { role: effectiveRole, hasCustom: userFormHasCustom },
+          reason: editingUserId ? `Atualização cadastral e poderes de @${userFormUsername}` : `Criação de conta @${userFormUsername} (${effectiveRole})`
+        });
+        setCapabilityAuditLogs(getCapabilityAuditLogs());
         setIsUserModalOpen(false);
         showToast(editingUserId ? 'Usuário atualizado com sucesso!' : 'Novo login salvo com sucesso!');
       } else {
@@ -306,6 +328,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     if (result.success) {
       setRegisteredUsers(result.users);
       logActivity('ADMIN', `${targetUser?.isActive ? 'Bloqueou' : 'Ativou'} o acesso do usuário @${targetUser?.username || userId}`, 'master');
+      logCapabilityAudit({
+        performedByName: currentActiveUser?.name || 'Administrador Master',
+        targetType: 'user',
+        targetId: targetUser?.username || userId,
+        targetName: targetUser?.name,
+        capabilityKey: 'admin:users:block',
+        action: targetUser?.isActive ? 'set_deny' : 'remove_override',
+        beforeState: { isActive: targetUser?.isActive },
+        afterState: { isActive: !targetUser?.isActive },
+        reason: targetUser?.isActive ? 'Bloqueio administrativo de acesso à conta' : 'Desbloqueio e reativação da conta'
+      });
+      setCapabilityAuditLogs(getCapabilityAuditLogs());
       showToast(`Status do usuário @${targetUser?.username} alterado com sucesso.`);
     } else {
       showToast(result.error || 'Erro ao alterar status.');
@@ -317,6 +351,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const result = await promoteUserToManager(userId, currentActiveUser || 'master');
       if (result.success) {
         setRegisteredUsers(result.users);
+        logCapabilityAudit({
+          performedByName: currentActiveUser?.name || 'Administrador Master',
+          targetType: 'user',
+          targetId: userId,
+          capabilityKey: 'admin:users:promote_manager',
+          action: 'grant_delegate',
+          beforeState: { role: 'user' },
+          afterState: { role: 'manager' },
+          reason: 'Promoção para cargo de Gerente com poderes delegados'
+        });
+        setCapabilityAuditLogs(getCapabilityAuditLogs());
         showToast('Usuário promovido a GERENTE com sucesso!');
       } else {
         showToast(result.error || 'Erro ao promover usuário.');
@@ -329,6 +374,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const result = await demoteManagerToUser(userId, currentActiveUser || 'master');
       if (result.success) {
         setRegisteredUsers(result.users);
+        logCapabilityAudit({
+          performedByName: currentActiveUser?.name || 'Administrador Master',
+          targetType: 'user',
+          targetId: userId,
+          capabilityKey: 'admin:users:promote_manager',
+          action: 'revoke_delegate',
+          beforeState: { role: 'manager' },
+          afterState: { role: 'user' },
+          reason: 'Rebaixamento de Gerente para Usuário Comum'
+        });
+        setCapabilityAuditLogs(getCapabilityAuditLogs());
         showToast('Gerente rebaixado para Usuário Comum.');
       } else {
         showToast(result.error || 'Erro ao rebaixar gerente.');
@@ -652,9 +708,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         return (
           <AdminActivitySection
             logs={logs}
+            capabilityAuditLogs={capabilityAuditLogs}
             userSessions={userSessions}
             isMaster={isMaster}
             onExportCSV={(logsToExport) => exportActivityLogsToCSV(logsToExport)}
+            onExportCapabilityAuditCSV={(al) => exportCapabilityAuditLogsToCSV(al)}
             onClearLogs={handleClearLogs}
           />
         );
@@ -667,7 +725,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div 
+    <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-hidden animate-fadeIn select-none"
       onWheel={(e) => e.stopPropagation()}
     >
@@ -741,7 +799,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       {/* ========================================================
           MOBILE (< md): Tela Cheia Empilhada estilo Ajustes iOS
          ======================================================== */}
-      <div 
+      <div
         className="md:hidden w-full h-full min-h-[100dvh] flex flex-col bg-[#f2f2f7] dark:bg-[#000000] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
