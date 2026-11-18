@@ -292,7 +292,7 @@ export const initAdminService = async (forceRefresh = false) => {
 };
 
 // Sincronizar todas as configurações para a nuvem
-export const syncAllSettingsToSupabase = async (): Promise<{ success: boolean; error?: string }> => {
+const syncAllSettingsToSupabase = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     const layerPerms = getLayerPermissions([]);
     const featPerms = getFeaturePermissions();
@@ -331,7 +331,7 @@ export const getSessionId = (): string => {
 };
 
 // Ordenador auxiliar: Contas mais recentes criadas/cadastradas sempre no topo (ordem decrescente)
-export const sortUsersMostRecentFirst = (users: RegisteredUser[]): RegisteredUser[] => {
+const sortUsersMostRecentFirst = (users: RegisteredUser[]): RegisteredUser[] => {
   if (!Array.isArray(users)) return [];
   return [...users].sort((a, b) => {
     const parseTime = (u: RegisteredUser): number => {
@@ -437,12 +437,6 @@ export const getRegisteredUsersAsync = async (): Promise<RegisteredUser[]> => {
   }
   // Fallback para cache local
   return getRegisteredUsers();
-};
-
-// Sincronizar usuários cadastrados diretamente com o Supabase (legado / mantido para compatibilidade)
-export const syncRegisteredUsersToSupabase = async (_usersList?: RegisteredUser[]): Promise<{ success: boolean; error?: string }> => {
-  // Os usuários agora são gerenciados de forma atômica e segura na tabela profiles
-  return { success: true };
 };
 
 // Normalizador de nome de usuário (@, lowercase, trim)
@@ -1371,17 +1365,8 @@ export const getUserSessionsAsync = async (): Promise<Record<string, UserSession
   return getUserSessions();
 };
 
-// Salvar todas as sessões
-export const saveUserSessions = (sessions: Record<string, UserSessionConfig>): void => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(sessions));
-  } catch (e) {
-    console.error('Erro ao salvar sessões de usuários:', e);
-  }
-};
-
-// Helper para serializar e sanitizar os dados da sessão estritamente compatíveis com as colunas do Supabase
-export const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: string | null) => {
+// Helper interno para serializar e sanitizar os dados da sessão compatíveis com o Supabase
+const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: string | null) => {
   const payload: any = {
     session_id: session.sessionId,
     custom_name: session.customName || null,
@@ -1402,88 +1387,6 @@ export const formatSessionPayloadForSupabase = (session: UserSessionConfig, auth
     payload.auth_uid = authUid;
   }
   return payload;
-};
-
-// Legado mantido para compatibilidade: sessões de visitantes não armazenam senhas em texto puro
-export const saveUserSessionPassword = async (
-  _sessionId: string,
-  _newPassword: string
-): Promise<{ success: boolean; error?: string }> => {
-  return { success: true };
-};
-
-// Registrar ou atualizar a atividade da sessão atual
-export const touchUserSession = (userRole: UserRole = 'user'): UserSessionConfig => {
-  const sessionId = getSessionId();
-  const now = new Date();
-  const iso = now.toISOString();
-  const formatted = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
-    now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-  // O acesso do Administrador Master é 100% anônimo: não é registrado como sessão de visitante
-  if (userRole === 'master' || (userRole as string) === 'admin') {
-    return {
-      sessionId,
-      role: 'master',
-      firstSeen: iso,
-      lastSeen: iso,
-      formattedFirstSeen: formatted,
-      formattedLastSeen: formatted,
-      loginCount: 1,
-      isBlocked: false,
-      hasCustomPermissions: false
-    };
-  }
-
-  const sessions = getUserSessions();
-  const existing = sessions[sessionId];
-
-  const updated: UserSessionConfig = existing ? {
-    ...existing,
-    lastSeen: iso,
-    formattedLastSeen: formatted,
-    loginCount: (existing.loginCount || 1) + 1,
-    role: userRole
-  } : {
-    sessionId,
-    firstSeen: iso,
-    lastSeen: iso,
-    formattedFirstSeen: formatted,
-    formattedLastSeen: formatted,
-    loginCount: 1,
-    role: userRole,
-    isBlocked: false,
-    hasCustomPermissions: false
-  };
-
-  sessions[sessionId] = updated;
-  saveUserSessions(sessions);
-  
-  // Enviar para o Supabase de forma segura e assíncrona
-  supabase
-    .from('webgis_user_sessions')
-    .upsert(formatSessionPayloadForSupabase(updated))
-    .then();
-
-  return updated;
-};
-
-// Atualizar a configuração individual de um usuário específico
-export const updateUserSessionConfig = (sessionId: string, config: Partial<UserSessionConfig>): void => {
-  const sessions = getUserSessions();
-  if (sessions[sessionId]) {
-    sessions[sessionId] = { ...sessions[sessionId], ...config };
-    saveUserSessions(sessions);
-    
-    // Salvar na Nuvem Supabase
-    const session = sessions[sessionId];
-    supabase
-      .from('webgis_user_sessions')
-      .upsert(formatSessionPayloadForSupabase(session))
-      .then();
-
-    logActivity('ADMIN', `Configurações do usuário ${config.customName || sessionId} alteradas`, 'admin');
-  }
 };
 
 // Salvar / atualizar a configuração de uma sessão individual
@@ -1538,7 +1441,7 @@ export const deleteUserSession = (sessionId: string): void => {
 };
 
 // Registrar ou atualizar atividade da sessão
-export const registerUserSessionActivity = (sessionId: string, role: UserRole = 'user', customName?: string): void => {
+const registerUserSessionActivity = (sessionId: string, role: UserRole = 'user', customName?: string): void => {
   if (typeof window === 'undefined' || !sessionId) return;
   
   // O acesso do Administrador Master é 100% anônimo: nunca registra como sessão de visitante

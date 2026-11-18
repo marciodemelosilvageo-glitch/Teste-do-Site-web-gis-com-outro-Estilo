@@ -72,7 +72,6 @@ import {
   getUserLogsAsync,
   getUserSessions,
   getUserSessionsAsync,
-  saveUserSessionPassword,
   getRegisteredUsers,
   getRegisteredUsersAsync,
   saveRegisteredUser,
@@ -166,7 +165,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const canManagerGenerateLogins = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowGenerateLogins !== false);
   const canManagerCreateManagerRole = isMaster || (isManager && activeManagerUser?.managerPermissions?.canCreateManagerRole === true);
   const canManagerChangePasswords = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowChangePasswords === true);
-  const canManagerManageGlobalLayers = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowManageGlobalLayers === true);
   const canManagerViewAllVisitors = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowViewAllVisitors === true);
 
   const [registeredSearchTerm, setRegisteredSearchTerm] = useState<string>('');
@@ -221,10 +219,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [userIsCustom, setUserIsCustom] = useState<boolean>(false);
   const [userIsBlocked, setUserIsBlocked] = useState<boolean>(false);
 
-  // Estados de Senha e Dossiê do Usuário Selecionado (Exclusivo Master)
-  const [selectedUserPasswordInput, setSelectedUserPasswordInput] = useState<string>('');
-  const [showSelectedUserPassword, setShowSelectedUserPassword] = useState<boolean>(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+  // Dossiê de Logs da Sessão Selecionada
   const [selectedUserLiveLogs, setSelectedUserLiveLogs] = useState<ActivityLog[]>([]);
   const [isLoadingUserLogs, setIsLoadingUserLogs] = useState<boolean>(false);
 
@@ -352,8 +347,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setEditingUserName(session.customName || '');
     setUserIsBlocked(!!session.isBlocked);
     setUserIsCustom(!!session.hasCustomPermissions);
-    setSelectedUserPasswordInput((session as any).password || '');
-    setShowSelectedUserPassword(false);
 
     // Carregar logs detalhados do usuário / sessão em tempo real
     setIsLoadingUserLogs(true);
@@ -401,32 +394,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       }
     });
     setUserCustomFeatureProperties(initialProps);
-  };
-
-  const handleSavePasswordForSession = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!selectedSessionId) return;
-
-    if (!selectedUserPasswordInput.trim()) {
-      showToast('⚠️ Digite uma senha válida para salvar.');
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    try {
-      const res = await saveUserSessionPassword(selectedSessionId, selectedUserPasswordInput.trim());
-      if (res.success) {
-        const fresh = await getUserSessionsAsync();
-        setUserSessions(fresh);
-        showToast('🔐 Senha do visitante atualizada com sucesso!');
-      } else {
-        showToast(`⚠️ Erro ao salvar senha: ${res.error || 'Erro no banco'}`);
-      }
-    } catch (err: any) {
-      showToast(`⚠️ Erro ao salvar senha: ${err?.message || 'Erro de conexão'}`);
-    } finally {
-      setIsUpdatingPassword(false);
-    }
   };
 
   // ================= AÇÕES DE USUÁRIOS CADASTRADOS (LOGINS ATIVOS) =================
@@ -612,30 +579,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  const handleToggleBlockUser = (sessionId: string) => {
-    const session = userSessions[sessionId];
-    if (!session) return;
-    const nextBlocked = !session.isBlocked;
-
-    saveUserSessionConfig(sessionId, {
-      ...session,
-      isBlocked: nextBlocked
-    });
-
-    if (selectedSessionId === sessionId) {
-      setUserIsBlocked(nextBlocked);
-    }
-
-    setUserSessions(getUserSessions());
-    notifyPermissionsUpdated();
-    logActivity(
-      'ACESSO',
-      `${nextBlocked ? 'Bloqueou' : 'Desbloqueou'} o acesso do usuário "${session.customName || sessionId}"`,
-      'admin'
-    );
-    showToast(nextBlocked ? 'Usuário bloqueado! Acesso ao WebGis suspenso.' : 'Usuário desbloqueado com sucesso! Acesso ao WebGis liberado.');
-  };
-
   const handleToggleUserLayer = (layerName: string) => {
     setUserCustomLayers(prev => ({
       ...prev,
@@ -647,20 +590,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setUserCustomFeatures(prev => ({
       ...prev,
       [featureKey]: !prev[featureKey]
-    }));
-  };
-
-  const handleToggleUserAddressColumn = (colKey: string) => {
-    setUserCustomAddressColumns(prev => ({
-      ...prev,
-      [colKey]: !prev[colKey]
-    }));
-  };
-
-  const handleToggleUserFeatureProperty = (propKey: string) => {
-    setUserCustomFeatureProperties(prev => ({
-      ...prev,
-      [propKey]: !prev[propKey]
     }));
   };
 
