@@ -15,6 +15,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import { MOBILE_Z_INDEX } from '../../constants/mobileZIndex';
+import { useAccess } from '../../context/FeatureAccessContext';
 
 export interface MobileProfileDrawerProps {
   isOpen: boolean;
@@ -52,6 +53,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const { can } = useAccess();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -239,8 +241,8 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             </button>
           )}
 
-          {/* Painel Administrativo (Master/Gerente) */}
-          {(isAdmin || isManager) && onOpenAdminPanel && (
+          {/* Painel Administrativo (conforme poder admin:panel:access) */}
+          {(can('admin:panel:access') || isMaster) && onOpenAdminPanel && (
             <button
               type="button"
               onClick={() => {

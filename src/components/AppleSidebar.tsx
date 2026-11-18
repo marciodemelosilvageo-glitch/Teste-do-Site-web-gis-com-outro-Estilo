@@ -332,6 +332,10 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   // Executa o download rápido da seleção com garantia de fluidez de renderização (2 frames)
   const executeQuickDownload = useCallback(async (format: ExportFormat) => {
     if (isExportingRef.current) return;
+    if (!can('allowExportData') || !canExport(format)) {
+      guardAction(`data:export:${format}`, `exportar em formato ${format.toUpperCase()}`, () => {});
+      return;
+    }
     isExportingRef.current = true;
     setShowFormatPrompt(false);
     setExportButtonState('preparing');
@@ -379,11 +383,15 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         isExportingRef.current = false;
       }, 1800);
     }
-  }, [selectedFeatures, userRole]);
+  }, [selectedFeatures, userRole, can, canExport, guardAction]);
 
   // Ação de clique no botão "Exportar" dos detalhes
   const handleExportButtonClick = useCallback(() => {
     if (isExportingRef.current) return;
+    if (!can('allowExportData')) {
+      guardAction('tool:export_data', 'exportar dados da feição', () => {});
+      return;
+    }
 
     // Se o download rápido estiver ativo e com formato definido, baixa na hora
     if (exportPrefs.quickDownload === true && exportPrefs.format) {
@@ -404,7 +412,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
     // Se a preferência ainda não estiver definida, alterna exibição da pergunta embutida
     setShowFormatPrompt(prev => !prev);
-  }, [exportPrefs, executeQuickDownload, setActiveTab, selectedFeatures]);
+  }, [exportPrefs, executeQuickDownload, setActiveTab, selectedFeatures, can, guardAction]);
 
   const handleSelectDefaultFormatAndDownload = useCallback((fmt: ExportFormat) => {
     updateExportPrefs({ quickDownload: true, format: fmt });
@@ -2419,8 +2427,14 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
             <AppLogo
               isDarkMode={isDarkMode}
               variant="sidebar"
-              onDoubleClick={onOpenAdminPanel}
-              title="WebGis SSP-PI • Clique duplo para login de Administrador"
+              onDoubleClick={() => {
+                if (can('admin:panel:access') || isMaster) {
+                  onOpenAdminPanel();
+                } else {
+                  guardAction('admin:panel:access', 'abrir o painel administrativo', onOpenAdminPanel);
+                }
+              }}
+              title="WebGis SSP-PI • Clique duplo para painel de controle"
             />
           </div>
 

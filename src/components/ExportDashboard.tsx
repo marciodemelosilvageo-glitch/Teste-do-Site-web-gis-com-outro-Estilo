@@ -106,7 +106,8 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   preferences,
   onUpdatePreferences
 }) => {
-  const { can, canExport } = useFeatureAccess();
+  const { can, canExport, getNumericLimit } = useFeatureAccess();
+  const maxExportRows = getNumericLimit('export_rows', 50000);
   const count = selectedFeatures?.length || 0;
   const currentFormat: ExportFormat = preferences?.format || 'geojson';
 
@@ -177,6 +178,10 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setExportError(`Exportação no formato ${format.toUpperCase()} bloqueada pelo administrador.`);
       return;
     }
+    if (selectedFeatures.length > maxExportRows && Number.isFinite(maxExportRows)) {
+      setExportError(`O seu perfil possui limite de exportação de até ${maxExportRows.toLocaleString('pt-BR')} linhas (seleção atual: ${selectedFeatures.length.toLocaleString('pt-BR')}). Reduza a seleção ou solicite ampliação de limite ao Administrador.`);
+      return;
+    }
     setExportError(null);
     setIsDownloading(true);
     setDownloadFormat(format);
@@ -192,7 +197,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [selectedFeatures, canExport]);
+  }, [selectedFeatures, canExport, maxExportRows]);
 
   // ==============================================================
   // EXPORTAÇÃO DA CAMADA COMPLETA
@@ -225,6 +230,11 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       const safeFilename = sanitizeFilename(currentLayer.friendlyName || currentLayer.name);
       const features = (geojson.features || []).map((f: any) => ({ feature: f }));
 
+      if (features.length > maxExportRows && Number.isFinite(maxExportRows)) {
+        setExportError(`A camada possui ${features.length.toLocaleString('pt-BR')} feições, excedendo o limite de ${maxExportRows.toLocaleString('pt-BR')} linhas permitido para o seu perfil. Utilize a seleção filtrada ou solicite ampliação de limite ao Administrador.`);
+        return;
+      }
+
       if (format === 'geojson') {
         const jsonStr = JSON.stringify(geojson, null, 2);
         downloadFile(`Camada_${safeFilename}.geojson`, jsonStr, 'application/geo+json;charset=utf-8;');
@@ -255,7 +265,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [currentLayer, fullLayerGeometryKind, canExport]);
+  }, [currentLayer, fullLayerGeometryKind, canExport, maxExportRows]);
 
   // Identificador da feição principal
   const primaryFeatureName = useMemo(() => {

@@ -3349,7 +3349,11 @@ export default function App() {
 
   return (
     <FeatureAccessProvider
+      currentActiveUser={currentActiveUser}
       featurePermissions={featurePermissions}
+      layerPermissions={layerPermissions}
+      addressColumnsPermissions={effectiveSession?.addressColumnsPermissions || getAddressColumnsPermissions()}
+      featurePropertiesPermissions={effectiveSession?.featurePropertiesPermissions || getFeaturePropertiesPermissions()}
       isMaster={isMaster}
       isManager={isManager}
       userRole={isSimulatingUser ? simulatedRole : userRole}

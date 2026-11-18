@@ -37,6 +37,7 @@ import {
   logActivity
 } from '../services/adminService';
 import { dataSources } from '../data';
+import { useAccess } from '../context/FeatureAccessContext';
 import { AdminSection } from './admin/types';
 import { AdminSidebar } from './admin/AdminSidebar';
 import { AdminMobileNavigation } from './admin/AdminMobileNavigation';
@@ -112,11 +113,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     return found || currentActiveUser;
   }, [registeredUsers, currentActiveUser]);
 
-  // Privilégios efetivos do Gerente
-  const canManagerGenerateLogins = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowGenerateLogins !== false);
-  const canManagerCreateManagerRole = isMaster || (isManager && activeManagerUser?.managerPermissions?.canCreateManagerRole === true);
-  const canManagerChangePasswords = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowChangePasswords === true);
-  const canManagerViewAllVisitors = isMaster || (isManager && activeManagerUser?.managerPermissions?.allowViewAllVisitors === true);
+  // Privilégios efetivos do Gerente via provedor universal de capacidades
+  const { can } = useAccess();
+  const canManagerGenerateLogins = can('admin:users:create');
+  const canManagerCreateManagerRole = can('admin:users:promote_manager');
+  const canManagerChangePasswords = can('admin:users:reset_password');
+  const canManagerViewAllVisitors = can('admin:users:view');
 
   // Estados do Modal de Criação / Edição de Usuário
   const [isUserModalOpen, setIsUserModalOpen] = useState<boolean>(false);
@@ -233,7 +235,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setUserFormName(user.name);
     setUserFormUsername(user.username);
     setUserFormPassword('');
-    setUserFormRole(user.role === 'admin' ? 'master' : (user.role || 'user'));
+    const rawRole = user.role === 'admin' ? 'master' : (user.role || 'user');
+    const safeRole: 'master' | 'manager' | 'user' = (rawRole === 'master' || rawRole === 'manager') ? rawRole : 'user';
+    setUserFormRole(safeRole);
     setUserFormDepartment(user.department || '');
     setUserFormManagerPerms(user.managerPermissions || {
       allowGenerateLogins: true,

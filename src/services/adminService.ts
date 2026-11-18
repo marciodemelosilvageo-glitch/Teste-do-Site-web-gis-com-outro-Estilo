@@ -1,6 +1,6 @@
 import { supabase, toSyntheticEmail } from '../supabaseClient';
 
-export type UserRole = 'master' | 'manager' | 'user' | 'admin';
+export type UserRole = 'master' | 'manager' | 'user' | 'site_account' | 'visitor' | 'admin';
 
 export interface LayerPermission {
   name: string;
@@ -1846,6 +1846,197 @@ export const exportActivityLogsToCSV = (logsToExport?: ActivityLog[]): void => {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+};
+
+// ================= CAPACIDADES EFETIVAS & NOVO MODELO DE PODERES =================
+
+export interface EffectiveCapability {
+  can_use: boolean;
+  can_grant: boolean;
+  source: string;
+}
+
+/**
+ * Constrói o mapa de capacidades seguro de fallback correspondente aos perfis base
+ * (Visitante, Conta do Site, Usuário, Gerente, Master), aplicando exceções individuais se existirem.
+ */
+export const buildFallbackCapabilitiesMap = (
+  userId?: string
+): Record<string, EffectiveCapability> => {
+  const activeUser = getCurrentActiveUser();
+  const role: UserRole = activeUser ? (activeUser.role || 'user') : 'visitor';
+  const isMaster = role === 'master' || role === 'admin';
+  const isManager = role === 'manager';
+  const isSiteAccount = role === 'site_account';
+  const isUser = role === 'user';
+  const isVisitor = !activeUser || role === 'visitor';
+
+  const map: Record<string, EffectiveCapability> = {};
+
+  // Se for Master, todas as capacidades são liberadas com uso e delegação
+  if (isMaster) {
+    const allTools = [
+      'tool:cnefe_search', 'tool:advanced_search', 'tool:search_by_type', 'tool:search_area_addresses',
+      'tool:measure', 'tool:print_a4', 'tool:layer_panel', 'tool:raio_x', 'tool:selected_features',
+      'tool:feature_specs', 'tool:sources_footer', 'tool:search_active_layers_only', 'tool:dissolve_features',
+      'tool:multi_select', 'tool:customize_useful_info', 'tool:basemap_selector', 'tool:map_legend',
+      'tool:export_data', 'data:export:csv', 'data:export:kml', 'data:export:kmz', 'data:export:geojson',
+      'data:export:shapefile', 'data:export:geopackage', 'data:limit:unlimited_rows',
+      'account:self_register', 'account:change_own_password', 'account:edit_own_profile',
+      'admin:panel:access', 'admin:users:view', 'admin:users:create', 'admin:users:reset_password',
+      'admin:users:block', 'admin:users:delete', 'admin:users:promote_manager', 'admin:roles:manage',
+      'admin:global_settings:manage', 'admin:logs:view', 'admin:logs:export', 'admin:logs:clear', 'admin:simulate:profile'
+    ];
+    allTools.forEach(k => {
+      map[k] = { can_use: true, can_grant: true, source: 'master' };
+    });
+    return map;
+  }
+
+  // 1. Ferramentas padrão por perfil base
+  const globalFeatures = getFeaturePermissions();
+  const toolKeys: Array<{ key: string; legacy: keyof FeaturePermissions }> = [
+    { key: 'tool:cnefe_search', legacy: 'allowCnefeSearch' },
+    { key: 'tool:measure', legacy: 'allowMeasureTool' },
+    { key: 'tool:print_a4', legacy: 'allowPrintA4' },
+    { key: 'tool:layer_panel', legacy: 'allowLayerPanel' },
+    { key: 'tool:raio_x', legacy: 'allowDashboardRaioX' },
+    { key: 'tool:selected_features', legacy: 'allowSelectedFeaturesPanel' },
+    { key: 'tool:feature_specs', legacy: 'allowFeatureSpecs' },
+    { key: 'tool:sources_footer', legacy: 'allowSourcesFooter' },
+    { key: 'tool:search_active_layers_only', legacy: 'allowSearchActiveLayersOnly' },
+    { key: 'tool:dissolve_features', legacy: 'allowDissolveFeatures' },
+    { key: 'tool:multi_select', legacy: 'allowMultiSelect' },
+    { key: 'tool:search_by_type', legacy: 'allowSearchByType' },
+    { key: 'tool:search_area_addresses', legacy: 'allowSearchAreaAddresses' },
+    { key: 'tool:customize_useful_info', legacy: 'allowCustomizeUsefulInfo' },
+    { key: 'tool:basemap_selector', legacy: 'allowBasemapSelector' },
+    { key: 'tool:map_legend', legacy: 'allowMapLegend' },
+    { key: 'tool:export_data', legacy: 'allowExportData' },
+    { key: 'data:export:csv', legacy: 'allowExportCsv' },
+    { key: 'data:export:kml', legacy: 'allowExportKml' },
+    { key: 'data:export:kmz', legacy: 'allowExportKmz' },
+    { key: 'data:export:geojson', legacy: 'allowExportGeoJson' },
+    { key: 'data:export:shapefile', legacy: 'allowExportShapefile' },
+    { key: 'data:export:geopackage', legacy: 'allowExportGeoPackage' },
+  ];
+
+  toolKeys.forEach(t => {
+    let canUse = globalFeatures[t.legacy] !== false;
+    // Visitante público tem exportação bloqueada por padrão
+    if (isVisitor && (t.key.startsWith('data:export:') || t.key === 'tool:export_data' || t.key === 'tool:measure')) {
+      canUse = false;
+    }
+    // Conta do site pode exportar CSV e GeoJSON
+    if (isSiteAccount && (t.key === 'data:export:csv' || t.key === 'data:export:geojson' || t.key === 'tool:export_data' || t.key === 'tool:measure')) {
+      canUse = true;
+    }
+    map[t.key] = {
+      can_use: canUse,
+      can_grant: isManager,
+      source: 'base_role'
+    };
+  });
+
+  // 2. Capacidades de Conta
+  map['account:self_register'] = { can_use: true, can_grant: false, source: 'base_role' };
+  map['account:change_own_password'] = { can_use: !isVisitor, can_grant: false, source: 'base_role' };
+  map['account:edit_own_profile'] = { can_use: !isVisitor, can_grant: false, source: 'base_role' };
+
+  // 3. Capacidades de Administração
+  map['admin:panel:access'] = { can_use: isManager, can_grant: false, source: 'base_role' };
+  map['admin:users:view'] = { can_use: isManager, can_grant: false, source: 'base_role' };
+  map['admin:users:create'] = { 
+    can_use: isManager && activeUser?.managerPermissions?.allowGenerateLogins !== false, 
+    can_grant: isManager && activeUser?.managerPermissions?.allowGenerateLogins !== false, 
+    source: 'base_role' 
+  };
+  map['admin:users:reset_password'] = { 
+    can_use: isManager && activeUser?.managerPermissions?.allowChangePasswords === true, 
+    can_grant: isManager && activeUser?.managerPermissions?.allowChangePasswords === true, 
+    source: 'base_role' 
+  };
+  map['admin:users:promote_manager'] = { 
+    can_use: isManager && activeUser?.managerPermissions?.canCreateManagerRole === true, 
+    can_grant: isManager && activeUser?.managerPermissions?.canCreateManagerRole === true, 
+    source: 'base_role' 
+  };
+  map['admin:users:block'] = { can_use: false, can_grant: false, source: 'base_role' };
+  map['admin:users:delete'] = { can_use: false, can_grant: false, source: 'base_role' };
+  map['admin:roles:manage'] = { can_use: false, can_grant: false, source: 'base_role' };
+  map['admin:global_settings:manage'] = { can_use: false, can_grant: false, source: 'base_role' };
+  map['admin:logs:view'] = { can_use: isManager, can_grant: false, source: 'base_role' };
+  map['admin:logs:export'] = { can_use: isManager, can_grant: false, source: 'base_role' };
+  map['admin:logs:clear'] = { can_use: false, can_grant: false, source: 'base_role' };
+
+  // 4. Se o usuário possuir exceções individuais configuradas (customFeaturePermissions)
+  if (activeUser?.hasCustomPermissions && activeUser.customFeaturePermissions) {
+    toolKeys.forEach(t => {
+      const customVal = activeUser.customFeaturePermissions?.[t.legacy];
+      if (customVal !== undefined) {
+        map[t.key] = {
+          can_use: customVal === true,
+          can_grant: isManager && customVal === true,
+          source: 'user_override'
+        };
+      }
+    });
+  }
+
+  return map;
+};
+
+/**
+ * Carrega as capacidades efetivas do servidor (Supabase RPC) e armazena em cache offline no localStorage.
+ * Atualiza automaticamente em caso de falha de rede usando o último valor seguro persistido.
+ */
+export const fetchEffectiveCapabilitiesAsync = async (
+  userId?: string
+): Promise<Record<string, EffectiveCapability>> => {
+  const activeUser = getCurrentActiveUser();
+  const targetId = userId || activeUser?.id;
+  const cacheKey = `webgis_capabilities_cache_${targetId || 'visitor'}`;
+
+  // 1. Tentar buscar em tempo real do banco de dados (RPC get_effective_capabilities)
+  try {
+    const { data, error } = await supabase.rpc('get_effective_capabilities', {
+      p_user_id: targetId || null
+    });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const map: Record<string, EffectiveCapability> = {};
+      data.forEach((row: any) => {
+        if (row.capability_key) {
+          map[row.capability_key] = {
+            can_use: row.can_use === true,
+            can_grant: row.can_grant === true,
+            source: row.source || 'server'
+          };
+        }
+      });
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(map));
+      } catch (e) {}
+      return map;
+    }
+  } catch (e) {
+    // Falha de rede ou RPC ainda não criado no Supabase
+  }
+
+  // 2. Fallback: Recuperar do cache offline seguro
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {}
+
+  // 3. Fallback: Computar mapa padrão seguro
+  const fallback = buildFallbackCapabilitiesMap(targetId);
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(fallback));
+  } catch (e) {}
+  return fallback;
 };
 
 // Inicialização automática do serviço
