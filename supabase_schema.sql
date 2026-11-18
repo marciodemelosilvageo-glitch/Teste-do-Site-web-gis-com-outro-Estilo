@@ -112,7 +112,7 @@ AS $$
   );
 $$;
 
--- 7. Trigger de Proteção: Impede que o usuário comum altere seu próprio papel ou status
+-- 7. Trigger de Proteção: Impede que o usuário comum altere seu próprio papel, status ou permissões customizadas
 CREATE OR REPLACE FUNCTION public.prevent_self_elevation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -121,10 +121,36 @@ SET search_path = public
 AS $$
 BEGIN
   IF NOT public.is_master() THEN
+    -- 1. Proteção de Cargo, Status e Permissões de Gerência
     NEW.role = OLD.role;
     NEW.is_active = OLD.is_active;
     NEW.manager_permissions = OLD.manager_permissions;
+
+    -- 2. Proteção de Identidade / Login (impede troca de username)
+    NEW.username = OLD.username;
+
+    -- 3. Proteção de Permissões Personalizadas (impede auto-concessão de permissões)
+    NEW.has_custom_permissions = OLD.has_custom_permissions;
+    NEW.custom_layer_permissions = OLD.custom_layer_permissions;
+    NEW.custom_feature_permissions = OLD.custom_feature_permissions;
+    NEW.custom_address_columns_permissions = OLD.custom_address_columns_permissions;
+    NEW.custom_feature_properties_permissions = OLD.custom_feature_properties_permissions;
+
+    -- 4. Proteção de Metadados de Criação
+    NEW.created_by = OLD.created_by;
+    NEW.created_at = OLD.created_at;
+
+    -- 5. Exceção Segura para must_change_password:
+    -- O usuário comum só pode alterar must_change_password para FALSE (ao salvar nova senha).
+    IF NEW.must_change_password IS DISTINCT FROM OLD.must_change_password THEN
+      IF NEW.must_change_password = FALSE AND OLD.must_change_password = TRUE THEN
+        NEW.must_change_password = FALSE;
+      ELSE
+        NEW.must_change_password = OLD.must_change_password;
+      END IF;
+    END IF;
   END IF;
+
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
@@ -135,6 +161,50 @@ CREATE TRIGGER trg_prevent_self_elevation
 BEFORE UPDATE ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION public.prevent_self_elevation();
+
+-- Trigger automático para criação de perfil em auto-cadastros do Supabase Auth
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (
+    id,
+    username,
+    name,
+    role,
+    is_active,
+    must_change_password,
+    created_by,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    'user',
+    TRUE,
+    FALSE,
+    'Auto-cadastro (Site)',
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    username = EXCLUDED.username,
+    name = EXCLUDED.name,
+    updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_user();
 
 -- 8. Políticas RLS: public.profiles
 DROP POLICY IF EXISTS "profiles_select_policy" ON public.profiles;
@@ -160,7 +230,10 @@ WITH CHECK (
 DROP POLICY IF EXISTS "profiles_insert_policy" ON public.profiles;
 CREATE POLICY "profiles_insert_policy"
 ON public.profiles FOR INSERT
-WITH CHECK (public.is_master());
+WITH CHECK (
+  public.is_master()
+  OR (auth.uid() = id AND role = 'user' AND is_active = TRUE)
+);
 
 DROP POLICY IF EXISTS "profiles_delete_policy" ON public.profiles;
 CREATE POLICY "profiles_delete_policy"

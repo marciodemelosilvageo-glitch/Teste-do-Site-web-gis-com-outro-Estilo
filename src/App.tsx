@@ -60,7 +60,8 @@ import {
   saveUserSessionConfig,
   logActivity, 
   initAdminService,
-  ensureVisitorAuth
+  ensureVisitorAuth,
+  registerVisitorAsAccount
 } from './services/adminService';
 
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
@@ -1642,20 +1643,61 @@ export default function App() {
     setIsWelcomeSubmitting(true);
 
     try {
-      // 2. Se informou senha, tenta autenticar no Supabase Auth
-      if (trimmedPassword) {
-        const authResult = await authenticateRegisteredUserAsync(trimmedName, trimmedPassword);
-        if (authResult.success && authResult.user) {
-          handleDirectLoginPreviousUser(authResult.user);
-          return;
+      // 2. Verificar se o usuário já existe no sistema
+      const existingUser = detectedExistingUser || await findRegisteredUserByLoginOrNameAsync(trimmedName);
+
+      if (existingUser) {
+        // Usuário existente -> autentica com senha no Supabase Auth
+        if (trimmedPassword) {
+          const authResult = await authenticateRegisteredUserAsync(existingUser.username, trimmedPassword);
+          if (authResult.success && authResult.user) {
+            handleDirectLoginPreviousUser(authResult.user);
+            return;
+          } else {
+            setWelcomeError(authResult.message || 'Senha incorreta para esta conta.');
+            setIsWelcomeSubmitting(false);
+            return;
+          }
         } else {
-          setWelcomeError(authResult.message || 'Usuário ou senha incorretos.');
+          setWelcomeError('O nome de usuário já existe. Digite a senha para entrar no site.');
           setIsWelcomeSubmitting(false);
           return;
         }
       }
 
-      // 3. Sem senha digitada -> Acesso liberado como Visitante com o nome informado
+      // 3. Usuário NÃO existe: Se informou senha, realiza o auto-cadastro da nova conta
+      if (trimmedPassword) {
+        if (trimmedPassword.length < 4) {
+          setWelcomeError('A senha deve ter no mínimo 4 caracteres para criar sua conta.');
+          setIsWelcomeSubmitting(false);
+          return;
+        }
+
+        const cleanLogin = sanitizeUsername(trimmedName).replace(/[^a-z0-9._-]/g, '.') || `usr.${Date.now().toString().slice(-4)}`;
+        const regResult = await registerVisitorAsAccount(currentSessionId, {
+          name: trimmedName,
+          username: cleanLogin,
+          password: trimmedPassword
+        });
+
+        if (regResult.success && regResult.user) {
+          document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
+          setCurrentActiveUser(regResult.user);
+          setCurrentActiveUserState(regResult.user);
+          setUserRole('user');
+          setHasEntered(true);
+          showToast(`🎉 Conta criada com sucesso! Bem-vindo(a), ${regResult.user.name}!`);
+          refreshPermissions();
+          return;
+        } else {
+          setWelcomeError(regResult.error || 'Erro ao criar conta no servidor.');
+          setIsWelcomeSubmitting(false);
+          return;
+        }
+      }
+
+      // 4. Sem senha digitada -> Acesso liberado como Visitante com o nome informado
       handleEnterPureVisitor(trimmedName);
     } catch (err) {
       console.error('Erro na validação de entrada:', err);

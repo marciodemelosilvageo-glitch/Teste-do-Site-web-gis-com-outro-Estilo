@@ -1049,10 +1049,18 @@ export const registerVisitorAsAccount = async (
       return { success: false, error: authErr?.message || 'Erro ao registrar conta no Supabase Auth' };
     }
 
-    // 2. Insere o perfil em public.profiles
+    // Se a sessão não foi iniciada no signUp, realiza login automático
+    if (!authData.session) {
+      await supabase.auth.signInWithPassword({
+        email: syntheticEmail,
+        password: passwordClean
+      });
+    }
+
+    // 2. Insere ou atualiza o perfil em public.profiles
     const { data: profile, error: profErr } = await supabase
       .from('profiles')
-      .insert({
+      .upsert({
         id: authData.user.id,
         username: usernameClean,
         name: nameClean,
@@ -1062,10 +1070,10 @@ export const registerVisitorAsAccount = async (
         created_by: 'Auto-cadastro (Site)'
       })
       .select()
-      .single();
+      .maybeSingle();
 
-    if (profErr) {
-      return { success: false, error: profErr.message };
+    if (profErr || !profile) {
+      return { success: false, error: profErr?.message || 'Erro ao gravar perfil no banco de dados' };
     }
 
     const mappedUser: RegisteredUser = {
