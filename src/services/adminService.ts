@@ -127,7 +127,7 @@ export interface RegisteredUser {
   username: string; // Login de acesso único (ex: 'joao.silva')
   password?: string; // Mantido apenas para compatibilidade de tipos (nunca armazenado em texto)
   name: string;     // Nome completo ou identificação (ex: 'João da Silva')
-  role: 'master' | 'manager' | 'user'; // Cargo na hierarquia
+  role: UserRole; // Cargo na hierarquia ('master' | 'manager' | 'user' | 'admin')
   department?: string; // Cargo, setor ou secretaria
   createdAt: string;
   createdBy?: string; // Identificador de quem cadastrou (Master ou Gerente)
@@ -1355,7 +1355,6 @@ export const getUserSessionsAsync = async (): Promise<Record<string, UserSession
           role: row.role as UserRole,
           isBlocked: row.is_blocked,
           loginCount: row.login_count || 1,
-          password: row.password || undefined,
           hasCustomPermissions: row.has_custom_permissions,
           customLayerPermissions: row.custom_layer_permissions,
           customFeaturePermissions: row.custom_feature_permissions,

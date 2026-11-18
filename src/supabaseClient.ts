@@ -7,17 +7,29 @@ const rawUrl = (
   env.site_suba ||
   env.VITE_site_suba ||
   env.VITE_SUPABASE_URL ||
-  'https://qsstrhxeesbvfnxuiibj.supabase.co'
+  ''
 ).trim();
-export const SUPABASE_URL = rawUrl.replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
 
 const rawKey = (
   env.suba_anon ||
   env.VITE_suba_anon ||
   env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzc3RyaHhlZXNidmZueHVpaWJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ5MTM2NTksImV4cCI6MjExMDQ4OTY1OX0.fP7Wc3fNV64iNAn91aWDLPpMJYeQOhr-u1yhMY9_SvU'
+  ''
 ).trim();
-export const SUPABASE_ANON_KEY = rawKey;
+
+if (!rawUrl || !rawKey) {
+  console.error(
+    '❌ [WebGIS] Variáveis de ambiente do Supabase não configuradas! ' +
+    'Defina VITE_SUPABASE_URL (ou site_suba) e VITE_SUPABASE_ANON_KEY (ou suba_anon) no seu arquivo .env ou no painel da Vercel.'
+  );
+}
+
+// Higieniza a URL removendo barras e sufixos desnecessários
+export const SUPABASE_URL = (rawUrl || 'https://placeholder.supabase.co')
+  .replace(/\/rest\/v1\/?$/i, '')
+  .replace(/\/+$/, '');
+
+export const SUPABASE_ANON_KEY = rawKey || 'placeholder-anon-key';
 
 export const SYNTHETIC_EMAIL_DOMAIN = '@usuarios.webgis';
 

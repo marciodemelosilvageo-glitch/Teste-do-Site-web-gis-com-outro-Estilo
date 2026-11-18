@@ -352,7 +352,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setEditingUserName(session.customName || '');
     setUserIsBlocked(!!session.isBlocked);
     setUserIsCustom(!!session.hasCustomPermissions);
-    setSelectedUserPasswordInput(session.password || '');
+    setSelectedUserPasswordInput((session as any).password || '');
     setShowSelectedUserPassword(false);
 
     // Carregar logs detalhados do usuário / sessão em tempo real
@@ -459,7 +459,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setUserFormName(user.name);
     setUserFormUsername(user.username);
     setUserFormPassword('');
-    setUserFormRole(user.role || 'user');
+    setUserFormRole(user.role === 'admin' ? 'master' : (user.role || 'user'));
     setUserFormDepartment(user.department || '');
     setUserFormManagerPerms(user.managerPermissions || {
       allowGenerateLogins: true,

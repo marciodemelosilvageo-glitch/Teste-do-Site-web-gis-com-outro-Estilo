@@ -19,7 +19,7 @@ import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition, escapeHtml } from '../utils';
 import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
 import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 
@@ -205,7 +205,7 @@ const createAppleMapsLocalidadeIcon = (
 ) => {
   const dotColor = (!customColor || customColor === '#34C759' || customColor === '#dc2626') ? '#FF3B30' : customColor;
   const formattedName = toTitleCase(name);
-  const safeName = String(formattedName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const safeName = escapeHtml(formattedName);
   const iconSvg = getAppleMapsPoiIconSvg(name, isSelected);
 
   if (isSelected) {
@@ -2269,8 +2269,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     });
     resizeObserver.observe(mapContainerRef.current);
 
-    // Configurar as opções de Basemaps com a API Key CARTO fornecida pelo usuário
-    const CARTO_API_KEY = 'cb1_26l5_1_d7bcaa768a4e7a1dfcb1948d';
+    // Configurar as opções de Basemaps com a API Key CARTO (via variável de ambiente pública VITE_CARTO_KEY)
+    const CARTO_API_KEY = (import.meta as any).env?.VITE_CARTO_KEY || 'cb1_26l5_1_d7bcaa768a4e7a1dfcb1948d';
     tileLayersRef.current = {
       apple: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, { 
         maxZoom: 20,
