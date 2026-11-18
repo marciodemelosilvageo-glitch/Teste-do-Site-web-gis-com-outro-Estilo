@@ -22,6 +22,8 @@ async function startServer() {
   const isOriginAllowed = (origin?: string): boolean => {
     if (!origin) return true; // Permite requisições same-origin ou server-to-server sem Origin
     if (allowedOrigins.includes(origin)) return true;
+    // Permite qualquer porta em localhost ou 127.0.0.1
+    if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
     // Permite domínios Vercel do projeto (*.vercel.app)
     if (/^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin)) return true;
     return false;
@@ -128,6 +130,35 @@ async function startServer() {
       }
     })
   );
+
+  // Endpoint de contingência para camadas GeoJSON (proxy seguro para ambientes com bloqueio de rede/firewall corporativo)
+  app.get("/api/geojson", async (req, res) => {
+    const rawTarget = req.query.url as string;
+    if (!rawTarget) {
+      return res.status(400).json({ error: "Parâmetro 'url' obrigatório." });
+    }
+
+    try {
+      const parsedUrl = new URL(rawTarget);
+      if (parsedUrl.hostname !== "raw.githubusercontent.com") {
+        return res.status(403).json({ error: "Apenas dados de raw.githubusercontent.com são autorizados." });
+      }
+
+      const upstream = await fetch(parsedUrl.toString());
+      if (!upstream.ok) {
+        return res.status(upstream.status).json({ error: `Upstream error: HTTP ${upstream.status}` });
+      }
+
+      const contentType = upstream.headers.get("content-type") || "application/json";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+      const text = await upstream.text();
+      return res.send(text);
+    } catch (err: any) {
+      console.error("Erro no proxy /api/geojson:", err?.message);
+      return res.status(502).json({ error: "Falha ao obter camada do repositório remoto." });
+    }
+  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

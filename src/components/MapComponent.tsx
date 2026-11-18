@@ -3006,11 +3006,22 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
     try {
       let data: any;
-      const resp = await fetch(source.url);
-      if (!resp.ok) {
-        throw new Error(`Falha ao obter os dados de ${source.name}: ${resp.status}`);
+      try {
+        const resp = await fetch(source.url);
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        data = await resp.json();
+      } catch (directFetchErr: any) {
+        // Fallback resiliente: se a conexão direta com o GitHub for bloqueada por firewall corporativo ou CSP, usa o proxy local
+        console.warn(`[WebGIS] Conexão direta com camada "${source.name}" falhou (${directFetchErr?.message}). Acionando proxy local de contingência...`);
+        const fallbackUrl = `/api/geojson?url=${encodeURIComponent(source.url)}`;
+        const fallbackResp = await fetch(fallbackUrl);
+        if (!fallbackResp.ok) {
+          throw new Error(`Falha ao obter os dados de ${source.name} (direto: ${directFetchErr?.message}, proxy: HTTP ${fallbackResp.status})`);
+        }
+        data = await fallbackResp.json();
       }
-      data = await resp.json();
 
       const geojsonOptions: L.GeoJSONOptions = {
         style: (feature: any) => {

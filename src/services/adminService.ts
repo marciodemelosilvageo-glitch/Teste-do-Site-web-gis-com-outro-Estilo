@@ -1946,7 +1946,12 @@ export const getCapabilityAuditLogsAsync = async (): Promise<CapabilityAuditLog[
       .order('timestamp', { ascending: false })
       .limit(1000);
 
-    if (!error && data && data.length > 0) {
+    if (error) {
+      // Se a tabela ainda não existir no schema cache do Supabase, usa fallback local silencioso
+      return getCapabilityAuditLogs();
+    }
+
+    if (data && data.length > 0) {
       const logs: CapabilityAuditLog[] = data.map((row: any) => ({
         id: row.id,
         timestamp: row.timestamp,
@@ -1967,8 +1972,8 @@ export const getCapabilityAuditLogsAsync = async (): Promise<CapabilityAuditLog[
       localStorage.setItem(STORAGE_KEYS.CAPABILITY_AUDIT_LOGS, JSON.stringify(logs));
       return logs;
     }
-  } catch (e) {
-    console.warn('Falha ao sincronizar capability_audit_logs do Supabase:', e);
+  } catch {
+    // Fallback local silencioso
   }
   return getCapabilityAuditLogs();
 };
@@ -2055,6 +2060,19 @@ export interface EffectiveCapability {
   source: string;
 }
 
+export const STANDARD_LAYER_NAMES = [
+  'AISP',
+  'Aglomerados Rurais',
+  'Áreas de Desenvolvimento',
+  'Bairros',
+  'Comunidades Rurais de Teresina',
+  'Favelas e Comunidades',
+  'Localidades (Piauí)',
+  'Municipios',
+  'Núcleos Urbanos',
+  'RISP'
+];
+
 /**
  * Constrói o mapa de capacidades seguro de fallback correspondente aos perfis base
  * (Visitante, Conta do Site, Usuário, Gerente, Master), aplicando exceções individuais se existirem.
@@ -2068,118 +2086,123 @@ export const buildFallbackCapabilitiesMap = (
   const isManager = role === 'manager';
   const isSiteAccount = role === 'site_account';
   const isUser = role === 'user';
-  const isVisitor = !activeUser || role === 'visitor';
 
   const map: Record<string, EffectiveCapability> = {};
 
-  // Se for Master, todas as capacidades são liberadas com uso e delegação
+  // Se for Master, todas as capacidades do catálogo recebem uso e delegação total
   if (isMaster) {
-    const allTools = [
-      'tool:cnefe_search', 'tool:advanced_search', 'tool:search_by_type', 'tool:search_area_addresses',
-      'tool:measure', 'tool:print_a4', 'tool:layer_panel', 'tool:raio_x', 'tool:selected_features',
-      'tool:feature_specs', 'tool:sources_footer', 'tool:search_active_layers_only', 'tool:dissolve_features',
-      'tool:multi_select', 'tool:customize_useful_info', 'tool:basemap_selector', 'tool:map_legend',
-      'tool:export_data', 'data:export:csv', 'data:export:kml', 'data:export:kmz', 'data:export:geojson',
-      'data:export:shapefile', 'data:export:geopackage', 'data:limit:unlimited_rows',
-      'account:self_register', 'account:change_own_password', 'account:edit_own_profile',
-      'admin:panel:access', 'admin:users:view', 'admin:users:create', 'admin:users:reset_password',
-      'admin:users:block', 'admin:users:delete', 'admin:users:promote_manager', 'admin:roles:manage',
-      'admin:global_settings:manage', 'admin:logs:view', 'admin:logs:export', 'admin:logs:clear', 'admin:simulate:profile'
-    ];
-    allTools.forEach(k => {
-      map[k] = { can_use: true, can_grant: true, source: 'master' };
+    const catalog = getAllCapabilitiesCatalog(STANDARD_LAYER_NAMES);
+    catalog.forEach(item => {
+      map[item.key] = { can_use: true, can_grant: true, source: 'master' };
     });
     return map;
   }
 
-  // 1. Ferramentas padrão por perfil base
-  const globalFeatures = getFeaturePermissions();
-  const toolKeys: Array<{ key: string; legacy: keyof FeaturePermissions }> = [
-    { key: 'tool:cnefe_search', legacy: 'allowCnefeSearch' },
-    { key: 'tool:measure', legacy: 'allowMeasureTool' },
-    { key: 'tool:print_a4', legacy: 'allowPrintA4' },
-    { key: 'tool:layer_panel', legacy: 'allowLayerPanel' },
-    { key: 'tool:raio_x', legacy: 'allowDashboardRaioX' },
-    { key: 'tool:selected_features', legacy: 'allowSelectedFeaturesPanel' },
-    { key: 'tool:feature_specs', legacy: 'allowFeatureSpecs' },
-    { key: 'tool:sources_footer', legacy: 'allowSourcesFooter' },
-    { key: 'tool:search_active_layers_only', legacy: 'allowSearchActiveLayersOnly' },
-    { key: 'tool:dissolve_features', legacy: 'allowDissolveFeatures' },
-    { key: 'tool:multi_select', legacy: 'allowMultiSelect' },
-    { key: 'tool:search_by_type', legacy: 'allowSearchByType' },
-    { key: 'tool:search_area_addresses', legacy: 'allowSearchAreaAddresses' },
-    { key: 'tool:customize_useful_info', legacy: 'allowCustomizeUsefulInfo' },
-    { key: 'tool:basemap_selector', legacy: 'allowBasemapSelector' },
-    { key: 'tool:map_legend', legacy: 'allowMapLegend' },
-    { key: 'tool:export_data', legacy: 'allowExportData' },
-    { key: 'data:export:csv', legacy: 'allowExportCsv' },
-    { key: 'data:export:kml', legacy: 'allowExportKml' },
-    { key: 'data:export:kmz', legacy: 'allowExportKmz' },
-    { key: 'data:export:geojson', legacy: 'allowExportGeoJson' },
-    { key: 'data:export:shapefile', legacy: 'allowExportShapefile' },
-    { key: 'data:export:geopackage', legacy: 'allowExportGeoPackage' },
-  ];
+  // 1. Matriz completa de poderes por papel base (camadas, ferramentas, dados, conta, admin)
+  const baseMatrix = getBaseRolesMatrix(STANDARD_LAYER_NAMES);
+  const roleKey: BaseRoleKey = isManager ? 'manager' : isSiteAccount ? 'site_account' : isUser ? 'user' : 'visitor';
+  const roleEntries = baseMatrix[roleKey] || {};
 
-  toolKeys.forEach(t => {
-    let canUse = globalFeatures[t.legacy] !== false;
-    // Visitante público tem exportação bloqueada por padrão
-    if (isVisitor && (t.key.startsWith('data:export:') || t.key === 'tool:export_data' || t.key === 'tool:measure')) {
-      canUse = false;
-    }
-    // Conta do site pode exportar CSV e GeoJSON
-    if (isSiteAccount && (t.key === 'data:export:csv' || t.key === 'data:export:geojson' || t.key === 'tool:export_data' || t.key === 'tool:measure')) {
-      canUse = true;
-    }
-    map[t.key] = {
-      can_use: canUse,
-      can_grant: isManager,
+  Object.entries(roleEntries).forEach(([capKey, entry]) => {
+    map[capKey] = {
+      can_use: entry.can_use === true,
+      can_grant: entry.can_grant === true,
       source: 'base_role'
     };
   });
 
-  // 2. Capacidades de Conta
-  map['account:self_register'] = { can_use: true, can_grant: false, source: 'base_role' };
-  map['account:change_own_password'] = { can_use: !isVisitor, can_grant: false, source: 'base_role' };
-  map['account:edit_own_profile'] = { can_use: !isVisitor, can_grant: false, source: 'base_role' };
+  // 2. Sobrepor permissões de camadas globais salvas (se alguma camada foi desativada globalmente)
+  const globalLayers = getLayerPermissions(STANDARD_LAYER_NAMES);
+  STANDARD_LAYER_NAMES.forEach(layerName => {
+    if (globalLayers[layerName] === false) {
+      if (map[`layer:${layerName}`]) {
+        map[`layer:${layerName}`].can_use = false;
+      }
+    }
+  });
 
-  // 3. Capacidades de Administração
-  map['admin:panel:access'] = { can_use: isManager, can_grant: false, source: 'base_role' };
-  map['admin:users:view'] = { can_use: isManager, can_grant: false, source: 'base_role' };
-  map['admin:users:create'] = { 
-    can_use: isManager && activeUser?.managerPermissions?.allowGenerateLogins !== false, 
-    can_grant: isManager && activeUser?.managerPermissions?.allowGenerateLogins !== false, 
-    source: 'base_role' 
+  // 3. Sobrepor ferramentas globais salvas
+  const globalFeatures = getFeaturePermissions();
+  const legacyToolMap: Record<string, keyof FeaturePermissions> = {
+    'tool:cnefe_search': 'allowCnefeSearch',
+    'tool:measure': 'allowMeasureTool',
+    'tool:print_a4': 'allowPrintA4',
+    'tool:layer_panel': 'allowLayerPanel',
+    'tool:raio_x': 'allowDashboardRaioX',
+    'tool:selected_features': 'allowSelectedFeaturesPanel',
+    'tool:feature_specs': 'allowFeatureSpecs',
+    'tool:sources_footer': 'allowSourcesFooter',
+    'tool:search_active_layers_only': 'allowSearchActiveLayersOnly',
+    'tool:dissolve_features': 'allowDissolveFeatures',
+    'tool:multi_select': 'allowMultiSelect',
+    'tool:search_by_type': 'allowSearchByType',
+    'tool:search_area_addresses': 'allowSearchAreaAddresses',
+    'tool:customize_useful_info': 'allowCustomizeUsefulInfo',
+    'tool:basemap_selector': 'allowBasemapSelector',
+    'tool:map_legend': 'allowMapLegend',
+    'tool:export_data': 'allowExportData',
+    'data:export:csv': 'allowExportCsv',
+    'data:export:kml': 'allowExportKml',
+    'data:export:kmz': 'allowExportKmz',
+    'data:export:geojson': 'allowExportGeoJson',
+    'data:export:shapefile': 'allowExportShapefile',
+    'data:export:geopackage': 'allowExportGeoPackage'
   };
-  map['admin:users:reset_password'] = { 
-    can_use: isManager && activeUser?.managerPermissions?.allowChangePasswords === true, 
-    can_grant: isManager && activeUser?.managerPermissions?.allowChangePasswords === true, 
-    source: 'base_role' 
-  };
-  map['admin:users:promote_manager'] = { 
-    can_use: isManager && activeUser?.managerPermissions?.canCreateManagerRole === true, 
-    can_grant: isManager && activeUser?.managerPermissions?.canCreateManagerRole === true, 
-    source: 'base_role' 
-  };
-  map['admin:users:block'] = { can_use: false, can_grant: false, source: 'base_role' };
-  map['admin:users:delete'] = { can_use: false, can_grant: false, source: 'base_role' };
-  map['admin:roles:manage'] = { can_use: false, can_grant: false, source: 'base_role' };
-  map['admin:global_settings:manage'] = { can_use: false, can_grant: false, source: 'base_role' };
-  map['admin:logs:view'] = { can_use: isManager, can_grant: false, source: 'base_role' };
-  map['admin:logs:export'] = { can_use: isManager, can_grant: false, source: 'base_role' };
-  map['admin:logs:clear'] = { can_use: false, can_grant: false, source: 'base_role' };
 
-  // 4. Se o usuário possuir exceções individuais configuradas (customFeaturePermissions)
-  if (activeUser?.hasCustomPermissions && activeUser.customFeaturePermissions) {
-    toolKeys.forEach(t => {
-      const customVal = activeUser.customFeaturePermissions?.[t.legacy];
-      if (customVal !== undefined) {
-        map[t.key] = {
-          can_use: customVal === true,
-          can_grant: isManager && customVal === true,
+  Object.entries(legacyToolMap).forEach(([capKey, prop]) => {
+    if (globalFeatures[prop] === false) {
+      if (map[capKey]) {
+        map[capKey].can_use = false;
+      }
+    }
+  });
+
+  // 4. Sobrepor exceções individuais granulares (tabela user_capabilities / local storage)
+  const targetId = userId || activeUser?.id;
+  if (targetId) {
+    const overrides = getUserOverrides(targetId);
+    Object.entries(overrides).forEach(([capKey, override]) => {
+      if (override.override_type === 'allow') {
+        map[capKey] = {
+          can_use: true,
+          can_grant: isManager && override.can_grant === true,
+          source: 'user_override'
+        };
+      } else if (override.override_type === 'deny') {
+        map[capKey] = {
+          can_use: false,
+          can_grant: false,
           source: 'user_override'
         };
       }
     });
+  }
+
+  // 5. Retrocompatibilidade com customLayerPermissions e customFeaturePermissions
+  if (activeUser?.hasCustomPermissions) {
+    if (activeUser.customLayerPermissions) {
+      Object.entries(activeUser.customLayerPermissions).forEach(([layerName, allowed]) => {
+        if (allowed !== undefined) {
+          map[`layer:${layerName}`] = {
+            can_use: allowed === true,
+            can_grant: isManager && allowed === true,
+            source: 'user_override'
+          };
+        }
+      });
+    }
+    if (activeUser.customFeaturePermissions) {
+      Object.entries(legacyToolMap).forEach(([capKey, prop]) => {
+        const val = activeUser.customFeaturePermissions?.[prop];
+        if (val !== undefined) {
+          map[capKey] = {
+            can_use: val === true,
+            can_grant: isManager && val === true,
+            source: 'user_override'
+          };
+        }
+      });
+    }
   }
 
   return map;
@@ -2196,7 +2219,7 @@ export const fetchEffectiveCapabilitiesAsync = async (
   const targetId = userId || activeUser?.id;
   const cacheKey = `webgis_capabilities_cache_${targetId || 'visitor'}`;
 
-  // 1. Tentar buscar em tempo real do banco de dados (RPC get_effective_capabilities)
+  // 1. Tentar buscar em tempo real do banco de dados (RPC get_effective_capabilities) se existir
   try {
     const { data, error } = await supabase.rpc('get_effective_capabilities', {
       p_user_id: targetId || null
@@ -2219,14 +2242,17 @@ export const fetchEffectiveCapabilitiesAsync = async (
       return map;
     }
   } catch (e) {
-    // Falha de rede ou RPC ainda não criado no Supabase
+    // Falha graciosa se o RPC ainda não existir no banco
   }
 
-  // 2. Fallback: Recuperar do cache offline seguro
+  // 2. Fallback: Recuperar do cache offline seguro (validando se contém camadas)
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
-      return JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).some(k => k.startsWith('layer:'))) {
+        return parsed;
+      }
     }
   } catch (e) {}
 
@@ -2446,25 +2472,28 @@ export const saveBaseRolesMatrix = async (
     localStorage.setItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX, JSON.stringify(matrix));
     notifyPermissionsUpdated();
 
-    // Sincronizar com Supabase se disponível
-    const roles: BaseRoleKey[] = ['visitor', 'site_account', 'user', 'manager'];
-    for (const r of roles) {
-      const perms = matrix[r];
-      if (perms) {
-        for (const [capKey, setting] of Object.entries(perms)) {
-          await supabase.from('role_capabilities').upsert({
-            role_id: `role:${r}`,
-            capability_key: capKey,
-            can_use: setting.can_use,
-            can_grant: setting.can_grant,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'role_id,capability_key' });
+    // Sincronizar com Supabase se as tabelas relacionais existirem
+    try {
+      const roles: BaseRoleKey[] = ['visitor', 'site_account', 'user', 'manager'];
+      for (const r of roles) {
+        const perms = matrix[r];
+        if (perms) {
+          for (const [capKey, setting] of Object.entries(perms)) {
+            await supabase.from('role_capabilities').upsert({
+              role_id: `role:${r}`,
+              capability_key: capKey,
+              can_use: setting.can_use,
+              can_grant: setting.can_grant,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'role_id,capability_key' });
+          }
         }
       }
+    } catch {
+      // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
     }
     return { success: true };
   } catch (err: any) {
-    console.warn('Erro ao persistir role_capabilities no Supabase:', err);
     return { success: true }; // Permite prosseguir localmente
   }
 };
@@ -2489,27 +2518,30 @@ export const saveUserOverride = async (
   if (typeof window === 'undefined' || !userId) return { success: true };
   try {
     const current = getUserOverrides(userId);
-    if (override === 'inherit') {
-      delete current[capKey];
-      await supabase.from('user_capabilities').delete().match({ user_id: userId, capability_key: capKey });
-    } else {
-      current[capKey] = {
-        override_type: override,
-        can_grant: canGrant
-      };
-      await supabase.from('user_capabilities').upsert({
-        user_id: userId,
-        capability_key: capKey,
-        override_type: override,
-        can_grant: canGrant,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id,capability_key' });
+    try {
+      if (override === 'inherit') {
+        delete current[capKey];
+        await supabase.from('user_capabilities').delete().match({ user_id: userId, capability_key: capKey });
+      } else {
+        current[capKey] = {
+          override_type: override,
+          can_grant: canGrant
+        };
+        await supabase.from('user_capabilities').upsert({
+          user_id: userId,
+          capability_key: capKey,
+          override_type: override,
+          can_grant: canGrant,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,capability_key' });
+      }
+    } catch {
+      // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
     }
     localStorage.setItem(`${STORAGE_KEYS.USER_CAPABILITIES_OVERRIDES}_${userId}`, JSON.stringify(current));
     notifyPermissionsUpdated();
     return { success: true };
   } catch (err) {
-    console.warn('saveUserOverride: fallback local:', err);
     return { success: true };
   }
 };
@@ -2535,18 +2567,21 @@ export const saveManagerScope = async (
     const updated = { ...current, ...scope };
     localStorage.setItem(`${STORAGE_KEYS.USER_DELEGATION_SCOPES}_${managerId}`, JSON.stringify(updated));
 
-    await supabase.from('user_delegation_scopes').upsert({
-      manager_id: managerId,
-      scope_type: updated.scope_type,
-      can_manage_site_accounts: updated.can_manage_site_accounts,
-      can_manage_visitors: updated.can_manage_visitors,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'manager_id' });
+    try {
+      await supabase.from('user_delegation_scopes').upsert({
+        manager_id: managerId,
+        scope_type: updated.scope_type,
+        can_manage_site_accounts: updated.can_manage_site_accounts,
+        can_manage_visitors: updated.can_manage_visitors,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'manager_id' });
+    } catch {
+      // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
+    }
 
     notifyPermissionsUpdated();
     return { success: true };
   } catch (err) {
-    console.warn('saveManagerScope: salvo localmente:', err);
     return { success: true };
   }
 };
