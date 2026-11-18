@@ -23,6 +23,7 @@ import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureContro
 import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
 import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 import { useFeatureAccess } from '../context/FeatureAccessContext';
+import { logActivity } from '../services/adminService';
 
 // Calculo inteligente de amostragem espacial por grade geográfica
 // Garante que NUNCA haja pontos empilhados ou amontoados em zooms distantes (desaproximados)
@@ -883,7 +884,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   onOpenDetailsTab,
   onClearSearchSelectedFeatureId
 }) => {
-  const { can, guardAction } = useFeatureAccess();
+  const { can, guardAction, userRole } = useFeatureAccess();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const lastMeasureModelRef = useRef<any>(null);
@@ -1036,12 +1037,13 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         const { exportToGeoPackage } = await import('../geoPackageExport');
         await exportToGeoPackage(filename, [{ feature: feat }], 'medicao_poligono');
       }
+      logActivity('EXPORTACAO', `Exportou polígono medido em ${format.toUpperCase()}`, userRole);
     } catch (err) {
       console.error('Erro ao exportar polígono medido:', err);
     } finally {
       setIsExportMenuOpen(false);
     }
-  }, [activeMeasureInfo]);
+  }, [activeMeasureInfo, userRole]);
 
   // Manipulação de arrasto (mouse e touch) do card
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -1425,13 +1427,14 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       }
       const item = layerFeatureMapRef.current[String(layerId)];
       if (item && onSearchPolygonAddresses) {
+        logActivity('BUSCA', `Busca de endereços no polígono: ${item.title || 'Polígono'}`, userRole);
         onSearchPolygonAddresses(item);
       }
     };
     return () => {
       delete (window as any).searchAddressesInPolygonByLayerId;
     };
-  }, [onSearchPolygonAddresses, can, showToast]);
+  }, [onSearchPolygonAddresses, can, showToast, userRole]);
 
   // Estados para Gestão de até 4 Estilos Personalizados Salvos
   const [savedStyles, setSavedStyles] = useState<SavedStylePreset[]>([]);
@@ -2103,6 +2106,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     }
     if (isDissolved) {
       clearDissolve();
+      logActivity('FEICAO', 'Desfez dissolução de feições poligonais', userRole);
       showToast('Dissolução desfeita.');
     } else {
       if (selectedPolygonCount < 2) {
@@ -2111,9 +2115,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       }
       setIsDissolved(true);
       computeDissolve(selectedPolygonFeatures);
+      logActivity('FEICAO', `Uniu/dissolveu ${selectedPolygonCount} feições poligonais em contorno único`, userRole);
       showToast('Polígonos dissolvidos em contorno único.');
     }
-  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast, can]);
+  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast, can, userRole]);
 
   // Inicializar o Leaflet Map
   useEffect(() => {
@@ -3771,6 +3776,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                         e.stopPropagation();
                         const feat = buildMeasuredPolygonFeature(activeMeasureInfo);
                         if (feat && onSearchPolygonAddressesRef.current) {
+                          logActivity('BUSCA', `Busca de endereços no polígono medido (${activeMeasureInfo.areaDisplay || 'área'})`, userRole);
                           onSearchPolygonAddressesRef.current({
                             feature: feat,
                             title: `Área Medida (${activeMeasureInfo.areaDisplay || 'Polígono'})`,

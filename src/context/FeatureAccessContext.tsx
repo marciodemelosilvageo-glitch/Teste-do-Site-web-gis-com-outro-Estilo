@@ -57,7 +57,7 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
       return true;
     }
 
-    logActivity('ACESSO', `Ação bloqueada por restrição de permissão: "${actionName}"`, userRole);
+    logActivity('ADMIN', `Tentativa de acesso bloqueada por permissão: "${actionName}"`, userRole, `Permissão ausente: ${String(key)}`);
     if (showToast) {
       showToast(`⚠️ Acesso restrito: Você não possui permissão para ${actionName}.`);
     }

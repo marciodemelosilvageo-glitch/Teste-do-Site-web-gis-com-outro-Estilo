@@ -186,6 +186,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       return;
     }
 
+    if (currentUser.mustChangePassword && !newPassword.trim()) {
+      setErrorMessage('A troca de senha é obrigatória no primeiro acesso. Digite sua nova senha pessoal.');
+      return;
+    }
+
     if (newPassword.trim()) {
       if (newPassword.trim().length < 4) {
         setErrorMessage('A nova senha deve ter no mínimo 4 caracteres.');
@@ -276,7 +281,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     return createPortal(
       <div 
         className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
-        onClick={onClose}
+        onClick={() => {
+          if (currentUser?.mustChangePassword) {
+            showToast('⚠️ Defina sua nova senha pessoal para continuar no WebGIS.');
+            return;
+          }
+          onClose();
+        }}
       >
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -334,15 +345,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Fechar"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!currentUser?.mustChangePassword && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
+
+        {/* ALERTA DE TROCA OBRIGATÓRIA DE SENHA */}
+        {currentUser?.mustChangePassword && (
+          <div className="p-3.5 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-2xl text-xs flex items-start gap-2.5 animate-fadeIn">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-extrabold block">Troca Obrigatória de Senha</span>
+              <span>Sua conta está com uma senha provisória. Para sua segurança, defina uma nova senha pessoal para continuar navegando no WebGIS.</span>
+            </div>
+          </div>
+        )}
 
         {/* FEEDBACK DE ERRO */}
         <AnimatePresence>
@@ -410,27 +434,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
 
             {/* SEÇÃO DE TROCA DE SENHA */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            <div className={`pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3 ${currentUser?.mustChangePassword ? 'p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/60' : ''}`}>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Key className="w-3.5 h-3.5 text-amber-500" />
-                  Trocar Senha de Acesso
+                  {currentUser?.mustChangePassword ? 'Definir Nova Senha Pessoal *' : 'Trocar Senha de Acesso'}
                 </span>
                 <span className="text-[11px] text-slate-400 font-normal">
-                  Deixe em branco se não quiser mudar
+                  {currentUser?.mustChangePassword ? 'Obrigatório (mín. 4 caracteres)' : 'Deixe em branco se não quiser mudar'}
                 </span>
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                  Nova Senha:
+                  Nova Senha: {currentUser?.mustChangePassword && <span className="text-red-500">*</span>}
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Digitar nova senha..."
+                    placeholder="Digitar sua nova senha..."
                     className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
                   />
                   <button
@@ -443,14 +467,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
               </div>
 
-              {newPassword.trim().length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="space-y-1.5"
-                >
+              {(newPassword.trim().length > 0 || currentUser?.mustChangePassword) && (
+                <div className="space-y-1.5 animate-fadeIn">
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                    Confirmar Nova Senha:
+                    Confirmar Nova Senha: {currentUser?.mustChangePassword && <span className="text-red-500">*</span>}
                   </label>
                   <div className="relative">
                     <input
@@ -468,7 +488,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                </motion.div>
+                </div>
               )}
             </div>
 

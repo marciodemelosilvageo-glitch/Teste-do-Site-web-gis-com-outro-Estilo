@@ -238,6 +238,14 @@ export default function App() {
       ? simulatedSessionId
       : currentSessionId;
     const eff = getEffectiveUserPermissions(targetSessionId, dataSources.map(s => s.name), effectiveActiveUser);
+
+    if (isSimulatingUser && simulatedTargetUser?.customFeaturePermissions) {
+      eff.featurePermissions = {
+        ...eff.featurePermissions,
+        ...simulatedTargetUser.customFeaturePermissions
+      };
+    }
+
     setEffectiveSession(eff);
     setLayerPermissions(eff.layerPermissions);
     setFeaturePermissions(eff.featurePermissions);
@@ -801,6 +809,10 @@ export default function App() {
       // 2. Tecla Escape (Esc)
       if (e.key === 'Escape') {
         if (isProfileModalOpen) {
+          if (currentActiveUser?.mustChangePassword) {
+            showToast('⚠️ Defina sua nova senha pessoal antes de continuar.');
+            return;
+          }
           setIsProfileModalOpen(false);
           return;
         }
@@ -1776,6 +1788,7 @@ export default function App() {
           }, 600);
         }
       } else {
+        logActivity('ACESSO', 'Falha na autenticação: credenciais inválidas', 'user', `Tentativa para o usuário @${sanitizeUsername(userLoginInput)}`);
         setUserLoginError(result.message || 'Credenciais inválidas.');
       }
     } catch (err: any) {
@@ -1798,6 +1811,7 @@ export default function App() {
   const handleLogout = () => {
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
+    logActivity('ACESSO', `Sessão encerrada (logout) do usuário @${currentActiveUser?.username || 'visitante'}`, userRole);
     setCurrentActiveUser(null);
     setCurrentActiveUserState(null);
     setLastPreviousUser(getLastLoggedInUser());
@@ -3338,7 +3352,7 @@ export default function App() {
       featurePermissions={featurePermissions}
       isMaster={isMaster}
       isManager={isManager}
-      userRole={userRole}
+      userRole={isSimulatingUser ? simulatedRole : userRole}
       showToast={showToast}
     >
       <div className={`relative w-screen h-screen overflow-hidden font-sans select-none bg-slate-100 dark:bg-slate-950 ${isPrintMode ? '!bg-white dark:!bg-white text-slate-900 dark:text-slate-900' : ''}`}>

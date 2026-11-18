@@ -122,6 +122,7 @@ export interface UserSessionConfig {
   role: UserRole;
   isBlocked?: boolean;
   loginCount?: number; // Contador de acessos ao site
+  device?: string;     // Dispositivo / Plataforma (ex: Windows PC, Android, iOS)
   hasCustomPermissions?: boolean;
   customLayerPermissions?: Record<string, boolean>; // Se definido, sobrepõe o global
   customFeaturePermissions?: FeaturePermissions;    // Se definido, sobrepõe o global
@@ -133,7 +134,6 @@ export interface ManagerPermissions {
   allowGenerateLogins?: boolean;       // Permitir gerar novos logins de usuários (padrão: true)
   canCreateManagerRole?: boolean;      // Se true: pode criar Gerentes além de Usuários Comuns (padrão: false)
   allowChangePasswords?: boolean;      // Permitir trocar senhas de usuários (padrão: false)
-  allowManageGlobalLayers?: boolean;   // Permitir ativar/desativar camadas globais (padrão: false)
   allowViewAllVisitors?: boolean;      // Permitir visualizar monitoramento de todos os visitantes do site (padrão: false)
 }
 
@@ -543,7 +543,7 @@ export const saveRegisteredUser = async (
           name: nameClean,
           role: assignedRole,
           department: userData.department?.trim() || '',
-          managerPermissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false, allowManageGlobalLayers: false }) : null,
+          managerPermissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false }) : null,
           customPermissions: {
             layers: userData.customLayerPermissions || null,
             features: userData.customFeaturePermissions || null,
@@ -617,8 +617,7 @@ export const promoteUserToManager = async (
       role: 'manager',
       manager_permissions: {
         allowGenerateLogins: true,
-        allowChangePasswords: false,
-        allowManageGlobalLayers: false
+        allowChangePasswords: false
       },
       updated_at: new Date().toISOString()
     })
@@ -1418,6 +1417,18 @@ const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: s
   return payload;
 };
 
+// Detectar dispositivo / plataforma do cliente de forma leve e segura
+export const detectClientDevice = (): string => {
+  if (typeof window === 'undefined' || !navigator) return 'Desconhecido';
+  const ua = navigator.userAgent || '';
+  if (/android/i.test(ua)) return 'Android';
+  if (/ipad|iphone|ipod/i.test(ua)) return 'iOS (iPhone/iPad)';
+  if (/windows/i.test(ua)) return 'Windows PC';
+  if (/macintosh|mac os x/i.test(ua)) return 'macOS';
+  if (/linux/i.test(ua)) return 'Linux';
+  return 'Navegador Web';
+};
+
 // Salvar / atualizar a configuração de uma sessão individual
 export const saveUserSessionConfig = (sessionId: string, updates: Partial<UserSessionConfig>): void => {
   if (typeof window === 'undefined' || !sessionId) return;
@@ -1431,11 +1442,13 @@ export const saveUserSessionConfig = (sessionId: string, updates: Partial<UserSe
       formattedFirstSeen: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR'),
       formattedLastSeen: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR'),
       loginCount: 1,
+      device: detectClientDevice(),
     };
 
     sessions[sessionId] = {
       ...existing,
       ...updates,
+      device: updates.device || existing.device || detectClientDevice(),
       sessionId
     };
 
@@ -1791,13 +1804,19 @@ export const clearActivityLogs = (): void => {
   logActivity('ADMIN', 'Histórico de auditoria e logs foi limpo', 'admin');
 };
 
-// Exportar Logs para CSV
-export const exportActivityLogsToCSV = (): void => {
-  const logs = getActivityLogs();
+// Exportar Logs para CSV (com suporte a filtro opcional e papéis normalizados)
+export const exportActivityLogsToCSV = (logsToExport?: ActivityLog[]): void => {
+  const logs = logsToExport || getActivityLogs();
   const sessions = getUserSessions();
   if (logs.length === 0) {
     return;
   }
+
+  const formatRoleLabel = (r?: UserRole): string => {
+    if (r === 'master' || r === 'admin') return 'Administrador Master';
+    if (r === 'manager') return 'Gerente';
+    return 'Usuário Comum / Visitante';
+  };
 
   const headers = ['Data e Hora', 'Usuário / Identificação', 'Perfil de Acesso', 'Categoria', 'Ação', 'Detalhes', 'ID da Sessão'];
   const rows = logs.map(l => {
@@ -1809,7 +1828,7 @@ export const exportActivityLogsToCSV = (): void => {
     return [
       `"${l.formattedDate}"`,
       `"${userDisplayName}"`,
-      `"${l.userRole === 'admin' ? 'Administrador' : 'Visitante / Comum'}"`,
+      `"${formatRoleLabel(l.userRole)}"`,
       `"${l.category}"`,
       `"${(l.action || '').replace(/"/g, '""')}"`,
       `"${(l.details || '').replace(/"/g, '""')}"`,

@@ -71,6 +71,7 @@ import { AppLogo } from './AppLogo';
 import { MobileSheet } from './mobile/MobileSheet';
 import { HelpTabContent } from './tabs/HelpTabContent';
 import { useFeatureAccess } from '../context/FeatureAccessContext';
+import { logActivity, UserRole } from '../services/adminService';
 
 export type SidebarTab = 'search' | 'details' | 'dashboard' | 'help' | 'export' | 'profile' | null;
 
@@ -127,7 +128,7 @@ interface AppleSidebarProps {
   
   // Usuário e Sistema
   currentActiveUser: any;
-  userRole: string;
+  userRole: UserRole;
   isMaster: boolean;
   isManager: boolean;
   isAdmin: boolean;
@@ -558,6 +559,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       }
     } catch (e) {}
 
+    logActivity('FEICAO', `Personalizou informações úteis da camada "${targetName || 'Camada'}"`, userRole);
     showToast(targetName ? `Informações úteis de ${targetName} salvas com sucesso!` : 'Informações úteis personalizadas com sucesso!');
   };
 
@@ -577,6 +579,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
         localStorage.removeItem(`useful_cards_${userKey}`);
       }
     } catch (e) {}
+    logActivity('FEICAO', `Restaurou padrão de informações úteis da camada "${targetName || 'Camada'}"`, userRole);
     showToast(targetName ? `Restaurado o padrão de ${targetName}.` : 'Restaurado o padrão das informações úteis.');
   };
 
@@ -2069,6 +2072,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         key={cat.id}
                         type="button"
                         onClick={() => {
+                          logActivity('BUSCA', `Busca rápida por categoria: ${cat.name}`, userRole);
                           setActiveCategorySearchId(cat.id as CategorySearchType);
                         }}
                         className="w-full px-3.5 py-2.5 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-between text-left border border-black/5 dark:border-white/5 group"
