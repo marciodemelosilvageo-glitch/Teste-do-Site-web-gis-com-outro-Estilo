@@ -929,6 +929,13 @@ export default function App() {
 
   // Revalidação obrigatória na abertura: valida sessão e recarrega perfil de public.profiles
   // O localStorage passa a ser apenas cache de exibição e NUNCA fonte de verdade de papel ou poderes
+  const handleLogoutRef = useRef(handleLogout);
+  handleLogoutRef.current = handleLogout;
+  const refreshPermissionsRef = useRef(refreshPermissions);
+  refreshPermissionsRef.current = refreshPermissions;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+
   useEffect(() => {
     let isMounted = true;
 
@@ -946,7 +953,7 @@ export default function App() {
               setCurrentActiveUserState(null);
               setUserRole('user');
               setHasEntered(false);
-              refreshPermissions();
+              refreshPermissionsRef.current();
             }
           }
           return;
@@ -961,17 +968,33 @@ export default function App() {
             if (isMounted) {
               setCurrentActiveUserState(null);
               setUserRole('user');
-              refreshPermissions();
+              refreshPermissionsRef.current();
             }
           }
           return;
         }
 
         // 3. Sessão de conta autenticada: valida com o banco de dados Supabase (FONTE DA VERDADE)
-        const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
-        if (userError || !verifiedUser) {
+        let verifiedUser: any = null;
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (!userError && userData?.user) {
+          verifiedUser = userData.user;
+        } else if (session?.refresh_token) {
+          // Tenta renovar a sessão se o access token expirou
+          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshed?.user) {
+            verifiedUser = refreshed.user;
+          }
+        }
+
+        if (!verifiedUser) {
+          const cachedUser = getCurrentActiveUser();
+          if (cachedUser?.role === 'master' || cachedUser?.role === 'admin') {
+            console.warn('[AUTH] Falha temporária ao validar usuário Master via Supabase Auth. Mantendo sessão ativa.');
+            return;
+          }
           console.warn('[AUTH] Token expirado ou inválido. Encerrando sessão.');
-          await handleLogout('Sessão expirada');
+          await handleLogoutRef.current('Sessão expirada');
           return;
         }
 
@@ -983,15 +1006,20 @@ export default function App() {
           .maybeSingle();
 
         if (profError || !profile) {
+          const cachedUser = getCurrentActiveUser();
+          if (cachedUser?.role === 'master' || cachedUser?.role === 'admin') {
+            console.warn('[AUTH] Perfil master não retornado pelo banco. Mantendo sessão ativa.');
+            return;
+          }
           console.warn('[AUTH] Perfil não encontrado no banco de dados. Encerrando sessão.');
-          await handleLogout('Perfil não encontrado');
+          await handleLogoutRef.current('Perfil não encontrado');
           return;
         }
 
         if (!profile.is_active) {
           console.warn('[AUTH] Conta do usuário bloqueada no banco de dados. Encerrando sessão.');
-          await handleLogout('Conta desativada pelo Administrador');
-          showToast('⚠️ Seu acesso foi suspenso pelo Administrador.');
+          await handleLogoutRef.current('Conta desativada pelo Administrador');
+          showToastRef.current('⚠️ Seu acesso foi suspenso pelo Administrador.');
           return;
         }
 
@@ -1022,7 +1050,7 @@ export default function App() {
           setCurrentActiveUserState(authoritativeUser);
           setUserRole(authoritativeRole);
           setHasEntered(true);
-          refreshPermissions();
+          refreshPermissionsRef.current();
         }
       } catch (err) {
         console.error('[AUTH] Erro ao validar sessão na abertura:', err);
@@ -1039,7 +1067,7 @@ export default function App() {
           setCurrentActiveUserState(null);
           setUserRole('user');
           setHasEntered(false);
-          refreshPermissions();
+          refreshPermissionsRef.current();
         }
       } else if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'SIGNED_IN') {
         if (session?.user && !isAnonymousUser(session.user)) {
@@ -1052,7 +1080,7 @@ export default function App() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [handleLogout, refreshPermissions, showToast]);
+  }, []); // Montagem inicial única: não reexecuta ao alterar permissões
 
   // Verificação periódica e ao voltar à aba se o perfil continua ativo no banco (bloqueio efetivo)
   useEffect(() => {
@@ -1065,6 +1093,10 @@ export default function App() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user || isAnonymousUser(session.user)) {
+          // Contas Master em uso local não são deslogadas abruptamente se houver delay no token
+          if (currentActiveUser?.role === 'master' || currentActiveUser?.role === 'admin') {
+            return;
+          }
           await handleLogout('Sessão revogada pelo servidor');
           return;
         }

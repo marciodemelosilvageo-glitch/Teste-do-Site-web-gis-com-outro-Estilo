@@ -320,20 +320,20 @@ export const initAdminService = async (forceRefresh = false) => {
     // 4. Polling periódico inteligente de sincronização (apenas quando a aba está ativa)
     if (!(window as any).__webgis_sync_interval_set) {
       (window as any).__webgis_sync_interval_set = true;
-      
+
       setInterval(() => {
         if (typeof document !== 'undefined' && !document.hidden) {
-          initAdminService(true).catch(() => {});
+          initAdminService(true).catch(() => { });
         }
       }, 10000);
 
       // Sincroniza imediatamente sempre que o usuário volta/foca na aba
       window.addEventListener('focus', () => {
-        initAdminService(true).catch(() => {});
+        initAdminService(true).catch(() => { });
       });
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
-          initAdminService(true).catch(() => {});
+          initAdminService(true).catch(() => { });
         }
       });
     }
@@ -411,7 +411,7 @@ const sortUsersMostRecentFirst = (users: RegisteredUser[]): RegisteredUser[] => 
 // Obter todos os usuários cadastrados (lê o cache local atualizado pelo Supabase)
 export const getRegisteredUsers = (): RegisteredUser[] => {
   if (typeof window === 'undefined') return [];
-  
+
   let usersList: RegisteredUser[] = [];
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
@@ -522,7 +522,7 @@ export const isUsernameAvailableAsync = async (
   const clean = sanitizeUsername(username);
   if (!clean || clean.length < 3) return { available: false };
   const allUsers = await getRegisteredUsersAsync();
-  const found = allUsers.find(u => 
+  const found = allUsers.find(u =>
     sanitizeUsername(u.username) === clean && (!excludeUserId || u.id !== excludeUserId)
   );
   return {
@@ -551,15 +551,15 @@ export const saveRegisteredUser = async (
   const currentUsers = await getRegisteredUsersAsync();
 
   // Verificação estrita: Não permitir duplicidade de nome de usuário
-  const duplicateUser = currentUsers.find(u => 
+  const duplicateUser = currentUsers.find(u =>
     sanitizeUsername(u.username) === usernameClean && (!userData.id || u.id !== userData.id)
   );
 
   if (duplicateUser) {
-    return { 
-      success: false, 
-      users: currentUsers, 
-      error: `Não é permitido criar mais de uma conta com o mesmo nome de usuário. O login "@${usernameClean}" já está em uso pela conta "${duplicateUser.name}".` 
+    return {
+      success: false,
+      users: currentUsers,
+      error: `Não é permitido criar mais de uma conta com o mesmo nome de usuário. O login "@${usernameClean}" já está em uso pela conta "${duplicateUser.name}".`
     };
   }
 
@@ -964,9 +964,9 @@ export const findRegisteredUserByLoginOrNameAsync = async (identifier: string): 
   if (!cleanUsername && !cleanRaw) return null;
 
   const users = await getRegisteredUsersAsync();
-  return users.find(u => 
-    sanitizeUsername(u.username) === cleanUsername || 
-    u.username.toLowerCase() === cleanRaw || 
+  return users.find(u =>
+    sanitizeUsername(u.username) === cleanUsername ||
+    u.username.toLowerCase() === cleanRaw ||
     u.name.trim().toLowerCase() === cleanRaw ||
     sanitizeUsername(u.name) === cleanUsername
   ) || null;
@@ -978,7 +978,7 @@ export const getCurrentActiveUser = (): RegisteredUser | null => {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_ACTIVE_USER);
     if (saved) return JSON.parse(saved);
-  } catch (e) {}
+  } catch (e) { }
   return null;
 };
 
@@ -997,7 +997,7 @@ export const getLastLoggedInUser = (): RegisteredUser | null => {
   try {
     const saved = localStorage.getItem('webgis_last_logged_in_user_v1');
     if (saved) return JSON.parse(saved);
-  } catch (e) {}
+  } catch (e) { }
   return null;
 };
 
@@ -1246,7 +1246,7 @@ export const getLayerPermissions = (defaultLayerNames: string[]): Record<string,
 export const saveLayerPermissions = async (permissions: Record<string, boolean>): Promise<{ success: boolean; error?: string }> => {
   try {
     localStorage.setItem(STORAGE_KEYS.LAYER_PERMISSIONS, JSON.stringify(permissions));
-    
+
     // Salvar diretamente na Nuvem Supabase
     const { error } = await supabase.from('webgis_settings').upsert({
       id: 'global',
@@ -1259,7 +1259,7 @@ export const saveLayerPermissions = async (permissions: Record<string, boolean>)
 
     notifyPermissionsUpdated();
     logActivity('ADMIN', `Permissões globais de camadas atualizadas no Supabase`, 'admin');
-    
+
     if (error) {
       console.error('Erro ao salvar permissões de camadas no Supabase:', error);
       return { success: false, error: error.message };
@@ -1329,7 +1329,7 @@ export const saveFeaturePermissions = async (perms: FeaturePermissions): Promise
 
     notifyPermissionsUpdated();
     logActivity('ADMIN', `Permissões globais de ferramentas atualizadas no Supabase`, 'admin');
-    
+
     if (error) {
       console.error('Erro ao salvar feature_permissions no Supabase:', error);
       return { success: false, error: error.message };
@@ -1371,7 +1371,7 @@ export const saveAddressColumnsPermissions = async (perms: Record<string, boolea
 
     notifyPermissionsUpdated();
     logActivity('ADMIN', `Permissões globais de colunas do CNEFE atualizadas no Supabase`, 'admin');
-    
+
     if (error) {
       console.error('Erro ao salvar address_columns_permissions no Supabase:', error);
       return { success: false, error: error.message };
@@ -1411,7 +1411,7 @@ export const saveFeaturePropertiesPermissions = async (perms: Record<string, boo
 
     notifyPermissionsUpdated();
     logActivity('ADMIN', `Permissões globais de atributos e propriedades atualizadas no Supabase`, 'admin');
-    
+
     if (error) {
       console.error('Erro ao salvar feature_properties_permissions no Supabase:', error);
       return { success: false, error: error.message };
@@ -1437,44 +1437,55 @@ export const getUserSessions = (): Record<string, UserSessionConfig> => {
   }
 };
 
+// Flag para evitar requisições 404 repetidas caso o Script 06 (telemetria RPC) ainda não tenha sido aplicado no Supabase
+let isTelemetryRpcAvailable: boolean | null = null;
+
 // Obter sessões de usuários diretamente do Supabase em tempo real (ordenadas da mais recente para a mais antiga)
 export const getUserSessionsAsync = async (): Promise<Record<string, UserSessionConfig>> => {
   try {
     // 1. Tentar ler a telemetria autoritativa do servidor via RPC (disponível para gerente e master)
-    const { data: telemetryData, error: telemetryError } = await supabase
-      .rpc('get_telemetry_active_sessions');
+    if (isTelemetryRpcAvailable !== false) {
+      const { data: telemetryData, error: telemetryError } = await supabase
+        .rpc('get_telemetry_active_sessions');
 
-    if (!telemetryError && telemetryData && Array.isArray(telemetryData) && telemetryData.length > 0) {
-      const liveSessions: Record<string, UserSessionConfig> = {};
-      telemetryData.forEach((row: any) => {
-        const sId = row.session_id || row.auth_uid;
-        liveSessions[sId] = {
-          sessionId: sId,
-          authUid: row.auth_uid,
-          customName: row.display_name,
-          firstSeen: row.first_seen,
-          lastSeen: row.last_seen,
-          formattedFirstSeen: row.formatted_first_seen,
-          formattedLastSeen: row.formatted_last_seen,
-          role: row.role as UserRole,
-          isBlocked: !!row.is_blocked,
-          loginCount: 1,
-          device: row.device,
-          isAnonymous: !!row.is_anonymous,
-          ipAddress: row.ip_address,
-          userAgent: row.user_agent,
-          sessionCreatedAt: row.session_created_at,
-          sessionRefreshedAt: row.session_refreshed_at,
-          isOnline: !!row.is_online,
-          hasCustomPermissions: !!row.has_custom_permissions,
-          customLayerPermissions: row.custom_layer_permissions || undefined,
-          customFeaturePermissions: row.custom_feature_permissions || undefined,
-          customAddressColumnsPermissions: row.custom_address_columns_permissions || undefined,
-          customFeaturePropertiesPermissions: row.custom_feature_properties_permissions || undefined,
-        };
-      });
-      localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(liveSessions));
-      return liveSessions;
+      if (!telemetryError && telemetryData && Array.isArray(telemetryData) && telemetryData.length > 0) {
+        isTelemetryRpcAvailable = true;
+        const liveSessions: Record<string, UserSessionConfig> = {};
+        telemetryData.forEach((row: any) => {
+          const sId = row.session_id || row.auth_uid;
+          liveSessions[sId] = {
+            sessionId: sId,
+            authUid: row.auth_uid,
+            customName: row.display_name,
+            firstSeen: row.first_seen,
+            lastSeen: row.last_seen,
+            formattedFirstSeen: row.formatted_first_seen,
+            formattedLastSeen: row.formatted_last_seen,
+            role: row.role as UserRole,
+            isBlocked: !!row.is_blocked,
+            loginCount: 1,
+            device: row.device,
+            isAnonymous: !!row.is_anonymous,
+            ipAddress: row.ip_address,
+            userAgent: row.user_agent,
+            sessionCreatedAt: row.session_created_at,
+            sessionRefreshedAt: row.session_refreshed_at,
+            isOnline: !!row.is_online,
+            hasCustomPermissions: !!row.has_custom_permissions,
+            customLayerPermissions: row.custom_layer_permissions || undefined,
+            customFeaturePermissions: row.custom_feature_permissions || undefined,
+            customAddressColumnsPermissions: row.custom_address_columns_permissions || undefined,
+            customFeaturePropertiesPermissions: row.custom_feature_properties_permissions || undefined,
+          };
+        });
+        localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(liveSessions));
+        return liveSessions;
+      } else if (telemetryError) {
+        // Se a função RPC não existir no banco (404 / PGRST202), desativa novas chamadas para evitar spam no console
+        if (telemetryError.code === 'PGRST202' || (telemetryError as any)?.status === 404 || telemetryError.message?.includes('not found')) {
+          isTelemetryRpcAvailable = false;
+        }
+      }
     }
 
     // 2. Fallback caso não seja manager/master ou a RPC ainda não esteja instalada
@@ -1653,10 +1664,10 @@ export const deleteUserSession = (sessionId: string): void => {
     if (sessions[sessionId]) {
       delete sessions[sessionId];
       localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(sessions));
-      
+
       // Remover no Supabase
       supabase.from('webgis_user_sessions').delete().eq('session_id', sessionId).then();
-      
+
       logActivity('ADMIN', `Sessão ${sessionId} foi removida da base`, 'admin');
     }
   } catch (e) { }
@@ -1665,12 +1676,12 @@ export const deleteUserSession = (sessionId: string): void => {
 // Registrar ou atualizar atividade da sessão
 const registerUserSessionActivity = (sessionId: string, role: UserRole = 'user', customName?: string): void => {
   if (typeof window === 'undefined' || !sessionId) return;
-  
+
   // O acesso do Administrador Master é 100% anônimo: nunca registra como sessão de visitante
   if (
-    role === 'master' || 
-    (role as string) === 'admin' || 
-    sessionId === 'master' || 
+    role === 'master' ||
+    (role as string) === 'admin' ||
+    sessionId === 'master' ||
     (customName && (customName.toLowerCase().includes('master') || customName.toLowerCase().includes('administrador')))
   ) {
     return;
@@ -1843,7 +1854,7 @@ export const logActivity = (
     // Identificar se há um usuário credenciado logado no momento
     const activeUser = getCurrentActiveUser();
     const effectiveRole: UserRole = activeUser?.role || userRole;
-    
+
     // Se o usuário autenticado for gerente ou usuário, enriquece a identificação nos detalhes
     let enrichedDetails = details;
     if (activeUser && activeUser.username) {
@@ -2156,8 +2167,12 @@ export const logCapabilityAudit = async (
 ): Promise<void> => {
   if (typeof window === 'undefined') return;
   const now = new Date();
+  const clientUuid = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID()
+    : 'c' + Date.now().toString(16).padStart(11, '0') + '-0000-4000-8000-' + Math.random().toString(16).substring(2, 14).padEnd(12, '0');
+
   const newLog: CapabilityAuditLog = {
-    id: 'audit_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    id: clientUuid,
     timestamp: now.toISOString(),
     formattedDate: now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR'),
     ...entry
@@ -2167,11 +2182,13 @@ export const logCapabilityAudit = async (
   localStorage.setItem(STORAGE_KEYS.CAPABILITY_AUDIT_LOGS, JSON.stringify(updated));
 
   try {
-    await supabase.from('capability_audit_logs').insert({
-      id: newLog.id,
+    const { data: authData } = await supabase.auth.getSession();
+    const actorUid = authData?.session?.user?.id || entry.performedBy || null;
+
+    const payload: any = {
       timestamp: newLog.timestamp,
-      performed_by: newLog.performedBy || null,
-      performed_by_name: newLog.performedByName || null,
+      performed_by: actorUid,
+      performed_by_name: newLog.performedByName || (authData?.session?.user?.email ?? null),
       target_type: newLog.targetType,
       target_id: newLog.targetId,
       capability_key: newLog.capabilityKey,
@@ -2179,7 +2196,14 @@ export const logCapabilityAudit = async (
       before_state: newLog.beforeState || null,
       after_state: newLog.afterState || null,
       reason: newLog.reason || null
-    });
+    };
+
+    // Só envia id se for UUID estritamente válido para o PostgreSQL, senão deixa o banco gerar gen_random_uuid()
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientUuid)) {
+      payload.id = clientUuid;
+    }
+
+    await supabase.from('capability_audit_logs').insert(payload);
   } catch (err) {
     console.warn('Erro ao salvar auditoria de capacidade no Supabase:', err);
   }
@@ -2440,7 +2464,7 @@ const internalFetchEffectiveCapabilities = async (
         });
         try {
           localStorage.setItem(cacheKey, JSON.stringify(map));
-        } catch (e) {}
+        } catch (e) { }
         return map;
       }
     } catch (e) {
@@ -2457,13 +2481,13 @@ const internalFetchEffectiveCapabilities = async (
         return parsed;
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 3. Fallback: Computar mapa padrão seguro
   const fallback = buildFallbackCapabilitiesMap(targetId);
   try {
     localStorage.setItem(cacheKey, JSON.stringify(fallback));
-  } catch (e) {}
+  } catch (e) { }
   return fallback;
 };
 
@@ -2686,12 +2710,12 @@ export const getBaseRolesMatrix = (layersList?: string[]): RoleCapabilitiesMatri
         return parsed;
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const defaults = buildDefaultRolesMatrix(layersList);
   try {
     localStorage.setItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX, JSON.stringify(defaults));
-  } catch (e) {}
+  } catch (e) { }
   return defaults;
 };
 
@@ -2759,7 +2783,7 @@ export const getUserOverrides = (userId: string): Record<string, UserCapabilityO
     if (raw) {
       return JSON.parse(raw);
     }
-  } catch (e) {}
+  } catch (e) { }
   return {};
 };
 
@@ -2808,7 +2832,7 @@ export const getManagerScope = (managerId: string): ManagerScopeConfig => {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEYS.USER_DELEGATION_SCOPES}_${managerId}`);
     if (raw) return JSON.parse(raw);
-  } catch (e) {}
+  } catch (e) { }
   return { scope_type: 'team_only', can_manage_site_accounts: true, can_manage_visitors: false };
 };
 

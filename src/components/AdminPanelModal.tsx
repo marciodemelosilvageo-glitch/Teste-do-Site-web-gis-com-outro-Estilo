@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Eye } from 'lucide-react';
 import {
@@ -160,6 +160,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   }, [registeredUsers]);
 
   // Sincronização e travamento do scroll ao abrir o modal
+  const wasOpenRef = useRef(false);
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -172,29 +173,34 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setUserSessions(getUserSessions());
       setRegisteredUsers(getRegisteredUsers());
 
-      // Atualização em background via Supabase
-      getActivityLogsAsync().then(liveLogs => {
-        if (liveLogs && liveLogs.length > 0) setLogs(liveLogs);
-      }).catch(() => { });
+      // Atualização em background via Supabase APENAS na transição de abertura (não a cada render/toggle)
+      if (!wasOpenRef.current) {
+        wasOpenRef.current = true;
+        getActivityLogsAsync().then(liveLogs => {
+          if (liveLogs && liveLogs.length > 0) setLogs(liveLogs);
+        }).catch(() => { });
 
-      getUserSessionsAsync().then(s => {
-        if (s && Object.keys(s).length > 0) setUserSessions(s);
-      }).catch(() => { });
+        getUserSessionsAsync().then(s => {
+          if (s && Object.keys(s).length > 0) setUserSessions(s);
+        }).catch(() => { });
 
-      getRegisteredUsersAsync().then(users => {
-        if (users && users.length > 0) setRegisteredUsers(users);
-      }).catch(() => { });
+        getRegisteredUsersAsync().then(users => {
+          if (users && users.length > 0) setRegisteredUsers(users);
+        }).catch(() => { });
 
-      getCapabilityAuditLogsAsync().then(auditList => {
-        if (auditList && auditList.length > 0) setCapabilityAuditLogs(auditList);
-      }).catch(() => { });
+        getCapabilityAuditLogsAsync().then(auditList => {
+          if (auditList && auditList.length > 0) setCapabilityAuditLogs(auditList);
+        }).catch(() => { });
+      }
+    } else {
+      wasOpenRef.current = false;
     }
 
     return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [isOpen, layerPermissions, featurePermissions, addressColumnsPermissions, featurePropertiesPermissions]);
+  }, [isOpen]);
 
   // Ouvinte de evento customizado para sincronização em tempo real entre abas/janelas
   useEffect(() => {
