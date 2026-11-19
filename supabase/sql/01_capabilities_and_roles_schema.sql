@@ -164,13 +164,19 @@ FOR INSERT WITH CHECK (
   auth.uid() IS NOT NULL AND (performed_by = auth.uid() OR public.is_master())
 );
 
--- Concessão de Permissões ao Postgres Roles
+-- Concessão de Permissões aos Postgres Roles (Governada por RLS)
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.auth_capabilities TO anon, authenticated, service_role;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.auth_capabilities TO authenticated, service_role;
+
 GRANT SELECT ON TABLE public.base_roles TO anon, authenticated, service_role;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.base_roles TO authenticated, service_role;
+
 GRANT SELECT ON TABLE public.role_capabilities TO anon, authenticated, service_role;
-GRANT SELECT ON TABLE public.user_capabilities TO authenticated, service_role;
-GRANT SELECT ON TABLE public.user_delegation_scopes TO authenticated, service_role;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.role_capabilities TO authenticated, service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_capabilities TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_delegation_scopes TO authenticated, service_role;
 GRANT SELECT, INSERT ON TABLE public.capability_audit_logs TO authenticated, service_role;
 
 COMMIT;

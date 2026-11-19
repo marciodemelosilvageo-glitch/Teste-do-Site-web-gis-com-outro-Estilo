@@ -22,6 +22,7 @@ import {
   getAllCapabilitiesCatalog,
   getBaseRolesMatrix,
   saveBaseRolesMatrix,
+  saveRoleCapability,
   logCapabilityAudit,
   getManagerScope,
   saveManagerScope,
@@ -160,7 +161,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     };
 
     setMatrix(nextMatrix);
-    await saveBaseRolesMatrix(nextMatrix);
+    await saveRoleCapability(role, capKey, updatedRolePerms[capKey]);
 
     // Auditoria da Mudança de Poder no Perfil Base
     await logCapabilityAudit({

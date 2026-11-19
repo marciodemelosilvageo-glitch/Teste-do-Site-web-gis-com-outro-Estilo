@@ -2696,30 +2696,53 @@ export const saveBaseRolesMatrix = async (
   try {
     localStorage.setItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX, JSON.stringify(matrix));
     notifyPermissionsUpdated();
+    return { success: true };
+  } catch (err: any) {
+    return { success: true };
+  }
+};
 
-    // Sincronizar com Supabase se as tabelas relacionais existirem
+// Salvar alteração pontual de um poder em um perfil base (seguro e sem conflito de FK)
+export const saveRoleCapability = async (
+  role: BaseRoleKey,
+  capKey: string,
+  setting: RoleCapabilityEntry
+): Promise<{ success: boolean; error?: string }> => {
+  if (typeof window === 'undefined') return { success: true };
+  try {
+    // 1. Atualizar e sincronizar a matriz local
+    const matrix = getBaseRolesMatrix();
+    if (!matrix[role]) matrix[role] = {};
+    matrix[role][capKey] = setting;
+    localStorage.setItem(STORAGE_KEYS.ROLE_CAPABILITIES_MATRIX, JSON.stringify(matrix));
+    notifyPermissionsUpdated();
+
+    // 2. Persistir no Supabase pontualmente se autenticado como Master/Gerente
     try {
-      const roles: BaseRoleKey[] = ['visitor', 'site_account', 'user', 'manager'];
-      for (const r of roles) {
-        const perms = matrix[r];
-        if (perms) {
-          for (const [capKey, setting] of Object.entries(perms)) {
-            await supabase.from('role_capabilities').upsert({
-              role_id: `role:${r}`,
-              capability_key: capKey,
-              can_use: setting.can_use,
-              can_grant: setting.can_grant,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'role_id,capability_key' });
-          }
+      const { data: authData } = await supabase.auth.getSession();
+      if (authData?.session?.user) {
+        // Envia o ID correto sem o prefixo 'role:' ('visitor', 'site_account', 'user', 'manager')
+        const cleanRoleId = role.replace(/^role:/, '');
+        const { error } = await supabase.from('role_capabilities').upsert({
+          role_id: cleanRoleId,
+          capability_key: capKey,
+          can_use: setting.can_use,
+          can_grant: setting.can_grant,
+          effect: setting.can_use ? 'allow' : 'deny',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'role_id,capability_key' });
+
+        if (error) {
+          console.debug('[PERMISSIONS] Sincronização em nuvem da matriz:', error.message);
         }
       }
     } catch {
-      // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
+      // Falha silenciosa para não travar a interface
     }
+
     return { success: true };
   } catch (err: any) {
-    return { success: true }; // Permite prosseguir localmente
+    return { success: false, error: err?.message };
   }
 };
 
@@ -2755,8 +2778,9 @@ export const saveUserOverride = async (
         await supabase.from('user_capabilities').upsert({
           user_id: userId,
           capability_key: capKey,
-          override_type: override,
+          can_use: override === 'allow',
           can_grant: canGrant,
+          effect: override,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,capability_key' });
       }
