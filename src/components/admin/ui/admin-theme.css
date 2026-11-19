@@ -12,7 +12,7 @@
   --admin-accent-hover: #0062CC;
   --admin-destructive: #FF3B30;
   --admin-status-green: #34C759;
-  --admin-status-amber: #FF9500;
+  --admin-status-warning: #FF9500;
   --admin-status-gray: #8E8E93;
   color-scheme: light;
 }
@@ -31,7 +31,7 @@
   --admin-accent-hover: #409CFF;
   --admin-destructive: #FF453A;
   --admin-status-green: #30D158;
-  --admin-status-amber: #FF9F0A;
+  --admin-status-warning: #FF9F0A;
   --admin-status-gray: #636366;
   color-scheme: dark;
 }

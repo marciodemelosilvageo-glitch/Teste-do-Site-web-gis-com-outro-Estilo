@@ -36,8 +36,8 @@ export const ADMIN_TOKENS = {
     destructiveDark: '#FF453A',
     statusGreenLight: '#34C759',
     statusGreenDark: '#30D158',
-    statusAmberLight: '#FF9500',
-    statusAmberDark: '#FF9F0A',
+    statusWarningLight: '#FF9500',
+    statusWarningDark: '#FF9F0A',
     statusGrayLight: '#8E8E93',
     statusGrayDark: '#636366'
   },

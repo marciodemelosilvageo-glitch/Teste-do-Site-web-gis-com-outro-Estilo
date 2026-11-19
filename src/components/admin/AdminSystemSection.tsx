@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import {
-  Settings,
-  Database,
   RefreshCw,
   Trash2,
-  ShieldCheck,
-  CheckCircle2,
-  HardDrive,
-  Info,
-  AlertTriangle,
-  Lock
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import {
+  AdminCard,
+  SectionHeader,
+  StatusDot
+} from './ui';
 
 interface AdminSystemSectionProps {
   onRefreshData: () => void;
@@ -38,7 +36,7 @@ export const AdminSystemSection: React.FC<AdminSystemSectionProps> = ({
     try {
       await onRefreshData();
       showToast('Dados e permissões do sistema sincronizados com sucesso.');
-    } catch (e) {
+    } catch {
       showToast('Erro ao sincronizar dados.');
     } finally {
       setIsRefreshing(false);
@@ -54,150 +52,154 @@ export const AdminSystemSection: React.FC<AdminSystemSectionProps> = ({
   const isSupabaseConfigured = Boolean(supabase);
 
   return (
-    <div className="space-y-5 animate-fadeIn">
+    <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="pb-1 border-b border-black/[0.04] dark:border-white/[0.06]">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+      <div className="pb-3 border-b border-black/[0.08] dark:border-white/[0.08]">
+        <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white">
           Sistema e Manutenção
         </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
           Diagnósticos da infraestrutura do WebGIS e operações administrativas exclusivas do Administrador Master.
         </p>
       </div>
 
       {/* Informações da Plataforma */}
-      <div className="bg-white dark:bg-[#1c1c1e] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] p-4 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          <Info className="w-4 h-4 text-blue-500" />
-          <span>Informações do Ambiente</span>
-        </div>
+      <div className="space-y-2">
+        <SectionHeader title="Informações do Ambiente" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl">
-            <div className="text-[11px] text-slate-400 dark:text-slate-500">Versão da Aplicação</div>
-            <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">WebGIS v1.0.0</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Ambiente de Produção</div>
-          </div>
-
-          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl">
-            <div className="text-[11px] text-slate-400 dark:text-slate-500">Banco de Dados & Auth</div>
-            <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5 flex items-center gap-1.5">
-              <span>Supabase</span>
-              {isSupabaseConfigured ? (
-                <span className="w-2 h-2 rounded-full bg-emerald-500" title="Conectado" />
-              ) : (
-                <span className="w-2 h-2 rounded-full bg-amber-500" title="Offline" />
-              )}
+        <AdminCard className="p-0 overflow-hidden">
+          <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08]">
+            {/* Linha 1: Versão */}
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+              <span className="text-[#6C6C70] dark:text-[#98989D]">Versão da Aplicação</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-900 dark:text-white">WebGIS v1.0.0</span>
+                <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">• Produção</span>
+              </div>
             </div>
-            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">RLS e Edge Function ativos</div>
-          </div>
 
-          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl">
-            <div className="text-[11px] text-slate-400 dark:text-slate-500">Segurança de Dados</div>
-            <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">Criptografia SHA-256</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Senhas protegidas em hash</div>
-          </div>
-        </div>
+            {/* Linha 2: Banco de Dados */}
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+              <span className="text-[#6C6C70] dark:text-[#98989D]">Banco de Dados & Autenticação</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-900 dark:text-white">Supabase</span>
+                <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                  <StatusDot status={isSupabaseConfigured ? 'online' : 'warning'} />
+                  <span>{isSupabaseConfigured ? 'Conectado (RLS ativo)' : 'Offline'}</span>
+                </div>
+              </div>
+            </div>
 
-        <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.04] grid grid-cols-3 gap-2 text-center text-xs">
-          <div>
-            <span className="text-slate-400 dark:text-slate-500 text-[11px]">Contas: </span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{totalUsersCount}</span>
+            {/* Linha 3: Criptografia */}
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+              <span className="text-[#6C6C70] dark:text-[#98989D]">Segurança e Criptografia</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-900 dark:text-white">SHA-256</span>
+                <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">• Hash protegido</span>
+              </div>
+            </div>
+
+            {/* Métricas do Sistema */}
+            <div className="p-4 bg-black/[0.02] dark:bg-white/[0.02] grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Contas</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalUsersCount}</div>
+              </div>
+              <div>
+                <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Sessões</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalSessionsCount}</div>
+              </div>
+              <div>
+                <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Logs</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalLogsCount}</div>
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="text-slate-400 dark:text-slate-500 text-[11px]">Sessões: </span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{totalSessionsCount}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 dark:text-slate-500 text-[11px]">Logs: </span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{totalLogsCount}</span>
-          </div>
-        </div>
+        </AdminCard>
       </div>
 
       {/* Ações de Manutenção Seguras */}
-      <div className="bg-white dark:bg-[#1c1c1e] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] p-4 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          <HardDrive className="w-4 h-4 text-slate-500" />
-          <span>Ações de Manutenção do Sistema</span>
-        </div>
+      <div className="space-y-2">
+        <SectionHeader title="Ações de Manutenção" />
 
-        <div className="space-y-3">
-          {/* Ação 1: Sincronizar e Recarregar */}
-          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Sincronizar Dados e Permissões
+        <AdminCard className="p-0 overflow-hidden">
+          <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08]">
+            {/* Ação 1: Sincronizar e Recarregar */}
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900 dark:text-white">
+                  Sincronizar Dados e Permissões
+                </div>
+                <div className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
+                  Recarrega as permissões de camadas, ferramentas e usuários a partir do banco de dados.
+                </div>
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Recarrega as permissões de camadas, ferramentas e usuários a partir do Supabase.
-              </div>
+
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 active:scale-95 text-white text-xs font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer disabled:opacity-40"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isRefreshing ? 'Sincronizando...' : 'Sincronizar'}</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer disabled:opacity-60"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>{isRefreshing ? 'Sincronizando...' : 'Sincronizar'}</span>
-            </button>
-          </div>
+            {/* Ação 2: Limpar Logs de Auditoria */}
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900 dark:text-white">
+                  Limpar Histórico de Auditoria
+                </div>
+                <div className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
+                  Esvazia a lista de registros de logs armazenados. Recomendado exportar o CSV antes de limpar.
+                </div>
+              </div>
 
-          {/* Ação 2: Limpar Logs de Auditoria */}
-          <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Limpar Histórico de Auditoria
-              </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Esvazia a lista de registros de logs armazenados. Recomendado exportar o CSV antes de limpar.
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowClearLogsConfirm(true)}
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-[#FF3B30] text-xs font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Limpar Logs</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowClearLogsConfirm(true)}
-              className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/70 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Limpar Logs</span>
-            </button>
           </div>
-        </div>
+        </AdminCard>
       </div>
 
-      {/* Modal de Confirmação para Limpar Logs */}
+      {/* Modal de Confirmação para Limpar Logs no Estilo Apple */}
       {showClearLogsConfirm && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-[#1c1c1e] rounded-2xl border border-black/10 dark:border-white/10 p-5 space-y-4 shadow-xl animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-2xl border border-black/[0.08] dark:border-white/[0.12] p-5 space-y-4 shadow-2xl animate-scaleUp">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-black/[0.04] dark:bg-white/[0.08] text-[#FF3B30] flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white">
                   Limpar Logs de Auditoria?
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <p className="text-xs text-[#6C6C70] dark:text-[#98989D] leading-relaxed">
                   Esta ação removerá todos os registros de histórico de atividades. Tem certeza de que deseja continuar?
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/[0.04] dark:border-white/[0.04]">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/[0.08] dark:border-white/[0.08]">
               <button
                 type="button"
                 onClick={() => setShowClearLogsConfirm(false)}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-[#6C6C70] dark:text-[#98989D] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleConfirmClearLogs}
-                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs"
+                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white cursor-pointer shadow-xs active:scale-95 transition-all"
               >
                 Sim, Limpar
               </button>
