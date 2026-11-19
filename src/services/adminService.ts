@@ -746,7 +746,7 @@ export const saveRegisteredUser = async (
       });
 
       const syntheticEmail = toSyntheticEmail(usernameClean);
-      const { data: authData, error: authErr } = await isolatedAuthClient.auth.signUp({
+      let authDataResult = await isolatedAuthClient.auth.signUp({
         email: syntheticEmail,
         password: userData.password.trim(),
         options: {
@@ -757,15 +757,45 @@ export const saveRegisteredUser = async (
         }
       });
 
-      if (authErr || !authData?.user) {
+      // Se falhar porque o usuário já existe em auth.users (mas não está em profiles, por ter sido excluído antes):
+      if (authDataResult.error && (
+        authDataResult.error.message?.toLowerCase().includes('already registered') ||
+        authDataResult.error.message?.toLowerCase().includes('already exists') ||
+        (authDataResult.error as any).code === 'user_already_exists'
+      )) {
+        console.warn(`[ADMIN] Usuário @${usernameClean} já existia em auth.users (órfão de exclusão anterior). Tentando limpeza via RPC...`);
+        try {
+          const { data: cleanData, error: cleanErr } = await supabase.rpc('admin_cleanup_orphan_user', {
+            p_username: usernameClean
+          });
+
+          if (!cleanErr && (cleanData as any)?.success) {
+            console.info(`[ADMIN] Conta órfã @${usernameClean} removida de auth.users com sucesso. Recriando...`);
+            authDataResult = await isolatedAuthClient.auth.signUp({
+              email: syntheticEmail,
+              password: userData.password.trim(),
+              options: {
+                data: {
+                  name: nameClean,
+                  username: usernameClean
+                }
+              }
+            });
+          }
+        } catch (cleanCatchErr) {
+          console.warn('[ADMIN] Falha ao tentar limpar conta órfã via RPC:', cleanCatchErr);
+        }
+      }
+
+      if (authDataResult.error || !authDataResult.data?.user) {
         return {
           success: false,
           users: currentUsers,
-          error: `Falha ao criar credenciais de acesso (${authErr?.message || 'Erro no Supabase Auth'})`
+          error: `Falha ao criar credenciais de acesso (${authDataResult.error?.message || 'Erro no Supabase Auth'})`
         };
       }
 
-      createdUserId = authData.user.id;
+      createdUserId = authDataResult.data.user.id;
 
       // Grava / atualiza o perfil em public.profiles usando a sessão autenticada do Master atual
       const profilePayload = {
@@ -1021,13 +1051,25 @@ export const deleteRegisteredUser = async (
   }
 
   if (!edgeSuccess) {
-    const { error: delError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
+    // 1. Tenta exclusão atômica via RPC admin_delete_user (remove de profiles E auth.users)
+    let deletedViaRpc = false;
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_user', { p_user_id: userId });
+      if (!rpcError && (rpcData as any)?.success) {
+        deletedViaRpc = true;
+      }
+    } catch {}
 
-    if (delError) {
-      return { success: false, users: currentUsers, error: 'Falha ao excluir perfil: ' + delError.message };
+    // 2. Se a RPC não estiver instalada, exclui de profiles (que acionará o trigger no banco caso instalado)
+    if (!deletedViaRpc) {
+      const { error: delError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (delError) {
+        return { success: false, users: currentUsers, error: 'Falha ao excluir perfil: ' + delError.message };
+      }
     }
   }
 
