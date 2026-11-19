@@ -283,29 +283,7 @@ export default function App() {
     setSimulatedSessionId(null);
     setIsSimulationChoiceModalOpen(false);
     setActiveLayers(DEFAULT_ACTIVE_LAYERS);
-    showToast('👑 Retornado com sucesso para a visão de Administrador Master!');
   };
-
-  const [discreetNotice, setDiscreetNotice] = useState<string | null>(null);
-  const discreetNoticeTimerRef = useRef<any>(null);
-
-  const showDiscreetNotice = useCallback((msg: string) => {
-    if (discreetNoticeTimerRef.current) clearTimeout(discreetNoticeTimerRef.current);
-    setDiscreetNotice(msg);
-    discreetNoticeTimerRef.current = setTimeout(() => {
-      setDiscreetNotice(null);
-    }, 3500);
-  }, []);
-
-  // Ouvir avisos de mudança de permissão emitidos internamente pelo contexto
-  useEffect(() => {
-    const handleNotice = (e: any) => {
-      const msg = e.detail?.message || 'Suas permissões foram atualizadas';
-      showDiscreetNotice(msg);
-    };
-    window.addEventListener('webgis_permissions_changed_notice', handleNotice);
-    return () => window.removeEventListener('webgis_permissions_changed_notice', handleNotice);
-  }, [showDiscreetNotice]);
 
   useEffect(() => {
     initAdminService(true);
@@ -889,9 +867,6 @@ export default function App() {
   refreshPermissionsRef.current = refreshPermissions;
   const handleLogoutRef = useRef(handleLogout);
   handleLogoutRef.current = handleLogout;
-  const showDiscreetNoticeRef = useRef(showDiscreetNotice);
-  showDiscreetNoticeRef.current = showDiscreetNotice;
-
   // Assinatura Supabase Realtime para propagação de poderes e bloqueios em ~1 segundo
   useEffect(() => {
     const activeRole = isSimulatingUser ? simulatedRole : userRole;
@@ -905,12 +880,10 @@ export default function App() {
         await refreshGlobalSettingsAsync();
         refreshPermissionsRef.current();
         accessRef.current.refreshAccess();
-        showDiscreetNoticeRef.current('Suas permissões foram atualizadas');
       },
       onAccountBlocked: async (reason) => {
         console.warn('[REALTIME APP] Encerramento de sessão recebido via Realtime:', reason);
         await handleLogoutRef.current(reason || 'Conta desativada pelo Administrador');
-        showDiscreetNoticeRef.current('⚠️ Acesso suspenso: sua conta foi desativada');
       }
     });
 
@@ -4618,24 +4591,6 @@ export default function App() {
           />
         </Suspense>
       )}
-
-      {/* AVISO DISCRETO DE ATUALIZAÇÃO DE PERMISSÕES EM TEMPO REAL */}
-      <AnimatePresence>
-        {discreetNotice && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] px-4 py-2 bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 backdrop-blur-xl rounded-full shadow-2xl text-xs font-semibold flex items-center gap-2 pointer-events-none border border-white/10 dark:border-black/10 select-none animate-fadeIn"
-          >
-            <ShieldCheck className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
-            <span>{discreetNotice}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-
 
       {/* MODAL DE AJUDA AGORA INTEGRADO NA BARRA LATERAL (AppleSidebar) */}
       </div>

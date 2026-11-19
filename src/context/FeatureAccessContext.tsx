@@ -188,31 +188,9 @@ export const useFeatureAccessState = ({
   });
 
   const activeUserId = currentActiveUser?.id;
-  const capabilitiesRef = useRef<Record<string, EffectiveCapability>>(capabilities);
-  capabilitiesRef.current = capabilities;
-  const isFirstLoadRef = useRef<boolean>(true);
 
   const refreshAccess = useCallback(async () => {
     const fresh = await fetchEffectiveCapabilitiesAsync(activeUserId);
-    const prev = capabilitiesRef.current;
-    
-    // Se não for a carga inicial, verifica se houve alteração em poderes
-    if (!isFirstLoadRef.current && prev && Object.keys(prev).length > 0) {
-      let changed = false;
-      const allKeys = Array.from(new Set([...Object.keys(prev), ...Object.keys(fresh)]));
-      for (const k of allKeys) {
-        if (prev[k]?.can_use !== fresh[k]?.can_use) {
-          changed = true;
-          break;
-        }
-      }
-      if (changed && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('webgis_permissions_changed_notice', {
-          detail: { message: 'Suas permissões foram atualizadas' }
-        }));
-      }
-    }
-    isFirstLoadRef.current = false;
     setCapabilities(fresh);
   }, [activeUserId]);
 
