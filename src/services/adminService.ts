@@ -2208,41 +2208,71 @@ export const buildFallbackCapabilitiesMap = (
   return map;
 };
 
+// Controle de cache e disponibilidade da função RPC get_effective_capabilities no Supabase
+let isRpcAvailable: boolean | null = null;
+let lastRpcCheckTime = 0;
+const RPC_CHECK_COOLDOWN_MS = 5 * 60 * 1000; // Se a função ainda não existir no banco, aguarda 5 minutos antes de reconsultar
+
+const inFlightCapabilitiesPromises = new Map<string, Promise<Record<string, EffectiveCapability>>>();
+
 /**
- * Carrega as capacidades efetivas do servidor (Supabase RPC) e armazena em cache offline no localStorage.
- * Atualiza automaticamente em caso de falha de rede usando o último valor seguro persistido.
+ * Reseta o indicador de disponibilidade do RPC permitindo nova verificação imediata
  */
-export const fetchEffectiveCapabilitiesAsync = async (
-  userId?: string
+export const resetRpcCapabilitiesCheck = () => {
+  isRpcAvailable = null;
+  lastRpcCheckTime = 0;
+  inFlightCapabilitiesPromises.clear();
+};
+
+const internalFetchEffectiveCapabilities = async (
+  targetId?: string
 ): Promise<Record<string, EffectiveCapability>> => {
-  const activeUser = getCurrentActiveUser();
-  const targetId = userId || activeUser?.id;
   const cacheKey = `webgis_capabilities_cache_${targetId || 'visitor'}`;
 
-  // 1. Tentar buscar em tempo real do banco de dados (RPC get_effective_capabilities) se existir
-  try {
-    const { data, error } = await supabase.rpc('get_effective_capabilities', {
-      p_user_id: targetId || null
-    });
+  // 1. Tentar buscar em tempo real do banco de dados (RPC get_effective_capabilities) se estiver disponível
+  const now = Date.now();
+  const shouldTryRpc = isRpcAvailable !== false || (now - lastRpcCheckTime > RPC_CHECK_COOLDOWN_MS);
 
-    if (!error && Array.isArray(data) && data.length > 0) {
-      const map: Record<string, EffectiveCapability> = {};
-      data.forEach((row: any) => {
-        if (row.capability_key) {
-          map[row.capability_key] = {
-            can_use: row.can_use === true,
-            can_grant: row.can_grant === true,
-            source: row.source || 'server'
-          };
-        }
+  if (shouldTryRpc) {
+    try {
+      lastRpcCheckTime = now;
+      const { data, error } = await supabase.rpc('get_effective_capabilities', {
+        p_user_id: targetId || null
       });
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(map));
-      } catch (e) {}
-      return map;
+
+      if (error) {
+        // Se a função ainda não foi criada no banco de dados (404 / PGRST202 / schema cache)
+        if (
+          error.code === 'PGRST202' ||
+          error.message?.includes('not found') ||
+          error.message?.includes('schema cache') ||
+          error.message?.includes('404')
+        ) {
+          isRpcAvailable = false;
+          console.info(
+            '[WebGIS] Nota: A função SQL "get_effective_capabilities" ainda não foi instalada no Supabase. Utilizando matriz de capacidades segura (fallback local).'
+          );
+        }
+      } else if (Array.isArray(data) && data.length > 0) {
+        isRpcAvailable = true;
+        const map: Record<string, EffectiveCapability> = {};
+        data.forEach((row: any) => {
+          if (row.capability_key) {
+            map[row.capability_key] = {
+              can_use: row.can_use === true,
+              can_grant: row.can_grant === true,
+              source: row.source || 'server'
+            };
+          }
+        });
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(map));
+        } catch (e) {}
+        return map;
+      }
+    } catch (e) {
+      isRpcAvailable = false;
     }
-  } catch (e) {
-    // Falha graciosa se o RPC ainda não existir no banco
   }
 
   // 2. Fallback: Recuperar do cache offline seguro (validando se contém camadas)
@@ -2262,6 +2292,34 @@ export const fetchEffectiveCapabilitiesAsync = async (
     localStorage.setItem(cacheKey, JSON.stringify(fallback));
   } catch (e) {}
   return fallback;
+};
+
+/**
+ * Carrega as capacidades efetivas do servidor (Supabase RPC) e armazena em cache offline no localStorage.
+ * Inclui deduplicação de chamadas simultâneas (in-flight de-duplication) para evitar requisições redundantes.
+ */
+export const fetchEffectiveCapabilitiesAsync = (
+  userId?: string
+): Promise<Record<string, EffectiveCapability>> => {
+  const activeUser = getCurrentActiveUser();
+  const targetId = userId || activeUser?.id;
+  const inFlightKey = targetId || 'visitor';
+
+  const existingPromise = inFlightCapabilitiesPromises.get(inFlightKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const promise = (async () => {
+    try {
+      return await internalFetchEffectiveCapabilities(targetId);
+    } finally {
+      inFlightCapabilitiesPromises.delete(inFlightKey);
+    }
+  })();
+
+  inFlightCapabilitiesPromises.set(inFlightKey, promise);
+  return promise;
 };
 
 // ================= MATRIZ DE PODERES E CATÁLOGO RELACIONAL =================

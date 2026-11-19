@@ -6,6 +6,7 @@ import {
   EffectiveCapability,
   fetchEffectiveCapabilitiesAsync,
   buildFallbackCapabilitiesMap,
+  resetRpcCapabilitiesCheck,
   logActivity
 } from '../services/adminService';
 
@@ -169,10 +170,12 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
     return buildFallbackCapabilitiesMap(currentActiveUser?.id);
   });
 
+  const activeUserId = currentActiveUser?.id;
+
   const refreshAccess = useCallback(async () => {
-    const fresh = await fetchEffectiveCapabilitiesAsync(currentActiveUser?.id);
+    const fresh = await fetchEffectiveCapabilitiesAsync(activeUserId);
     setCapabilities(fresh);
-  }, [currentActiveUser]);
+  }, [activeUserId]);
 
   // Carregar capacidades ao montar o componente ou alterar o usuário autenticado
   useEffect(() => {
@@ -182,6 +185,7 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
   // Ouvir eventos globais de atualização de permissões disparados pelo AdminPanel ou outras abas
   useEffect(() => {
     const handlePermissionsUpdated = () => {
+      resetRpcCapabilitiesCheck();
       refreshAccess();
     };
     window.addEventListener('webgis_permissions_updated', handlePermissionsUpdated);
