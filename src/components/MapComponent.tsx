@@ -3975,9 +3975,9 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           <div 
             id="loading-overlay" 
             style={{ zIndex: isMobile ? MOBILE_Z_INDEX.LOADING_OVERLAY : 1000 }}
-            className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center rounded-2xl"
+            className="absolute inset-0 bg-white/40 dark:bg-slate-900/40 flex items-center justify-center rounded-2xl pointer-events-none"
           >
-            <div className="text-center bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
+            <div className="text-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 pointer-events-none">
               <svg className="animate-spin h-9 w-9 text-red-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -4145,8 +4145,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
               className={isPrintMode 
                 ? "flex flex-col gap-4 w-full" 
                 : isMobile
-                ? "absolute right-2.5 flex flex-col items-end gap-2 print:hidden overflow-y-auto max-h-[calc(100dvh-var(--mobile-bottom-inset,80px)-var(--mobile-top-inset,12px)-16px)] pr-0.5 custom-scrollbar"
-                : "absolute right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden"
+                ? "absolute right-2.5 flex flex-col items-end gap-2 print:hidden overflow-y-auto max-h-[calc(100dvh-var(--mobile-bottom-inset,80px)-var(--mobile-top-inset,12px)-16px)] pr-0.5 custom-scrollbar pointer-events-none"
+                : "absolute right-3 z-[999] flex flex-col items-end gap-2.5 print:hidden pointer-events-none"
               }
               style={!isPrintMode ? { 
                 top: isMobile ? 'calc(var(--mobile-top-inset, 0px) + 10px)' : '12px',
@@ -4155,7 +4155,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
             >
               
               {/* Barra Superior de Botões Flutuantes (Apple Squircle Pills) */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pointer-events-auto">
                 {/* 1. Seletor de Mapa Estilo Apple (Segmented Sheet Trigger) */}
                 {can('allowBasemapSelector') && (
                 <div className="relative">
@@ -4185,7 +4185,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                       onMouseDown={(e) => e.stopPropagation()}
                       onTouchStart={(e) => e.stopPropagation()}
                       style={{ zIndex: 1001 }}
-                      className="absolute right-0 top-12 w-[270px] max-w-[calc(100vw-24px)] p-2 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 animate-fadeIn text-left"
+                      className="absolute right-0 top-12 w-[270px] max-w-[calc(100vw-24px)] p-2 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 animate-fadeIn text-left pointer-events-auto"
                     >
                       <div className="grid grid-cols-2 gap-1.5 p-1 bg-black/5 dark:bg-white/5 rounded-2xl">
                         <button
@@ -4484,7 +4484,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
               </div>
 
               {/* 3. Coluna de Controles Flutuantes à Direita (Pills de Ação Rápida Apple) */}
-              <div className="flex flex-col items-center gap-2 mt-1">
+              <div className="flex flex-col items-center gap-2 mt-1 pointer-events-auto">
                 {/* Zoom Pill Vertical Estilo Apple */}
                 <div className="flex flex-col rounded-2xl overflow-hidden shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl bg-white/85 dark:bg-[#1c1c1e]/85">
                   <button 
@@ -4586,7 +4586,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                     maxWidth: 'calc(100vw - 24px)',
                     maxHeight: 'min(380px, calc(100dvh - var(--mobile-bottom-inset, 80px) - var(--mobile-top-inset, 12px) - 30px))'
                   } : undefined}
-                  className={`bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden flex flex-col ${isPrintMode ? 'w-full max-h-none shadow-none border-none bg-transparent' : 'mt-1 w-[270px] sm:w-[310px] max-h-[420px]'}`}
+                  className={`bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden flex flex-col pointer-events-auto ${isPrintMode ? 'w-full max-h-none shadow-none border-none bg-transparent' : 'mt-1 w-[270px] sm:w-[310px] max-h-[420px]'}`}
                 >
                   {/* Cabeçalho do Painel com Salvar Estilo, Carregar e Ações */}
                   <div className="p-3 border-b border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04] flex flex-col gap-2 shrink-0">

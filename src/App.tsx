@@ -391,8 +391,18 @@ export default function App() {
   const [hasCnefeResults, setHasCnefeResults] = useState<boolean>(false);
   const hasCnefeSearch = hasCnefeResults || Boolean(searchCoordinates && searchCoordinates.length > 0);
 
-  // Estados de Carregamento e Status do Mapa
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Estados de Carregamento e Status do Mapa (contador de cargas ativas: liga +1, desliga -1, nunca abaixo de 0)
+  const [loadingCount, setLoadingCount] = useState<number>(1);
+  const isLoading = loadingCount > 0;
+  const setIsLoading = useCallback((loading: boolean | ((prev: boolean) => boolean)) => {
+    setLoadingCount((prevCount) => {
+      const nextBool = typeof loading === 'function' ? loading(prevCount > 0) : loading;
+      if (nextBool) {
+        return prevCount + 1;
+      }
+      return Math.max(0, prevCount - 1);
+    });
+  }, []);
   const [statusText, setStatusText] = useState<string>('Carregando dados...');
 
   // Controle de Caixa de Busca

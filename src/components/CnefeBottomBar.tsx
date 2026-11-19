@@ -623,8 +623,8 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
 
     return (
       <div 
-        className={`fixed inset-0 flex flex-col justify-end select-none transition-[visibility] duration-300 ${
-          isVisible ? 'pointer-events-auto' : 'pointer-events-none invisible'
+        className={`fixed inset-0 flex flex-col justify-end select-none transition-[visibility] duration-300 pointer-events-none ${
+          isVisible ? '' : 'invisible'
         }`}
         style={{ zIndex: MOBILE_Z_INDEX.SHEET }}
         role="dialog"
@@ -658,7 +658,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
               : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), height 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
             ['--cnefe-sheet-h' as any]: `${snapVh}dvh`,
           }}
-          className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden"
+          className="relative z-10 w-full max-w-lg mx-auto bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-3xl border-t border-black/10 dark:border-white/10 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto"
         >
           {/* Fundo estendido abaixo da gaveta para não deixar vão durante puxada para cima */}
           <div
