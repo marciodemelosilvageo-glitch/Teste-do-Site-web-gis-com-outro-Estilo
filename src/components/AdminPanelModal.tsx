@@ -730,14 +730,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   return createPortal(
     <div
-      className="admin-panel fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-hidden animate-fadeIn select-none"
+      className="admin-panel fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-[#F2F2F7] dark:bg-[#000000] flex overflow-hidden animate-fadeIn select-none p-0"
       onWheel={(e) => e.stopPropagation()}
     >
       {/* ========================================================
           DESKTOP (>= md): Janela Apple com Barra Lateral macOS
          ======================================================== */}
       <div
-        className="hidden md:flex bg-[#F2F2F7] dark:bg-[#000000] border border-black/[0.08] dark:border-white/[0.08] rounded-3xl shadow-2xl max-w-6xl w-full h-[88vh] max-h-[860px] overflow-hidden my-auto overscroll-contain"
+        className="hidden md:flex w-full h-full min-h-[100dvh] overflow-hidden overscroll-contain bg-[#F2F2F7] dark:bg-[#000000]"
         onClick={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
       >
@@ -796,7 +796,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
           {/* Área de Conteúdo Desktop */}
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#F2F2F7] dark:bg-[#000000]">
-            {renderSectionContent(currentSection)}
+            <div className="max-w-[1500px] mx-auto w-full">
+              {renderSectionContent(currentSection)}
+            </div>
           </div>
         </div>
       </div>
