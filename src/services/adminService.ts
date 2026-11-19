@@ -423,13 +423,21 @@ export const getRegisteredUsers = (): RegisteredUser[] => {
   return sortUsersMostRecentFirst(usersList);
 };
 
-// Garante sessão anônima para visitantes com token JWT do Supabase
+// Garante sessão anônima para visitantes com token JWT do Supabase (NUNCA reaproveita sessão de conta)
 export const ensureVisitorAuth = async (): Promise<string | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session && session.user) {
+    // Se já existe sessão E ela é comprovadamente anônima, reaproveita o ID
+    if (session?.user && session.user.is_anonymous) {
       return session.user.id;
     }
+
+    // Se existe uma sessão ativa de CONTA (não-anônima), desconecta para não contaminar visitante com conta
+    if (session?.user && !session.user.is_anonymous) {
+      console.info('[AUTH] Desconectando conta anterior antes de iniciar sessão anônima de visitante.');
+      await supabase.auth.signOut({ scope: 'local' });
+    }
+
     const { data: anonData, error } = await supabase.auth.signInAnonymously();
     if (!error && anonData?.user) {
       return anonData.user.id;
@@ -554,8 +562,8 @@ export const saveRegisteredUser = async (
 
   // 1. CRIAÇÃO DE NOVO USUÁRIO: Invoca a Edge Function admin-users (Criação com hash em auth.users)
   if (!userData.id) {
-    if (!userData.password || userData.password.trim().length < 4) {
-      return { success: false, users: currentUsers, error: 'A senha inicial deve ter no mínimo 4 caracteres.' };
+    if (!userData.password || userData.password.trim().length < 8) {
+      return { success: false, users: currentUsers, error: 'A senha inicial deve ter no mínimo 8 caracteres.' };
     }
 
     const requestedRole = userData.role || 'user';
@@ -702,8 +710,8 @@ export const changeUserPassword = async (
   requester?: { username?: string; role?: UserRole } | null | 'master'
 ): Promise<{ success: boolean; users: RegisteredUser[]; error?: string; syncedToServer?: boolean; syncError?: string }> => {
   if (typeof window === 'undefined') return { success: false, users: [] };
-  if (!newPasswordClean || newPasswordClean.trim().length < 4) {
-    return { success: false, users: getRegisteredUsers(), error: 'A nova senha deve ter no mínimo 4 caracteres.' };
+  if (!newPasswordClean || newPasswordClean.trim().length < 8) {
+    return { success: false, users: getRegisteredUsers(), error: 'A nova senha deve ter no mínimo 8 caracteres.' };
   }
 
   const currentUsers = await getRegisteredUsersAsync();
@@ -772,13 +780,27 @@ export const toggleRegisteredUserStatus = async (
 
   const nextActive = !user.isActive;
 
-  const { error: updError } = await supabase
-    .from('profiles')
-    .update({ is_active: nextActive, updated_at: new Date().toISOString() })
-    .eq('id', userId);
+  // Invoca a Edge Function admin-users para garantir bloqueio no profiles E revogação de sessões no Supabase Auth
+  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+    body: {
+      action: 'toggle_status',
+      payload: {
+        userId,
+        isActive: nextActive
+      }
+    }
+  });
 
-  if (updError) {
-    return { success: false, users: currentUsers, error: updError.message };
+  if (fnError || fnData?.error) {
+    console.warn('Falha na Edge Function toggle_status, aplicando fallback em profiles:', fnError || fnData?.error);
+    const { error: updError } = await supabase
+      .from('profiles')
+      .update({ is_active: nextActive, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (updError) {
+      return { success: false, users: currentUsers, error: updError.message };
+    }
   }
 
   const updated = await getRegisteredUsersAsync();
@@ -800,6 +822,12 @@ export const authenticateRegisteredUserAsync = async (
   }
 
   try {
+    // Se havia uma sessão anônima ativa de visitante, descarta-a localmente de forma limpa antes de autenticar a conta
+    const { data: { session: existingSession } } = await supabase.auth.getSession();
+    if (existingSession?.user?.is_anonymous) {
+      await supabase.auth.signOut({ scope: 'local' });
+    }
+
     const syntheticEmail = toSyntheticEmail(cleanUser);
 
     // 1. Autenticação oficial no Supabase Auth com senha protegida por hash Bcrypt/Argon2
@@ -979,10 +1007,14 @@ export const updateSelfAccountProfile = async (
   if (typeof window === 'undefined') return { success: false, error: 'Ambiente inválido' };
 
   try {
-    // 1. Se informou nova senha, atualiza diretamente no Supabase Auth (com hash seguro)
-    if (updates.newPassword && updates.newPassword.trim().length >= 4) {
+    // 1. Se informou nova senha, valida mínimo de 8 caracteres e atualiza diretamente no Supabase Auth (com hash seguro)
+    if (updates.newPassword) {
+      const cleanPass = updates.newPassword.trim();
+      if (cleanPass.length < 8) {
+        return { success: false, error: 'A nova senha deve ter no mínimo 8 caracteres.' };
+      }
       const { error: passError } = await supabase.auth.updateUser({
-        password: updates.newPassword.trim()
+        password: cleanPass
       });
       if (passError) {
         return { success: false, error: 'Erro ao atualizar senha no Supabase: ' + passError.message };
@@ -1062,11 +1094,17 @@ export const registerVisitorAsAccount = async (
   if (!usernameClean || usernameClean.length < 3) {
     return { success: false, error: 'O nome de usuário deve ter pelo menos 3 caracteres.' };
   }
-  if (!passwordClean || passwordClean.length < 4) {
-    return { success: false, error: 'A senha deve ter pelo menos 4 caracteres.' };
+  if (!passwordClean || passwordClean.length < 8) {
+    return { success: false, error: 'A senha deve ter pelo menos 8 caracteres.' };
   }
 
   try {
+    // Se havia uma sessão anônima ativa de visitante, descarta-a localmente de forma limpa antes de registrar a conta
+    const { data: { session: existingSession } } = await supabase.auth.getSession();
+    if (existingSession?.user?.is_anonymous) {
+      await supabase.auth.signOut({ scope: 'local' });
+    }
+
     const syntheticEmail = toSyntheticEmail(usernameClean);
 
     // 1. Cria conta no Supabase Auth com senha protegida

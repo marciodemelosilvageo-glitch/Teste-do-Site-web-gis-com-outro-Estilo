@@ -71,6 +71,7 @@ import { point } from '@turf/helpers';
 // Gerenciamento e Componente de Logos do Sistema (suporta modo claro e noturno)
 import { AppLogo, SYSTEM_LOGOS, CURRENT_APP_LOGO } from './components/AppLogo';
 export { SYSTEM_LOGOS, CURRENT_APP_LOGO };
+import { supabase } from './supabaseClient';
 
 interface HeroGlobeProps {
   isDarkMode: boolean;
@@ -738,6 +739,54 @@ export default function App() {
     // Intencionalmente desativado a pedido do usuário para não exibir mensagens flutuantes na interface
   }, []);
 
+  // Logout real: chama supabase.auth.signOut() local, limpa tokens do storage, registra auditoria e limpa estado
+  const handleLogout = useCallback(async (reason?: string) => {
+    try {
+      // 1. Chamar signOut local no Supabase Auth ANTES de limpar o estado
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (err) {
+      console.warn('Erro ao executar signOut no Supabase:', err);
+    }
+
+    // 2. Garantir que não sobra token de autenticação no armazenamento
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('sb-') && k.endsWith('-auth-token'))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
+
+    // 3. Registrar o evento de saída
+    const who = currentActiveUser?.username ? `@${currentActiveUser.username}` : 'visitante';
+    logActivity('ACESSO', `Sessão encerrada (logout) do usuário ${who}${reason ? ` (${reason})` : ''}`, userRole);
+
+    // 4. Limpar o estado e voltar à tela inicial
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    setCurrentActiveUser(null);
+    setCurrentActiveUserState(null);
+    setLastPreviousUser(getLastLoggedInUser());
+    setPromptPasswordForPreviousUser(false);
+    setPreviousUserPasswordInput('');
+    setPreviousUserError(null);
+    setUserRole('user');
+    setIsSimulatingUser(false);
+    setSimulatedRole('user');
+    setSimulatedTargetUser(null);
+    setSimulatedSessionId(null);
+    setHasEntered(false);
+    setIsAdminModalOpen(false);
+    setIsLoginFormOpen(false);
+    setIsProfileModalOpen(false);
+    setVisitorNameInput('');
+    setVisitorPasswordInput('');
+    setWelcomeError(null);
+    refreshPermissions();
+    showToast(reason || 'Sessão encerrada com sucesso.');
+  }, [currentActiveUser, userRole, refreshPermissions, showToast]);
+
   // Salvar Combinação de Camadas Favoritas (Item 5: Produtividade)
   const handleSaveFavoriteLayers = useCallback(() => {
     try {
@@ -871,6 +920,197 @@ export default function App() {
     measureHistory,
     mapInstance
   ]);
+
+  // Revalidação obrigatória na abertura: valida sessão e recarrega perfil de public.profiles
+  // O localStorage passa a ser apenas cache de exibição e NUNCA fonte de verdade de papel ou poderes
+  useEffect(() => {
+    let isMounted = true;
+
+    const validateAndSyncSession = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        // 1. Sem sessão ativa no Supabase Auth: descarta cache de conta falso/antigo
+        if (sessionError || !session?.user) {
+          const cachedUser = getCurrentActiveUser();
+          if (cachedUser) {
+            console.warn('[AUTH] Nenhuma sessão no Supabase Auth. Descartando cache local.');
+            setCurrentActiveUser(null);
+            if (isMounted) {
+              setCurrentActiveUserState(null);
+              setUserRole('user');
+              setHasEntered(false);
+              refreshPermissions();
+            }
+          }
+          return;
+        }
+
+        // 2. Se a sessão for anônima (visitante puro):
+        if (session.user.is_anonymous) {
+          const cachedUser = getCurrentActiveUser();
+          if (cachedUser) {
+            console.warn('[AUTH] Sessão é anônima mas existia conta em cache local. Descartando conta.');
+            setCurrentActiveUser(null);
+            if (isMounted) {
+              setCurrentActiveUserState(null);
+              setUserRole('user');
+              refreshPermissions();
+            }
+          }
+          return;
+        }
+
+        // 3. Sessão de conta autenticada: valida com o banco de dados Supabase (FONTE DA VERDADE)
+        const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
+        if (userError || !verifiedUser) {
+          console.warn('[AUTH] Token expirado ou inválido. Encerrando sessão.');
+          await handleLogout('Sessão expirada');
+          return;
+        }
+
+        // 4. Buscar perfil atualizado diretamente em public.profiles
+        const { data: profile, error: profError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', verifiedUser.id)
+          .maybeSingle();
+
+        if (profError || !profile) {
+          console.warn('[AUTH] Perfil não encontrado no banco de dados. Encerrando sessão.');
+          await handleLogout('Perfil não encontrado');
+          return;
+        }
+
+        if (!profile.is_active) {
+          console.warn('[AUTH] Conta do usuário bloqueada no banco de dados. Encerrando sessão.');
+          await handleLogout('Conta desativada pelo Administrador');
+          showToast('⚠️ Seu acesso foi suspenso pelo Administrador.');
+          return;
+        }
+
+        // 5. Mapear papel e capacidades autoritativos da base de dados
+        const authoritativeRole: UserRole = (profile.role === 'admin' ? 'master' : (profile.role || 'user')) as UserRole;
+        const authoritativeUser: RegisteredUser = {
+          id: profile.id,
+          username: profile.username,
+          name: profile.name,
+          role: authoritativeRole,
+          department: profile.department || '',
+          createdAt: profile.created_at,
+          createdBy: profile.created_by || '',
+          lastLogin: profile.last_login,
+          isActive: profile.is_active !== false,
+          mustChangePassword: !!profile.must_change_password,
+          hasCustomPermissions: !!profile.has_custom_permissions,
+          managerPermissions: profile.manager_permissions || undefined,
+          customLayerPermissions: profile.custom_layer_permissions || undefined,
+          customFeaturePermissions: profile.custom_feature_permissions || undefined,
+          customAddressColumnsPermissions: profile.custom_address_columns_permissions || undefined,
+          customFeaturePropertiesPermissions: profile.custom_feature_properties_permissions || undefined,
+        };
+
+        // Atualiza cache de exibição com os dados verdadeiros do servidor
+        setCurrentActiveUser(authoritativeUser);
+        if (isMounted) {
+          setCurrentActiveUserState(authoritativeUser);
+          setUserRole(authoritativeRole);
+          setHasEntered(true);
+          refreshPermissions();
+        }
+      } catch (err) {
+        console.error('[AUTH] Erro ao validar sessão na abertura:', err);
+      }
+    };
+
+    validateAndSyncSession();
+
+    // Reagir a eventos em tempo real do Supabase Auth (SIGNED_OUT, TOKEN_REFRESHED, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setCurrentActiveUser(null);
+        if (isMounted) {
+          setCurrentActiveUserState(null);
+          setUserRole('user');
+          setHasEntered(false);
+          refreshPermissions();
+        }
+      } else if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'SIGNED_IN') {
+        if (session?.user && !session.user.is_anonymous) {
+          await validateAndSyncSession();
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [handleLogout, refreshPermissions, showToast]);
+
+  // Verificação periódica e ao voltar à aba se o perfil continua ativo no banco (bloqueio efetivo)
+  useEffect(() => {
+    if (!currentActiveUser) return;
+
+    let isChecking = false;
+    const verifyProfileStillActive = async () => {
+      if (isChecking) return;
+      isChecking = true;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user || session.user.is_anonymous) {
+          await handleLogout('Sessão revogada pelo servidor');
+          return;
+        }
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('id, role, is_active')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (error || !profile || !profile.is_active) {
+          console.warn('[AUTH] Perfil inativo ou bloqueado no servidor. Encerrando sessão.');
+          await handleLogout('Conta desativada pelo Administrador');
+          showToast('⚠️ Acesso suspenso: sua conta foi desativada pelo Administrador.');
+          return;
+        }
+
+        // Sincronizar papel se alterado no servidor
+        const serverRole: UserRole = (profile.role === 'admin' ? 'master' : (profile.role || 'user')) as UserRole;
+        if (currentActiveUser.role !== serverRole && !isSimulatingUser) {
+          const updated = { ...currentActiveUser, role: serverRole };
+          setCurrentActiveUser(updated);
+          setCurrentActiveUserState(updated);
+          setUserRole(serverRole);
+          refreshPermissions();
+        }
+      } catch (err) {
+        console.warn('[AUTH] Falha na checagem periódica de status do perfil:', err);
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    // A cada 2 minutos (120000ms)
+    const intervalId = setInterval(verifyProfileStillActive, 120000);
+
+    // Instantâneo ao focar a janela ou voltar à aba
+    const handleFocusOrVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        verifyProfileStillActive();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+    window.addEventListener('focus', handleFocusOrVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
+      window.removeEventListener('focus', handleFocusOrVisibility);
+    };
+  }, [currentActiveUser, isSimulatingUser, handleLogout, refreshPermissions, showToast]);
 
   // Helper para verificar se um elemento corresponde ao filtro de município
   const matchesMunicipality = (props: Record<string, any>, filterTerm: string): boolean => {
@@ -1630,8 +1870,8 @@ export default function App() {
   }, [visitorNameInput]);
 
   // Entrar 100% como Visitante puro (garante que nenhuma conta anterior seja associada)
-  const handleEnterPureVisitor = (customName?: string) => {
-    ensureVisitorAuth().catch(() => {});
+  const handleEnterPureVisitor = async (customName?: string) => {
+    await ensureVisitorAuth();
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
     setCurrentActiveUser(null);
@@ -1665,7 +1905,7 @@ export default function App() {
 
     // 1. Se não digitou nome nenhum: entra como visitante padrão imediatamente
     if (!trimmedName) {
-      handleEnterPureVisitor();
+      await handleEnterPureVisitor();
       return;
     }
 
@@ -1696,8 +1936,8 @@ export default function App() {
 
       // 3. Usuário NÃO existe: Se informou senha, realiza o auto-cadastro da nova conta
       if (trimmedPassword) {
-        if (trimmedPassword.length < 4) {
-          setWelcomeError('A senha deve ter no mínimo 4 caracteres para criar sua conta.');
+        if (trimmedPassword.length < 8) {
+          setWelcomeError('A senha deve ter no mínimo 8 caracteres para criar sua conta.');
           setIsWelcomeSubmitting(false);
           return;
         }
@@ -1806,29 +2046,6 @@ export default function App() {
     setUserPasswordInput('');
     setUserLoginError(null);
     setShowUserPassword(false);
-  };
-
-  const handleLogout = () => {
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
-    logActivity('ACESSO', `Sessão encerrada (logout) do usuário @${currentActiveUser?.username || 'visitante'}`, userRole);
-    setCurrentActiveUser(null);
-    setCurrentActiveUserState(null);
-    setLastPreviousUser(getLastLoggedInUser());
-    setPromptPasswordForPreviousUser(false);
-    setPreviousUserPasswordInput('');
-    setPreviousUserError(null);
-    setUserRole('user');
-    setIsSimulatingUser(false);
-    setHasEntered(false);
-    setIsAdminModalOpen(false);
-    setIsLoginFormOpen(false);
-    setIsProfileModalOpen(false);
-    setVisitorNameInput('');
-    setVisitorPasswordInput('');
-    setWelcomeError(null);
-    refreshPermissions();
-    showToast('Sessão encerrada com sucesso.');
   };
 
   // Executar busca espacial e fuzzy
@@ -3333,7 +3550,7 @@ export default function App() {
             {userRole !== 'admin' && (
               <button
                 onClick={() => {
-                  setHasEntered(false);
+                  handleLogout('Troca de conta pelo painel de bloqueio');
                   handleOpenAdminLogin();
                 }}
                 className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-2xl text-xs transition-colors cursor-pointer border border-slate-700"
@@ -3341,6 +3558,13 @@ export default function App() {
                 Entrar como Administrador
               </button>
             )}
+
+            <button
+              onClick={() => handleLogout('Saída pelo painel de acesso suspenso')}
+              className="w-full py-2.5 bg-black/[0.04] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-slate-700 dark:text-zinc-300 font-semibold rounded-2xl text-xs transition-colors cursor-pointer"
+            >
+              Sair e Voltar à Tela Inicial
+            </button>
           </div>
         </motion.div>
       </div>

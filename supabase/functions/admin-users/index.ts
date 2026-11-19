@@ -142,6 +142,13 @@ serve(async (req: Request) => {
         });
       }
 
+      if (password.trim().length < 8) {
+        return new Response(JSON.stringify({ error: "A senha inicial deve ter no mínimo 8 caracteres" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Validações de papel
       if (role === "master" && !isMaster) {
         return new Response(JSON.stringify({ error: "Apenas um Administrador Master pode criar outro Master" }), {
@@ -265,8 +272,8 @@ serve(async (req: Request) => {
       }
 
       const { userId, newPassword } = payload;
-      if (!newPassword || newPassword.trim().length < 4) {
-        return new Response(JSON.stringify({ error: "A nova senha deve ter no mínimo 4 caracteres" }), {
+      if (!newPassword || newPassword.trim().length < 8) {
+        return new Response(JSON.stringify({ error: "A nova senha deve ter no mínimo 8 caracteres" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -337,6 +344,26 @@ serve(async (req: Request) => {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // Se a conta for desativada/bloqueada, revoga as sessões no Supabase Auth via banimento
+      if (!isActive) {
+        try {
+          await supabaseAdmin.auth.admin.updateUserById(userId, {
+            ban_duration: "876000h", // Invalida tokens de refresh e derruba sessões
+          });
+        } catch (banErr) {
+          console.warn("Erro ao revogar sessão de usuário no Auth:", banErr);
+        }
+      } else {
+        // Ao reativar a conta, remove o banimento no Supabase Auth
+        try {
+          await supabaseAdmin.auth.admin.updateUserById(userId, {
+            ban_duration: "none",
+          });
+        } catch (unbanErr) {
+          console.warn("Erro ao remover banimento no Auth:", unbanErr);
+        }
       }
 
       await logAudit({
