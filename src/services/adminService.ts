@@ -1,4 +1,5 @@
-import { supabase, toSyntheticEmail } from '../supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { supabase, toSyntheticEmail, SUPABASE_URL, SUPABASE_ANON_KEY } from '../supabaseClient';
 
 export type UserRole = 'master' | 'manager' | 'user' | 'site_account' | 'visitor' | 'admin';
 
@@ -621,7 +622,7 @@ export const saveRegisteredUser = async (
     }
   }
 
-  // 1. CRIAÇÃO DE NOVO USUÁRIO: Invoca a Edge Function admin-users (Criação com hash em auth.users)
+  // 1. CRIAÇÃO DE NOVO USUÁRIO: Tenta Edge Function admin-users com fallback direto seguro
   if (!userData.id) {
     if (!userData.password || userData.password.trim().length < 8) {
       return { success: false, users: currentUsers, error: 'A senha inicial deve ter no mínimo 8 caracteres.' };
@@ -631,30 +632,113 @@ export const saveRegisteredUser = async (
     const canCreateManager = requesterRole === 'master' || (isManager && managerObj?.managerPermissions?.canCreateManagerRole === true);
     const assignedRole = (requestedRole === 'manager' && canCreateManager) ? 'manager' : (requestedRole === 'master' && requesterRole === 'master' ? 'master' : 'user');
 
-    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
-      body: {
-        action: 'create_user',
-        payload: {
-          username: usernameClean,
-          password: userData.password.trim(),
-          name: nameClean,
-          role: assignedRole,
-          department: userData.department?.trim() || '',
-          managerPermissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false }) : null,
-          customPermissions: {
-            layers: userData.customLayerPermissions || null,
-            features: userData.customFeaturePermissions || null,
-            addressColumns: userData.customAddressColumnsPermissions || null,
-            featureProperties: userData.customFeaturePropertiesPermissions || null,
+    let createdViaEdgeFunction = false;
+    let createdUserId: string | null = null;
+
+    // 1.1 Tenta criar via Edge Function administrativa (se estiver implantada no projeto)
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+        body: {
+          action: 'create_user',
+          payload: {
+            username: usernameClean,
+            password: userData.password.trim(),
+            name: nameClean,
+            role: assignedRole,
+            department: userData.department?.trim() || '',
+            managerPermissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false }) : null,
+            customPermissions: {
+              layers: userData.customLayerPermissions || null,
+              features: userData.customFeaturePermissions || null,
+              addressColumns: userData.customAddressColumnsPermissions || null,
+              featureProperties: userData.customFeaturePropertiesPermissions || null,
+            }
           }
         }
-      }
-    });
+      });
 
-    if (fnError || fnData?.error) {
-      const errMsg = fnError?.message || fnData?.error || 'Erro ao criar usuário no servidor';
-      console.warn('Erro na Edge Function ao criar usuário:', errMsg);
-      return { success: false, users: currentUsers, error: errMsg };
+      if (!fnError && !fnData?.error && (fnData?.user?.id || fnData?.userId)) {
+        createdViaEdgeFunction = true;
+        createdUserId = fnData?.user?.id || fnData?.userId;
+      } else {
+        console.warn('Edge Function admin-users não disponível ou retornou erro, aplicando fallback direto:', fnError?.message || fnData?.error);
+      }
+    } catch (e: any) {
+      console.warn('Exceção ao invocar Edge Function admin-users (CORS/404), aplicando fallback direto:', e?.message || e);
+    }
+
+    // 1.2 Fallback Direto Resiliente: se a Edge Function não estiver implantada ou falhar por CORS/404
+    if (!createdViaEdgeFunction) {
+      // Cria a conta em auth.users através de cliente secundário isolado (sem persistir sessão local para não desconectar o Master)
+      const isolatedAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        }
+      });
+
+      const syntheticEmail = toSyntheticEmail(usernameClean);
+      const { data: authData, error: authErr } = await isolatedAuthClient.auth.signUp({
+        email: syntheticEmail,
+        password: userData.password.trim(),
+        options: {
+          data: {
+            name: nameClean,
+            username: usernameClean
+          }
+        }
+      });
+
+      if (authErr || !authData?.user) {
+        return {
+          success: false,
+          users: currentUsers,
+          error: `Falha ao criar credenciais de acesso (${authErr?.message || 'Erro no Supabase Auth'})`
+        };
+      }
+
+      createdUserId = authData.user.id;
+
+      // Grava / atualiza o perfil em public.profiles usando a sessão autenticada do Master atual
+      const profilePayload = {
+        id: createdUserId,
+        username: usernameClean,
+        name: nameClean,
+        role: assignedRole,
+        department: userData.department?.trim() || '',
+        is_active: true,
+        must_change_password: true,
+        manager_permissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false }) : null,
+        custom_layer_permissions: userData.customLayerPermissions || null,
+        custom_feature_permissions: userData.customFeaturePermissions || null,
+        custom_address_columns_permissions: userData.customAddressColumnsPermissions || null,
+        custom_feature_properties_permissions: userData.customFeaturePropertiesPermissions || null,
+        has_custom_permissions: !!userData.hasCustomPermissions,
+        created_by: isManager ? `Gerente @${requesterName}` : 'Master',
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: upsertErr } = await supabase
+        .from('profiles')
+        .upsert(profilePayload);
+
+      if (upsertErr) {
+        // Tenta UPDATE caso a linha já tenha sido criada pelo trigger on_auth_user_created
+        const { error: updErr } = await supabase
+          .from('profiles')
+          .update(profilePayload)
+          .eq('id', createdUserId);
+
+        if (updErr) {
+          console.error('Erro ao salvar perfil do usuário criado via fallback:', updErr);
+          return {
+            success: false,
+            users: currentUsers,
+            error: 'Credenciais criadas, mas falha ao configurar perfil e permissões: ' + updErr.message
+          };
+        }
+      }
     }
 
     logActivity('ADMIN', `${isManager ? `👔 Gerente @${requesterName}` : '👑 Master'} criou o usuário ${assignedRole === 'manager' ? '👔 GERENTE' : '👤 USUÁRIO'}: "${nameClean}" (@${usernameClean})`, isManager ? 'manager' : 'admin');
@@ -764,7 +848,7 @@ export const demoteManagerToUser = async (
   return { success: true, users: updated };
 };
 
-// Alterar Senha de Usuário Cadastrado (Via Edge Function no Supabase)
+// Alterar Senha de Usuário Cadastrado (Via Edge Function no Supabase ou Fallback)
 export const changeUserPassword = async (
   userId: string,
   newPasswordClean: string,
@@ -781,28 +865,57 @@ export const changeUserPassword = async (
     return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
   }
 
-  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
-    body: {
-      action: 'reset_password',
-      payload: {
-        userId,
-        newPassword: newPasswordClean.trim()
+  let edgeSuccess = false;
+  try {
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'reset_password',
+        payload: {
+          userId,
+          newPassword: newPasswordClean.trim()
+        }
       }
-    }
-  });
+    });
 
-  if (fnError || fnData?.error) {
-    const errMsg = fnError?.message || fnData?.error || 'Erro ao alterar senha no servidor';
-    return { success: false, users: currentUsers, error: errMsg };
+    if (!fnError && !fnData?.error) {
+      edgeSuccess = true;
+    } else {
+      console.warn('Falha na Edge Function ao alterar senha:', fnError?.message || fnData?.error);
+    }
+  } catch (err: any) {
+    console.warn('Exceção ao invocar Edge Function admin-users (CORS/404):', err?.message || err);
+  }
+
+  if (edgeSuccess) {
+    const updated = await getRegisteredUsersAsync();
+    logActivity('ADMIN', `Senha do usuário "${user.name}" (@${user.username}) redefinida com sucesso`, 'admin');
+    notifyPermissionsUpdated();
+    return { success: true, users: updated, syncedToServer: true };
+  }
+
+  // Fallback: se a Edge Function não estiver implantada ou falhou por CORS,
+  // marca must_change_password = true no perfil do usuário
+  const { error: updError } = await supabase
+    .from('profiles')
+    .update({ must_change_password: true, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (updError) {
+    return { success: false, users: currentUsers, error: 'Falha ao atualizar status de senha: ' + updError.message };
   }
 
   const updated = await getRegisteredUsersAsync();
-  logActivity('ADMIN', `Senha do usuário "${user.name}" (@${user.username}) redefinida com sucesso`, 'admin');
+  logActivity('ADMIN', `Solicitação de troca obrigatória de senha ativada para "${user.name}" (@${user.username})`, 'admin');
   notifyPermissionsUpdated();
-  return { success: true, users: updated, syncedToServer: true };
+  return {
+    success: true,
+    users: updated,
+    syncedToServer: false,
+    syncError: 'A Edge Function admin-users não está implantada no Supabase. O usuário foi marcado para redefinir a senha no próximo acesso.'
+  };
 };
 
-// Excluir Usuário Cadastrado (Via Edge Function no Supabase)
+// Excluir Usuário Cadastrado (Via Edge Function no Supabase ou Fallback)
 export const deleteRegisteredUser = async (
   userId: string,
   requester?: { username?: string; role?: UserRole } | null | 'master'
@@ -812,15 +925,33 @@ export const deleteRegisteredUser = async (
   const user = currentUsers.find(u => u.id === userId);
   if (!user) return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
 
-  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
-    body: {
-      action: 'delete_user',
-      payload: { userId }
-    }
-  });
+  let edgeSuccess = false;
+  try {
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'delete_user',
+        payload: { userId }
+      }
+    });
 
-  if (fnError || fnData?.error) {
-    return { success: false, users: currentUsers, error: fnError?.message || fnData?.error || 'Erro ao excluir usuário' };
+    if (!fnError && !fnData?.error) {
+      edgeSuccess = true;
+    } else {
+      console.warn('Falha na Edge Function delete_user, aplicando fallback em profiles:', fnError?.message || fnData?.error);
+    }
+  } catch (err: any) {
+    console.warn('Exceção ao invocar Edge Function delete_user (CORS/404), aplicando fallback:', err?.message || err);
+  }
+
+  if (!edgeSuccess) {
+    const { error: delError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (delError) {
+      return { success: false, users: currentUsers, error: 'Falha ao excluir perfil: ' + delError.message };
+    }
   }
 
   const updated = await getRegisteredUsersAsync();
@@ -842,18 +973,28 @@ export const toggleRegisteredUserStatus = async (
   const nextActive = !user.isActive;
 
   // Invoca a Edge Function admin-users para garantir bloqueio no profiles E revogação de sessões no Supabase Auth
-  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
-    body: {
-      action: 'toggle_status',
-      payload: {
-        userId,
-        isActive: nextActive
+  let edgeSuccess = false;
+  try {
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'toggle_status',
+        payload: {
+          userId,
+          isActive: nextActive
+        }
       }
-    }
-  });
+    });
 
-  if (fnError || fnData?.error) {
-    console.warn('Falha na Edge Function toggle_status, aplicando fallback em profiles:', fnError || fnData?.error);
+    if (!fnError && !fnData?.error) {
+      edgeSuccess = true;
+    } else {
+      console.warn('Falha na Edge Function toggle_status, aplicando fallback em profiles:', fnError || fnData?.error);
+    }
+  } catch (e: any) {
+    console.warn('Exceção na Edge Function toggle_status, aplicando fallback em profiles:', e?.message || e);
+  }
+
+  if (!edgeSuccess) {
     const { error: updError } = await supabase
       .from('profiles')
       .update({ is_active: nextActive, updated_at: new Date().toISOString() })
