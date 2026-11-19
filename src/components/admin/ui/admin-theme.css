@@ -1,0 +1,47 @@
+/* Variáveis CSS escopadas exclusivamente ao container .admin-panel */
+.admin-panel {
+  --admin-bg-grouped: #F2F2F7;
+  --admin-bg-card: #FFFFFF;
+  --admin-bg-elevated: #FFFFFF;
+  --admin-bg-subtle: rgba(118, 118, 128, 0.12);
+  --admin-separator: rgba(60, 60, 67, 0.12);
+  --admin-text-primary: #000000;
+  --admin-text-secondary: #6C6C70;
+  --admin-text-tertiary: #8E8E93;
+  --admin-accent: #007AFF;
+  --admin-accent-hover: #0062CC;
+  --admin-destructive: #FF3B30;
+  --admin-status-green: #34C759;
+  --admin-status-amber: #FF9500;
+  --admin-status-gray: #8E8E93;
+  color-scheme: light;
+}
+
+.dark .admin-panel,
+.admin-panel.dark {
+  --admin-bg-grouped: #000000;
+  --admin-bg-card: #1C1C1E;
+  --admin-bg-elevated: #2C2C2E;
+  --admin-bg-subtle: rgba(118, 118, 128, 0.24);
+  --admin-separator: rgba(84, 84, 88, 0.35);
+  --admin-text-primary: #FFFFFF;
+  --admin-text-secondary: #98989D;
+  --admin-text-tertiary: #8E8E93;
+  --admin-accent: #0A84FF;
+  --admin-accent-hover: #409CFF;
+  --admin-destructive: #FF453A;
+  --admin-status-green: #30D158;
+  --admin-status-amber: #FF9F0A;
+  --admin-status-gray: #636366;
+  color-scheme: dark;
+}
+
+/* Redução de movimento acessível */
+@media (prefers-reduced-motion: reduce) {
+  .admin-panel * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

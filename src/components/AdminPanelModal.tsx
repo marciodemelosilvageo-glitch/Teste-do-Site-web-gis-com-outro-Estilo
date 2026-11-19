@@ -54,6 +54,7 @@ import { AdminActivitySection } from './admin/AdminActivitySection';
 import { AdminUserFormModal } from './admin/AdminUserFormModal';
 import { AdminUserDetailModal } from './admin/AdminUserDetailModal';
 import { AdminResetPasswordModal, AdminDeleteUserModal } from './admin/AdminUserConfirmModals';
+import './admin/ui/admin-theme.css';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -723,14 +724,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-hidden animate-fadeIn select-none"
+      className="admin-panel fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-hidden animate-fadeIn select-none"
       onWheel={(e) => e.stopPropagation()}
     >
       {/* ========================================================
           DESKTOP (>= md): Janela Apple com Barra Lateral macOS
          ======================================================== */}
       <div
-        className="hidden md:flex bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] rounded-3xl shadow-2xl max-w-6xl w-full h-[88vh] max-h-[860px] overflow-hidden my-auto overscroll-contain"
+        className="hidden md:flex bg-[#F2F2F7] dark:bg-[#000000] border border-black/[0.08] dark:border-white/[0.08] rounded-3xl shadow-2xl max-w-6xl w-full h-[88vh] max-h-[860px] overflow-hidden my-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
       >
@@ -746,11 +747,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           totalUsersCount={registeredUsers.length}
         />
 
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f8f8fa] dark:bg-[#000000]">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F2F2F7] dark:bg-[#000000]">
           {/* Topbar Desktop Sóbria */}
-          <div className="h-14 px-6 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between shrink-0 bg-white/70 dark:bg-[#161618]/70 backdrop-blur-md">
+          <div className="h-14 px-6 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between shrink-0 bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-md select-none">
             <div>
-              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+              <h1 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
                 {currentSection === 'overview' && 'Visão Geral do WebGIS'}
                 {currentSection === 'users' && 'Gestão de Usuários & Equipe'}
                 {currentSection === 'access' && 'Políticas de Acesso & Permissões'}
@@ -767,10 +768,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     onClose();
                     onOpenSimulationChoice();
                   }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-slate-800 dark:text-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer min-h-[36px]"
                   title="Simular a visão de Visitante ou Gerente"
                 >
-                  <Eye className="w-3.5 h-3.5 text-[#007AFF]" />
+                  <Eye className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
                   <span>Simular Visão</span>
                 </button>
               )}
@@ -778,16 +779,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                className="text-[#8E8E93] hover:text-slate-900 dark:hover:text-white p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Fechar Painel"
+                aria-label="Fechar Painel"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" strokeWidth={1.6} />
               </button>
             </div>
           </div>
 
           {/* Área de Conteúdo Desktop */}
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#F2F2F7] dark:bg-[#000000]">
             {renderSectionContent(currentSection)}
           </div>
         </div>
@@ -797,7 +799,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           MOBILE (< md): Tela Cheia Empilhada estilo Ajustes iOS
          ======================================================== */}
       <div
-        className="md:hidden w-full h-full min-h-[100dvh] flex flex-col bg-[#f2f2f7] dark:bg-[#000000] overflow-hidden"
+        className="md:hidden w-full h-full min-h-[100dvh] flex flex-col bg-[#F2F2F7] dark:bg-[#000000] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
       >
