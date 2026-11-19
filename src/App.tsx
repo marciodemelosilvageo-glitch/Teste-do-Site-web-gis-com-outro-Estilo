@@ -62,6 +62,7 @@ import {
   logActivity, 
   initAdminService,
   ensureVisitorAuth,
+  isAnonymousUser,
   registerVisitorAsAccount,
   sendSessionHeartbeat
 } from './services/adminService';
@@ -285,7 +286,6 @@ export default function App() {
 
   useEffect(() => {
     initAdminService(true);
-    ensureVisitorAuth().catch(() => {});
     refreshPermissions();
     const handlePermissionsUpdated = () => {
       refreshPermissions();
@@ -953,7 +953,7 @@ export default function App() {
         }
 
         // 2. Se a sessão for anônima (visitante puro):
-        if (session.user.is_anonymous) {
+        if (isAnonymousUser(session.user)) {
           const cachedUser = getCurrentActiveUser();
           if (cachedUser) {
             console.warn('[AUTH] Sessão é anônima mas existia conta em cache local. Descartando conta.');
@@ -1042,7 +1042,7 @@ export default function App() {
           refreshPermissions();
         }
       } else if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'SIGNED_IN') {
-        if (session?.user && !session.user.is_anonymous) {
+        if (session?.user && !isAnonymousUser(session.user)) {
           await validateAndSyncSession();
         }
       }
@@ -1064,7 +1064,7 @@ export default function App() {
       isChecking = true;
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user || session.user.is_anonymous) {
+        if (!session?.user || isAnonymousUser(session.user)) {
           await handleLogout('Sessão revogada pelo servidor');
           return;
         }

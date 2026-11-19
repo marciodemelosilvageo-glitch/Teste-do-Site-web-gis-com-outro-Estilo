@@ -432,17 +432,23 @@ export const getRegisteredUsers = (): RegisteredUser[] => {
   return sortUsersMostRecentFirst(usersList);
 };
 
+// Helper para identificar de forma segura se um usuário é anônimo
+export const isAnonymousUser = (user: any): boolean => {
+  if (!user) return false;
+  return Boolean(user.is_anonymous || user.app_metadata?.provider === 'anonymous');
+};
+
 // Garante sessão anônima para visitantes com token JWT do Supabase (NUNCA reaproveita sessão de conta)
 export const ensureVisitorAuth = async (): Promise<string | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     // Se já existe sessão E ela é comprovadamente anônima, reaproveita o ID
-    if (session?.user && session.user.is_anonymous) {
+    if (session?.user && isAnonymousUser(session.user)) {
       return session.user.id;
     }
 
     // Se existe uma sessão ativa de CONTA (não-anônima), desconecta para não contaminar visitante com conta
-    if (session?.user && !session.user.is_anonymous) {
+    if (session?.user && !isAnonymousUser(session.user)) {
       console.info('[AUTH] Desconectando conta anterior antes de iniciar sessão anônima de visitante.');
       await supabase.auth.signOut({ scope: 'local' });
     }
