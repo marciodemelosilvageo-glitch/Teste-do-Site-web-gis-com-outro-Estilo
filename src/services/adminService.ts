@@ -220,7 +220,16 @@ export const notifyPermissionsUpdated = (detail?: { reason?: string; scope?: str
 /**
  * Incrementa a época de permissões no servidor (quando o master/gerente salva alterações)
  */
-let isBumpRpcAvailable: boolean | null = null;
+let isBumpRpcAvailable: boolean | null = (() => {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const val = sessionStorage.getItem('webgis_bump_rpc_available');
+      if (val === 'false') return false;
+      if (val === 'true') return true;
+    }
+  } catch {}
+  return null;
+})();
 
 export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => {
   if (isBumpRpcAvailable === false) return;
@@ -229,12 +238,15 @@ export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => 
     if (error) {
       if (status === 404 || error.code === 'PGRST202' || error.message?.includes('not found') || (error as any).status === 404) {
         isBumpRpcAvailable = false;
+        try { sessionStorage.setItem('webgis_bump_rpc_available', 'false'); } catch {}
       }
     } else {
       isBumpRpcAvailable = true;
+      try { sessionStorage.setItem('webgis_bump_rpc_available', 'true'); } catch {}
     }
   } catch {
     isBumpRpcAvailable = false;
+    try { sessionStorage.setItem('webgis_bump_rpc_available', 'false'); } catch {}
   }
 };
 
@@ -2595,18 +2607,29 @@ export const buildFallbackCapabilitiesMap = (
 };
 
 // Controle de cache e disponibilidade da função RPC get_effective_capabilities no Supabase
-let isRpcAvailable: boolean | null = null;
+let isRpcAvailable: boolean | null = (() => {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const val = sessionStorage.getItem('webgis_rpc_capabilities_available');
+      if (val === 'false') return false;
+      if (val === 'true') return true;
+    }
+  } catch {}
+  return null;
+})();
 let lastRpcCheckTime = 0;
-const RPC_CHECK_COOLDOWN_MS = 5 * 60 * 1000; // Se a função ainda não existir no banco, aguarda 5 minutos antes de reconsultar
+const RPC_CHECK_COOLDOWN_MS = 60 * 60 * 1000; // 1 hora de cooldown se a função ainda não existir no banco
 
 const inFlightCapabilitiesPromises = new Map<string, Promise<Record<string, EffectiveCapability>>>();
 
 /**
- * Reseta o indicador de disponibilidade do RPC permitindo nova verificação imediata
+ * Reseta o indicador de disponibilidade do RPC permitindo nova verificação imediata (apenas se forçado)
  */
-export const resetRpcCapabilitiesCheck = () => {
-  isRpcAvailable = null;
-  lastRpcCheckTime = 0;
+export const resetRpcCapabilitiesCheck = (force = false) => {
+  if (force) {
+    isRpcAvailable = null;
+    try { sessionStorage.removeItem('webgis_rpc_capabilities_available'); } catch {}
+  }
   inFlightCapabilitiesPromises.clear();
 };
 
@@ -2632,15 +2655,18 @@ const internalFetchEffectiveCapabilities = async (
           error.code === 'PGRST202' ||
           error.message?.includes('not found') ||
           error.message?.includes('schema cache') ||
+          (error as any).status === 404 ||
           error.message?.includes('404')
         ) {
           isRpcAvailable = false;
+          try { sessionStorage.setItem('webgis_rpc_capabilities_available', 'false'); } catch {}
           console.info(
             '[WebGIS] Nota: A função SQL "get_effective_capabilities" ainda não foi instalada no Supabase. Utilizando matriz de capacidades segura (fallback local).'
           );
         }
       } else if (Array.isArray(data) && data.length > 0) {
         isRpcAvailable = true;
+        try { sessionStorage.setItem('webgis_rpc_capabilities_available', 'true'); } catch {}
         const map: Record<string, EffectiveCapability> = {};
         data.forEach((row: any) => {
           if (row.capability_key) {

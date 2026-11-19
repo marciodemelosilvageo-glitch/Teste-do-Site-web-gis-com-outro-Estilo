@@ -15,7 +15,16 @@ let fallbackIntervalId: any = null;
 let debounceTimeout: any = null;
 let lastKnownEpochs: Record<string, number> = {};
 let isCheckingEpoch = false;
-let isEpochTableAvailable: boolean | null = null;
+let isEpochTableAvailable: boolean | null = (() => {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const val = sessionStorage.getItem('webgis_epoch_table_available');
+      if (val === 'false') return false;
+      if (val === 'true') return true;
+    }
+  } catch {}
+  return null;
+})();
 let isIntentionalClose = false;
 
 /**
@@ -43,12 +52,14 @@ export const checkEpochFallbackAsync = async (
     if (error) {
       if (status === 404 || error.code === '42P01' || error.message?.includes('not found') || error.message?.includes('does not exist')) {
         isEpochTableAvailable = false;
+        try { sessionStorage.setItem('webgis_epoch_table_available', 'false'); } catch {}
         console.info('ℹ️ [REALTIME] Tabela permissions_epoch não detectada no Supabase. O sistema está operando em modo defensivo.');
       }
       return false;
     }
 
     isEpochTableAvailable = true;
+    try { sessionStorage.setItem('webgis_epoch_table_available', 'true'); } catch {}
 
     if (!Array.isArray(data)) {
       return false;
