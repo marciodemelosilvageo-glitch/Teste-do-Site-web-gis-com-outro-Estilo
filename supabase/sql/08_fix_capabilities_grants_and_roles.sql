@@ -1,42 +1,59 @@
 -- ==============================================================================
 -- SCRIPT 08: CORREÇÃO DE GRANTS E CHAVES DE PERFIS BASE (role_capabilities)
 -- ==============================================================================
--- 1. Concede permissões de escrita ao role 'authenticated' nas tabelas relacionais
---    de controle de acesso (o bloqueio/permissão real é governado pelas políticas RLS).
--- 2. Garante que os registros base de base_roles estejam presentes com seus IDs limpos.
--- 3. Trigger defensivo que normaliza automaticamente 'role:visitor' -> 'visitor'.
+-- 1. Concede permissões defensivamente (apenas se as tabelas já existirem,
+--    evitando o erro 42P01 caso o Script 01 ainda não tenha sido executado).
+-- 2. Garante registros base em base_roles (se a tabela existir).
+-- 3. Trigger defensivo que normaliza 'role:visitor' -> 'visitor' (se role_capabilities existir).
+-- 4. Correção do Trigger de Criação de Usuário (handle_new_user) para evitar erro 500 no login anônimo.
 -- ==============================================================================
 
 BEGIN;
 
--- 1. Conceder permissões necessárias ao role authenticated (governado por RLS)
+-- 1. Conceder permissões de uso no schema public
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
-GRANT SELECT ON TABLE public.auth_capabilities TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.auth_capabilities TO authenticated, service_role;
+-- Bloco defensivo: executa GRANTs e inserts somente nas tabelas que já existem
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'auth_capabilities') THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.auth_capabilities TO anon, authenticated, service_role';
+    EXECUTE 'GRANT INSERT, UPDATE, DELETE ON TABLE public.auth_capabilities TO authenticated, service_role';
+  END IF;
 
-GRANT SELECT ON TABLE public.base_roles TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.base_roles TO authenticated, service_role;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'base_roles') THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.base_roles TO anon, authenticated, service_role';
+    EXECUTE 'GRANT INSERT, UPDATE, DELETE ON TABLE public.base_roles TO authenticated, service_role';
+    
+    INSERT INTO public.base_roles (id, name, description, is_system, hierarchy_level)
+    VALUES
+      ('visitor', 'Visitante Anônimo', 'Cidadão público ou visitante sem autenticação formal', TRUE, 0),
+      ('site_account', 'Conta do Site', 'Usuário cadastrado pelo formulário público do site', TRUE, 10),
+      ('user', 'Usuário Credenciado', 'Usuário institucional cadastrado pela gestão', TRUE, 20),
+      ('manager', 'Gerente de Equipe', 'Gestor de equipe com poderes de delegação autorizados', TRUE, 50)
+    ON CONFLICT (id) DO UPDATE 
+    SET name = EXCLUDED.name, description = EXCLUDED.description, is_system = TRUE;
+  END IF;
 
-GRANT SELECT ON TABLE public.role_capabilities TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.role_capabilities TO authenticated, service_role;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'role_capabilities') THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.role_capabilities TO anon, authenticated, service_role';
+    EXECUTE 'GRANT INSERT, UPDATE, DELETE ON TABLE public.role_capabilities TO authenticated, service_role';
+  END IF;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_capabilities TO authenticated, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_delegation_scopes TO authenticated, service_role;
-GRANT SELECT, INSERT ON TABLE public.capability_audit_logs TO authenticated, service_role;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_capabilities') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_capabilities TO authenticated, service_role';
+  END IF;
 
--- 2. Garantir que os perfis base fundamentais existam
-INSERT INTO public.base_roles (id, name, description, is_system, hierarchy_level)
-VALUES
-  ('visitor', 'Visitante Anônimo', 'Cidadão público ou visitante sem autenticação formal', TRUE, 0),
-  ('site_account', 'Conta do Site', 'Usuário cadastrado pelo formulário público do site', TRUE, 10),
-  ('user', 'Usuário Credenciado', 'Usuário institucional cadastrado pela gestão', TRUE, 20),
-  ('manager', 'Gerente de Equipe', 'Gestor de equipe com poderes de delegação autorizados', TRUE, 50)
-ON CONFLICT (id) DO UPDATE 
-SET name = EXCLUDED.name, description = EXCLUDED.description, is_system = TRUE;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_delegation_scopes') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_delegation_scopes TO authenticated, service_role';
+  END IF;
 
--- 3. Trigger de normalização defensiva para role_capabilities
--- Caso qualquer cliente envie 'role:visitor' ou 'visitor', normaliza para 'visitor'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'capability_audit_logs') THEN
+    EXECUTE 'GRANT SELECT, INSERT ON TABLE public.capability_audit_logs TO authenticated, service_role';
+  END IF;
+END $$;
+
+-- 2. Trigger de normalização defensiva para role_capabilities
 CREATE OR REPLACE FUNCTION public.normalize_role_capability_input()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -51,13 +68,15 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_normalize_role_capability_input ON public.role_capabilities;
-CREATE TRIGGER trg_normalize_role_capability_input
-BEFORE INSERT OR UPDATE ON public.role_capabilities
-FOR EACH ROW
-EXECUTE FUNCTION public.normalize_role_capability_input();
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'role_capabilities') THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_normalize_role_capability_input ON public.role_capabilities';
+    EXECUTE 'CREATE TRIGGER trg_normalize_role_capability_input BEFORE INSERT OR UPDATE ON public.role_capabilities FOR EACH ROW EXECUTE FUNCTION public.normalize_role_capability_input()';
+  END IF;
+END $$;
 
--- 4. Correção do Trigger de Criação de Usuário (on_auth_user_created)
+-- 3. Correção do Trigger de Criação de Usuário (on_auth_user_created)
 -- Evita erro 500 no signUp anônimo (anônimos não possuem email nem username para a tabela profiles)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
@@ -107,7 +126,7 @@ AFTER INSERT ON auth.users
 FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
 
--- 5. Notificar PostgREST para recarregar o schema imediatamente
+-- 4. Notificar PostgREST para recarregar o schema imediatamente
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;
