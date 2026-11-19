@@ -5,20 +5,14 @@ import {
   TableProperties,
   User,
   ShieldCheck,
-  Search,
   Eye,
   Crown,
   Briefcase,
   Globe,
-  Sliders,
   History,
-  Info,
-  Check,
   Lock,
   ChevronDown,
-  ChevronRight,
-  RotateCcw,
-  Sparkles
+  ChevronRight
 } from 'lucide-react';
 import {
   CapabilityItem,
@@ -35,6 +29,14 @@ import {
 } from '../../services/adminService';
 import { useAccess } from '../../context/FeatureAccessContext';
 import { dataSources } from '../../data';
+import {
+  Badge,
+  StatusDot,
+  Toggle,
+  SearchField,
+  Banner,
+  SegmentedControl
+} from './ui';
 
 interface AdminAccessSectionProps {
   isMaster: boolean;
@@ -44,7 +46,7 @@ interface AdminAccessSectionProps {
   showToast?: (msg: string) => void;
 }
 
-const GROUP_CONFIG: Record<CapabilityGroup, { label: string; icon: React.ComponentType<{ className?: string }>; desc: string }> = {
+const GROUP_CONFIG: Record<CapabilityGroup, { label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; desc: string }> = {
   camadas: { label: 'Camadas Territoriais', icon: Layers, desc: 'Visibilidade e acesso espacial a camadas vetoriais no mapa' },
   ferramentas: { label: 'Ferramentas de Análise', icon: Wrench, desc: 'Instrumentos de geocodificação, polígonos, medição e buffer' },
   dados: { label: 'Dados e Exportações', icon: TableProperties, desc: 'Colunas censitárias, formatos de arquivos e cotas de download' },
@@ -52,43 +54,8 @@ const GROUP_CONFIG: Record<CapabilityGroup, { label: string; icon: React.Compone
   administracao: { label: 'Administração do Sistema', icon: ShieldCheck, desc: 'Poderes de governança, auditoria e gestão de usuários' }
 };
 
-/**
- * Interruptor no estilo iOS com alvo de toque >= 44px
- */
-const IosSwitch: React.FC<{
-  checked: boolean;
-  onChange: () => void;
-  disabled?: boolean;
-  ariaLabel: string;
-  tint?: 'green' | 'blue';
-}> = ({ checked, onChange, disabled = false, ariaLabel, tint = 'green' }) => {
-  const activeBg = tint === 'blue' ? 'bg-[#007AFF]' : 'bg-[#34C759]';
-
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={onChange}
-      className={`relative inline-flex items-center h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-35 disabled:cursor-not-allowed ${
-        checked ? activeBg : 'bg-black/15 dark:bg-white/20'
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </button>
-  );
-};
-
 export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   isMaster,
-  isManager,
   onSimulateRole,
   onNavigateToAudit,
   showToast
@@ -224,20 +191,18 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   }, [managerScope, isMaster, showToast]);
 
   return (
-    <div className="space-y-4 animate-fadeIn pb-8">
-      {/* Barra de Topo: Título, Blindagem do Master e Ações */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-black/[0.04] dark:border-white/[0.06]">
+    <div className="space-y-5 animate-fadeIn pb-8 select-none">
+      {/* Barra de Topo: Título e Ações */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-black/[0.06] dark:border-white/[0.06]">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              Matriz de Poderes & Perfis Base
+            <h2 className="text-[28px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-8">
+              Acesso & Permissões
             </h2>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#007AFF]/10 text-[#007AFF]">
-              Catálogo Único
-            </span>
+            <Badge variant="accent">Catálogo Central</Badge>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Defina os poderes padrão de cada perfil. Exceções por usuário podem ser atribuídas na ficha individual.
+          <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-1">
+            Matriz de poderes padrão por perfil. Exceções por usuário são atribuídas na ficha individual.
           </p>
         </div>
 
@@ -246,73 +211,50 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
             <button
               type="button"
               onClick={onNavigateToAudit}
-              className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] active:scale-95 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
               title="Abrir trilha de auditoria de mudanças de poder"
             >
-              <History className="w-3.5 h-3.5 text-[#007AFF]" />
+              <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
               <span>Trilha de Alterações</span>
             </button>
           )}
 
           {isMaster && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-800/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-xs">
-              <Crown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Master: Intocável e Total</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.08] text-slate-900 dark:text-slate-100 text-xs font-medium shadow-xs">
+              <Lock className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
+              <span>Master: Total & Intocável</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Cartão Informativo de Blindagem do Master */}
-      <div className="p-3.5 bg-gradient-to-r from-indigo-50/60 to-purple-50/40 dark:from-indigo-950/20 dark:to-purple-950/10 border border-indigo-200/60 dark:border-indigo-900/40 rounded-2xl flex items-start gap-3 text-xs">
-        <Crown className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <span>Blindagem Absoluta do Administrador Master</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
-              Imune
-            </span>
-          </div>
-          <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-            O Administrador Master possui acesso universal irrestrito a todas as camadas, ferramentas e configurações. Por regra estrita no banco de dados e gatilhos SQL, nenhuma conta pode alterar, bloquear ou rebaixar o Master.
-          </p>
-        </div>
-      </div>
+      {/* Banner Neutro de Blindagem do Master (Sem gradientes índigo/roxo) */}
+      <Banner
+        icon={Lock}
+        title="Blindagem do Administrador Master"
+        message="O Master possui acesso irrestrito a todas as camadas, ferramentas e configurações. Por regra estrita no banco de dados e gatilhos SQL, nenhuma conta pode alterar, bloquear ou rebaixar o Master."
+      />
 
-      {/* Barra de Filtros e Busca de Capacidades */}
-      <div className="space-y-2.5">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por poder, camada, ferramenta ou chave (ex: dissolver, csv, medir)..."
-            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-white dark:bg-[#1c1c1e] border border-black/[0.06] dark:border-white/[0.08] text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#007AFF]/30 transition-all"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
+      {/* Busca em Cápsula e Categorias */}
+      <div className="space-y-3">
+        <SearchField
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder="Buscar por poder, camada, ferramenta ou chave..."
+        />
 
         {/* Pílulas de Categoria */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs">
           <button
             type="button"
             onClick={() => setSelectedGroup('TODOS')}
-            className={`min-h-[32px] px-3 py-1 rounded-xl font-semibold cursor-pointer shrink-0 transition-colors ${
+            className={`min-h-[32px] px-3.5 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
               selectedGroup === 'TODOS'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold'
-                : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06]'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            Todos os Poderes ({catalog.length})
+            Todos ({catalog.length})
           </button>
 
           {(['camadas', 'ferramentas', 'dados', 'conta', 'administracao'] as CapabilityGroup[]).map(grp => {
@@ -325,13 +267,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 key={grp}
                 type="button"
                 onClick={() => setSelectedGroup(grp)}
-                className={`min-h-[32px] px-3 py-1 rounded-xl font-semibold cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors ${
+                className={`min-h-[32px] px-3.5 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors ${
                   selectedGroup === grp
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold'
-                    : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06]'
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                    : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3.5 h-3.5" strokeWidth={1.6} />
                 <span>{cfg.label} ({count})</span>
               </button>
             );
@@ -339,31 +281,31 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
         </div>
       </div>
 
-      {/* MATRIZ DE PODERES: Tabela Responsiva Estilo Apple */}
-      <div className="overflow-x-auto rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1c1c1e] shadow-xs">
+      {/* MATRIZ DE PODERES: Tabela Responsiva Apple */}
+      <div className="overflow-x-auto rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs">
         <table className="w-full text-left border-collapse min-w-[760px]">
           {/* Cabeçalho da Matriz */}
           <thead>
             <tr className="border-b border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02]">
-              <th className="p-3.5 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[280px]">
+              <th className="p-4 text-xs font-medium text-[#6C6C70] dark:text-[#98989D] uppercase tracking-wider w-[280px]">
                 Poder / Capacidade
               </th>
 
               {/* Coluna 1: Visitante */}
-              <th className="p-3.5 text-center w-[120px]">
+              <th className="p-4 text-center w-[120px]">
                 <div className="space-y-1.5 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-bold text-slate-900 dark:text-slate-100">
-                    <Globe className="w-3.5 h-3.5 text-slate-400" />
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                    <Globe className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Visitante</span>
                   </div>
                   {onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('visitor')}
-                      className="px-2 py-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white text-[10.5px] font-semibold text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
                       title="Simular visualização como Visitante anônimo"
                     >
-                      <Eye className="w-3 h-3" />
+                      <Eye className="w-3 h-3" strokeWidth={1.6} />
                       <span>Ver como</span>
                     </button>
                   )}
@@ -371,20 +313,20 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 2: Conta do Site */}
-              <th className="p-3.5 text-center w-[130px]">
+              <th className="p-4 text-center w-[130px]">
                 <div className="space-y-1.5 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-bold text-slate-900 dark:text-slate-100">
-                    <User className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Conta do Site</span>
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                    <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
+                    <span>Conta Site</span>
                   </div>
                   {onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('site_account')}
-                      className="px-2 py-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white text-[10.5px] font-semibold text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Simular visualização como Conta cadastrada no Site"
+                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                      title="Simular visualização como Conta do Site"
                     >
-                      <Eye className="w-3 h-3" />
+                      <Eye className="w-3 h-3" strokeWidth={1.6} />
                       <span>Ver como</span>
                     </button>
                   )}
@@ -392,20 +334,20 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 3: Usuário */}
-              <th className="p-3.5 text-center w-[120px]">
+              <th className="p-4 text-center w-[120px]">
                 <div className="space-y-1.5 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-bold text-slate-900 dark:text-slate-100">
-                    <User className="w-3.5 h-3.5 text-teal-600" />
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                    <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Usuário</span>
                   </div>
                   {onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('user')}
-                      className="px-2 py-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white text-[10.5px] font-semibold text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Simular visualização como Usuário comum de equipe"
+                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                      title="Simular visualização como Usuário comum"
                     >
-                      <Eye className="w-3 h-3" />
+                      <Eye className="w-3 h-3" strokeWidth={1.6} />
                       <span>Ver como</span>
                     </button>
                   )}
@@ -413,10 +355,10 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 4: Gerente */}
-              <th className="p-3.5 text-center w-[170px] bg-teal-50/30 dark:bg-teal-950/10">
+              <th className="p-4 text-center w-[170px] bg-black/[0.015] dark:bg-white/[0.02]">
                 <div className="space-y-1.5 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-bold text-teal-800 dark:text-teal-300">
-                    <Briefcase className="w-3.5 h-3.5 text-teal-600" />
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                    <Briefcase className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Gerente</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -424,10 +366,10 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                       <button
                         type="button"
                         onClick={() => onSimulateRole('manager')}
-                        className="px-2 py-0.5 rounded-lg bg-teal-100 dark:bg-teal-900/60 hover:bg-[#007AFF] hover:text-white text-[10.5px] font-semibold text-teal-800 dark:text-teal-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
                         title="Simular visualização como Gerente"
                       >
-                        <Eye className="w-3 h-3" />
+                        <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
                       </button>
                     )}
@@ -435,19 +377,17 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                       <button
                         type="button"
                         onClick={() => handleToggleScope(managerScope.scope_type === 'team_only' ? 'all_users' : 'team_only')}
-                        className="px-2 py-0.5 rounded-lg border border-teal-500/30 text-[10px] font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer min-h-[28px]"
                         title="Alternar alcance padrão dos gerentes"
                       >
-                        Alcance: {managerScope.scope_type === 'team_only' ? 'Equipe' : 'Todos'}
+                        {managerScope.scope_type === 'team_only' ? 'Equipe' : 'Todos'}
                       </button>
                     )}
                   </div>
-                  <div className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 flex items-center gap-2">
+                  <div className="text-xs text-[#8E8E93] flex items-center gap-2 font-medium">
                     <span>Uso</span>
                     <span>•</span>
-                    <span className="flex items-center gap-0.5">
-                      <Crown className="w-2.5 h-2.5" /> Repasse
-                    </span>
+                    <span>Repasse</span>
                   </div>
                 </div>
               </th>
@@ -455,10 +395,10 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           </thead>
 
           {/* Corpo da Matriz por Grupos */}
-          <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.06] text-xs">
+          <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.06] text-xs">
             {Object.keys(groupedCatalog).length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-slate-400">
+                <td colSpan={5} className="p-8 text-center text-[#8E8E93]">
                   Nenhum poder encontrado com o termo "{searchTerm}".
                 </td>
               </tr>
@@ -474,17 +414,17 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                     {/* Linha de Cabeçalho do Grupo */}
                     <tr
                       onClick={() => toggleGroupCollapse(groupKey)}
-                      className="bg-black/[0.015] dark:bg-white/[0.015] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] cursor-pointer transition-colors"
+                      className="bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] cursor-pointer transition-colors"
                     >
-                      <td colSpan={5} className="p-3 font-bold text-slate-800 dark:text-slate-200">
+                      <td colSpan={5} className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            {isCollapsed ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                            <Icon className="w-4 h-4 text-[#007AFF]" />
+                            {isCollapsed ? <ChevronRight className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} /> : <ChevronDown className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} />}
+                            <Icon className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
                             <span className="text-xs uppercase tracking-wider">{cfg.label}</span>
-                            <span className="text-[11px] font-normal text-slate-400">({items.length} itens)</span>
+                            <span className="text-xs font-normal text-[#8E8E93]">({items.length})</span>
                           </div>
-                          <span className="text-[11px] font-normal text-slate-400 hidden sm:inline">
+                          <span className="text-xs font-normal text-[#8E8E93] hidden sm:inline">
                             {cfg.desc}
                           </span>
                         </div>
@@ -499,7 +439,6 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         const userEntry = matrix.user?.[item.key] || { can_use: false, can_grant: false };
                         const managerEntry = matrix.manager?.[item.key] || { can_use: false, can_grant: false };
 
-                        // Restrição de delegação para quem está editando
                         const isEditableByRequester = isMaster || canGrant(item.key);
 
                         return (
@@ -508,97 +447,82 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                             className="hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors"
                           >
                             {/* Nome e Chave do Poder */}
-                            <td className="p-3.5 space-y-0.5">
+                            <td className="p-4 space-y-0.5">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                <span className="font-medium text-slate-900 dark:text-slate-100 text-[13px]">
                                   {item.name}
                                 </span>
                                 {item.riskLevel === 'high' && (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                                    Alto
-                                  </span>
+                                  <StatusDot status="warning" label="Atenção" />
                                 )}
                                 {item.riskLevel === 'critical' && (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
-                                    Crítico
-                                  </span>
+                                  <StatusDot status="destructive" label="Crítico" />
                                 )}
                               </div>
-                              <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
+                              <div className="text-xs text-[#8E8E93] font-mono">
                                 {item.key}
                               </div>
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                              <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
                                 {item.description}
                               </div>
                               {!isEditableByRequester && !isMaster && (
-                                <span className="inline-block text-[9.5px] font-bold text-amber-600 dark:text-amber-400">
+                                <span className="inline-block text-xs font-medium text-[#FF9500] dark:text-[#FF9F0A] mt-0.5">
                                   ⚠️ Repasse não delegado pelo Master
                                 </span>
                               )}
                             </td>
 
                             {/* Coluna Visitante */}
-                            <td className="p-3.5 text-center">
+                            <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <IosSwitch
+                                <Toggle
                                   checked={visitorEntry.can_use}
                                   onChange={() => handleToggleCapability('visitor', item.key, 'can_use')}
                                   disabled={!isEditableByRequester}
-                                  ariaLabel={`Permitir uso de ${item.name} para Visitante`}
                                 />
                               </div>
                             </td>
 
                             {/* Coluna Conta do Site */}
-                            <td className="p-3.5 text-center">
+                            <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <IosSwitch
+                                <Toggle
                                   checked={siteEntry.can_use}
                                   onChange={() => handleToggleCapability('site_account', item.key, 'can_use')}
                                   disabled={!isEditableByRequester}
-                                  ariaLabel={`Permitir uso de ${item.name} para Conta do Site`}
                                 />
                               </div>
                             </td>
 
                             {/* Coluna Usuário Comum */}
-                            <td className="p-3.5 text-center">
+                            <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <IosSwitch
+                                <Toggle
                                   checked={userEntry.can_use}
                                   onChange={() => handleToggleCapability('user', item.key, 'can_use')}
                                   disabled={!isEditableByRequester}
-                                  ariaLabel={`Permitir uso de ${item.name} para Usuário Comum`}
                                 />
                               </div>
                             </td>
 
                             {/* Coluna Gerente: DUAS MARCAS (Pode Usar e Pode Repassar) */}
-                            <td className="p-3.5 text-center bg-teal-50/20 dark:bg-teal-950/05">
-                              <div className="flex items-center justify-center gap-2">
-                                {/* Marca 1: Pode Usar (Verde) */}
-                                <div className="flex flex-col items-center">
-                                  <IosSwitch
-                                    checked={managerEntry.can_use}
-                                    onChange={() => handleToggleCapability('manager', item.key, 'can_use')}
-                                    disabled={!isMaster}
-                                    tint="green"
-                                    ariaLabel={`Gerente pode usar ${item.name}`}
-                                  />
-                                </div>
+                            <td className="p-4 text-center bg-black/[0.015] dark:bg-white/[0.02]">
+                              <div className="flex items-center justify-center gap-3">
+                                {/* Marca 1: Pode Usar */}
+                                <Toggle
+                                  checked={managerEntry.can_use}
+                                  onChange={() => handleToggleCapability('manager', item.key, 'can_use')}
+                                  disabled={!isMaster}
+                                />
 
-                                <div className="w-[1px] h-5 bg-black/10 dark:bg-white/10" />
+                                <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.08]" />
 
-                                {/* Marca 2: Pode Repassar (Azul) */}
-                                <div className="flex flex-col items-center">
-                                  <IosSwitch
-                                    checked={managerEntry.can_grant}
-                                    onChange={() => handleToggleCapability('manager', item.key, 'can_grant')}
-                                    disabled={!isMaster || !managerEntry.can_use}
-                                    tint="blue"
-                                    ariaLabel={`Gerente pode repassar/delegar ${item.name}`}
-                                  />
-                                </div>
+                                {/* Marca 2: Pode Repassar */}
+                                <Toggle
+                                  checked={managerEntry.can_grant}
+                                  onChange={() => handleToggleCapability('manager', item.key, 'can_grant')}
+                                  disabled={!isMaster || !managerEntry.can_use}
+                                />
                               </div>
                             </td>
                           </tr>
