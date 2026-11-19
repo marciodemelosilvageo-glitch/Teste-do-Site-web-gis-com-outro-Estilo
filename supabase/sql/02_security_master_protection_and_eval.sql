@@ -358,10 +358,18 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_protect_user_capabilities_write ON public.user_capabilities;
-CREATE TRIGGER trg_protect_user_capabilities_write
-BEFORE INSERT OR UPDATE ON public.user_capabilities
-FOR EACH ROW
-EXECUTE FUNCTION public.protect_user_capabilities_write();
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'user_capabilities'
+  ) THEN
+    DROP TRIGGER IF EXISTS trg_protect_user_capabilities_write ON public.user_capabilities;
+    CREATE TRIGGER trg_protect_user_capabilities_write
+    BEFORE INSERT OR UPDATE ON public.user_capabilities
+    FOR EACH ROW
+    EXECUTE FUNCTION public.protect_user_capabilities_write();
+  END IF;
+END $$;
 
 COMMIT;

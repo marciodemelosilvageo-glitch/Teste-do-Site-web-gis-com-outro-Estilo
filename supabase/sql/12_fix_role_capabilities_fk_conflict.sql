@@ -93,20 +93,40 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_auto_provision_capability_and_role ON public.role_capabilities;
-CREATE TRIGGER trg_auto_provision_capability_and_role
-BEFORE INSERT OR UPDATE ON public.role_capabilities
-FOR EACH ROW
-EXECUTE FUNCTION public.auto_provision_capability_and_role();
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'role_capabilities'
+  ) THEN
+    DROP TRIGGER IF EXISTS trg_auto_provision_capability_and_role ON public.role_capabilities;
+    CREATE TRIGGER trg_auto_provision_capability_and_role
+    BEFORE INSERT OR UPDATE ON public.role_capabilities
+    FOR EACH ROW
+    EXECUTE FUNCTION public.auto_provision_capability_and_role();
+  END IF;
+END $$;
 
 -- 4. Permissões
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT SELECT ON TABLE public.auth_capabilities TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.auth_capabilities TO authenticated, service_role;
-GRANT SELECT ON TABLE public.base_roles TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.base_roles TO authenticated, service_role;
-GRANT SELECT ON TABLE public.role_capabilities TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.role_capabilities TO authenticated, service_role;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'auth_capabilities') THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.auth_capabilities TO anon, authenticated, service_role';
+    EXECUTE 'GRANT INSERT, UPDATE, DELETE ON TABLE public.auth_capabilities TO authenticated, service_role';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'base_roles') THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.base_roles TO anon, authenticated, service_role';
+    EXECUTE 'GRANT INSERT, UPDATE, DELETE ON TABLE public.base_roles TO authenticated, service_role';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'role_capabilities') THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.role_capabilities TO anon, authenticated, service_role';
+    EXECUTE 'GRANT INSERT, UPDATE, DELETE ON TABLE public.role_capabilities TO authenticated, service_role';
+  END IF;
+END $$;
 
 NOTIFY pgrst, 'reload schema';
 

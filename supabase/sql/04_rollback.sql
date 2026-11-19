@@ -8,13 +8,26 @@
 BEGIN;
 
 -- 1. Remover Triggers e Funções de Proteção Criadas no Script 02
-DROP TRIGGER IF EXISTS trg_protect_user_capabilities_write ON public.user_capabilities;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'user_capabilities'
+  ) THEN
+    DROP TRIGGER IF EXISTS trg_protect_user_capabilities_write ON public.user_capabilities;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+  ) THEN
+    DROP TRIGGER IF EXISTS trg_protect_master_delete ON public.profiles;
+    DROP TRIGGER IF EXISTS trg_protect_master_profile ON public.profiles;
+  END IF;
+END $$;
+
 DROP FUNCTION IF EXISTS public.protect_user_capabilities_write();
-
-DROP TRIGGER IF EXISTS trg_protect_master_delete ON public.profiles;
 DROP FUNCTION IF EXISTS public.protect_master_delete();
-
-DROP TRIGGER IF EXISTS trg_protect_master_profile ON public.profiles;
 DROP FUNCTION IF EXISTS public.protect_master_profile();
 
 -- Restaurar Trigger Legado prevent_self_elevation (se foi substituído)

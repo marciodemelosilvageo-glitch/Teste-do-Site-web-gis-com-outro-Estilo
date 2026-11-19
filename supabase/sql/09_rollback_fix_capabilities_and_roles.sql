@@ -5,7 +5,15 @@
 BEGIN;
 
 -- 1. Remover trigger e função de normalização de role_capabilities
-DROP TRIGGER IF EXISTS trg_normalize_role_capability_input ON public.role_capabilities;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'role_capabilities'
+  ) THEN
+    DROP TRIGGER IF EXISTS trg_normalize_role_capability_input ON public.role_capabilities;
+  END IF;
+END $$;
 DROP FUNCTION IF EXISTS public.normalize_role_capability_input();
 
 -- 2. Restaurar versão anterior do trigger handle_new_user (sem bypass de anônimo)
