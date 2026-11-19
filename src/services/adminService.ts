@@ -110,6 +110,7 @@ export interface ActivityLog {
   action: string;
   details?: string;
   sessionId: string;
+  actorId?: string;
 }
 
 export type CapabilityAuditAction =
@@ -152,6 +153,14 @@ export interface UserSessionConfig {
   customFeaturePermissions?: FeaturePermissions;    // Se definido, sobrepõe o global
   customAddressColumnsPermissions?: Record<string, boolean>;
   customFeaturePropertiesPermissions?: Record<string, boolean>;
+  // Telemetria confiável gerada pelo servidor (auth.users, auth.sessions e heartbeat)
+  authUid?: string;
+  isAnonymous?: boolean;
+  ipAddress?: string;
+  userAgent?: string;
+  isOnline?: boolean;
+  sessionCreatedAt?: string;
+  sessionRefreshedAt?: string;
 }
 
 export interface ManagerPermissions {
@@ -1425,6 +1434,44 @@ export const getUserSessions = (): Record<string, UserSessionConfig> => {
 // Obter sessões de usuários diretamente do Supabase em tempo real (ordenadas da mais recente para a mais antiga)
 export const getUserSessionsAsync = async (): Promise<Record<string, UserSessionConfig>> => {
   try {
+    // 1. Tentar ler a telemetria autoritativa do servidor via RPC (disponível para gerente e master)
+    const { data: telemetryData, error: telemetryError } = await supabase
+      .rpc('get_telemetry_active_sessions');
+
+    if (!telemetryError && telemetryData && Array.isArray(telemetryData) && telemetryData.length > 0) {
+      const liveSessions: Record<string, UserSessionConfig> = {};
+      telemetryData.forEach((row: any) => {
+        const sId = row.session_id || row.auth_uid;
+        liveSessions[sId] = {
+          sessionId: sId,
+          authUid: row.auth_uid,
+          customName: row.display_name,
+          firstSeen: row.first_seen,
+          lastSeen: row.last_seen,
+          formattedFirstSeen: row.formatted_first_seen,
+          formattedLastSeen: row.formatted_last_seen,
+          role: row.role as UserRole,
+          isBlocked: !!row.is_blocked,
+          loginCount: 1,
+          device: row.device,
+          isAnonymous: !!row.is_anonymous,
+          ipAddress: row.ip_address,
+          userAgent: row.user_agent,
+          sessionCreatedAt: row.session_created_at,
+          sessionRefreshedAt: row.session_refreshed_at,
+          isOnline: !!row.is_online,
+          hasCustomPermissions: !!row.has_custom_permissions,
+          customLayerPermissions: row.custom_layer_permissions || undefined,
+          customFeaturePermissions: row.custom_feature_permissions || undefined,
+          customAddressColumnsPermissions: row.custom_address_columns_permissions || undefined,
+          customFeaturePropertiesPermissions: row.custom_feature_properties_permissions || undefined,
+        };
+      });
+      localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(liveSessions));
+      return liveSessions;
+    }
+
+    // 2. Fallback caso não seja manager/master ou a RPC ainda não esteja instalada
     const { data: sessionsData, error } = await supabase
       .from('webgis_user_sessions')
       .select('*')
@@ -1435,6 +1482,7 @@ export const getUserSessionsAsync = async (): Promise<Record<string, UserSession
       sessionsData.forEach((row: any) => {
         localSessions[row.session_id] = {
           sessionId: row.session_id,
+          authUid: row.auth_uid,
           customName: row.custom_name,
           firstSeen: row.first_seen,
           lastSeen: row.last_seen,
@@ -1477,8 +1525,9 @@ const formatSessionPayloadForSupabase = (session: UserSessionConfig, authUid?: s
     custom_feature_properties_permissions: session.customFeaturePropertiesPermissions || null,
     updated_at: new Date().toISOString()
   };
-  if (authUid) {
-    payload.auth_uid = authUid;
+  const resolvedUid = authUid || session.authUid;
+  if (resolvedUid) {
+    payload.auth_uid = resolvedUid;
   }
   return payload;
 };
@@ -1521,13 +1570,72 @@ export const saveUserSessionConfig = (sessionId: string, updates: Partial<UserSe
     localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(sessions));
 
     const session = sessions[sessionId];
-    supabase
-      .from('webgis_user_sessions')
-      .upsert(formatSessionPayloadForSupabase(session))
-      .then();
+
+    // Obter auth.uid atual para vincular estritamente no Supabase
+    supabase.auth.getSession().then(({ data: authData }) => {
+      const currentUid = authData?.session?.user?.id;
+      const payload = formatSessionPayloadForSupabase(session, currentUid);
+      supabase
+        .from('webgis_user_sessions')
+        .upsert(payload)
+        .then();
+    }).catch(() => {
+      supabase
+        .from('webgis_user_sessions')
+        .upsert(formatSessionPayloadForSupabase(session))
+        .then();
+    });
 
   } catch (e) {
     console.error('Erro ao salvar configuração do usuário:', e);
+  }
+};
+
+// Enviar batimento de presença (heartbeat curto) para atualizar last_seen no servidor
+export const sendSessionHeartbeat = async (): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  try {
+    const { data: authData } = await supabase.auth.getSession();
+    const uid = authData?.session?.user?.id;
+    if (!uid) return;
+
+    const nowIso = new Date().toISOString();
+    const formattedNow = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR');
+
+    await supabase
+      .from('webgis_user_sessions')
+      .update({
+        last_seen: nowIso,
+        formatted_last_seen: formattedNow,
+        updated_at: nowIso,
+      })
+      .eq('auth_uid', uid);
+  } catch {
+    // Silencioso para não interromper a interface
+  }
+};
+
+// Acionar rotina de expurgo de dados antigos e visitantes inativos (Exclusivo do Master)
+export const cleanupStaleTelemetryAsync = async (
+  anonRetentionDays: number = 30,
+  logRetentionDays: number = 90
+): Promise<{ success: boolean; message: string; details?: any }> => {
+  try {
+    const { data, error } = await supabase.rpc('cleanup_stale_telemetry_and_anonymous', {
+      p_anon_retention_days: anonRetentionDays,
+      p_log_retention_days: logRetentionDays
+    });
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return {
+      success: true,
+      message: `Expurgo realizado com sucesso! ${data?.purged_logs || 0} logs, ${data?.purged_sessions || 0} sessões e ${data?.purged_anon_users || 0} usuários anônimos removidos.`,
+      details: data
+    };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Falha ao executar rotina de expurgo' };
   }
 };
 
@@ -1744,14 +1852,19 @@ export const logActivity = (
     // Atualiza a sessão nos registros de usuários
     registerUserSessionActivity(sId, effectiveRole, activeUser?.name);
 
+    // Truncar para respeitar as restrições estritas do banco de dados (<= 150 action, <= 2500 details, <= 50 category)
+    const safeAction = (action || '').substring(0, 150);
+    const safeDetails = enrichedDetails ? enrichedDetails.substring(0, 2500) : null;
+    const safeCategory = (category || 'ACESSO').substring(0, 50) as ActivityLog['category'];
+
     const newLog: ActivityLog = {
       id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       timestamp: now.toISOString(),
       formattedDate,
       userRole: effectiveRole,
-      category,
-      action,
-      details: enrichedDetails,
+      category: safeCategory,
+      action: safeAction,
+      details: safeDetails || undefined,
       sessionId: activeUser?.username ? `@${activeUser.username}` : sId
     };
 
@@ -1762,17 +1875,32 @@ export const logActivity = (
     const updated = [newLog, ...logs].slice(0, 1000);
     localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(updated));
 
-    // Gravar no Supabase
-    supabase.from('webgis_logs').insert({
-      id: newLog.id,
-      timestamp: newLog.timestamp,
-      formatted_date: newLog.formattedDate,
-      user_role: newLog.userRole,
-      category: newLog.category,
-      action: newLog.action,
-      details: newLog.details || null,
-      session_id: newLog.sessionId
-    }).then();
+    // Gravar no Supabase (com actor_id do token atual e enriquecimento por trigger)
+    supabase.auth.getSession().then(({ data: authData }) => {
+      const uid = authData?.session?.user?.id;
+      supabase.from('webgis_logs').insert({
+        id: newLog.id,
+        timestamp: newLog.timestamp,
+        formatted_date: newLog.formattedDate,
+        user_role: newLog.userRole,
+        category: newLog.category,
+        action: newLog.action,
+        details: newLog.details || null,
+        session_id: newLog.sessionId,
+        ...(uid ? { actor_id: uid } : {})
+      }).then();
+    }).catch(() => {
+      supabase.from('webgis_logs').insert({
+        id: newLog.id,
+        timestamp: newLog.timestamp,
+        formatted_date: newLog.formattedDate,
+        user_role: newLog.userRole,
+        category: newLog.category,
+        action: newLog.action,
+        details: newLog.details || null,
+        session_id: newLog.sessionId
+      }).then();
+    });
 
   } catch (e) {
     console.warn('Falha ao gravar log de auditoria:', e);
@@ -1808,7 +1936,8 @@ export const getActivityLogsAsync = async (): Promise<ActivityLog[]> => {
         category: row.category,
         action: row.action,
         details: row.details,
-        sessionId: row.session_id
+        sessionId: row.session_id,
+        actorId: row.actor_id || undefined,
       }));
       localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(logs));
       return logs;

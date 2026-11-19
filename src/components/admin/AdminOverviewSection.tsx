@@ -35,12 +35,13 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
   onOpenCreateUser,
   onExportLogsCSV
 }) => {
-  // 1. Usuários ativos agora (sessões com lastSeen nos últimos 15 min ou logins recentes)
+  // 1. Usuários ativos agora (telemetria confiável do servidor: isOnline === true ou sinal nos últimos 3 min)
   const activeNowCount = useMemo(() => {
-    const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
+    const threeMinAgo = Date.now() - 3 * 60 * 1000;
     const activeSessions = Object.values(userSessions).filter(s => {
+      if (s.isOnline !== undefined) return s.isOnline;
       const ts = new Date(s.lastSeen).getTime();
-      return !isNaN(ts) && ts >= fifteenMinAgo;
+      return !isNaN(ts) && ts >= threeMinAgo;
     });
     return Math.max(1, activeSessions.length);
   }, [userSessions]);
@@ -82,6 +83,17 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
   const recentLogs = useMemo(() => {
     return logs.slice(0, 5);
   }, [logs]);
+
+  // 8. Lista de sessões com telemetria do servidor (ativas e recentes)
+  const telemetrySessions = useMemo(() => {
+    return Object.values(userSessions)
+      .sort((a, b) => {
+        if (a.isOnline && !b.isOnline) return -1;
+        if (!a.isOnline && b.isOnline) return 1;
+        return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+      })
+      .slice(0, 6);
+  }, [userSessions]);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -136,7 +148,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
           </div>
           <div className="text-xs text-[#8E8E93] dark:text-[#8E8E93] mt-2 flex items-center gap-1.5 select-none">
             <Clock className="w-3.5 h-3.5" strokeWidth={1.6} />
-            <span>Últimos 15 minutos</span>
+            <span>Últimos 3 minutos (sinal do servidor)</span>
           </div>
         </AdminCard>
 
@@ -307,6 +319,74 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
           )}
         </AdminCard>
       </div>
+
+      {/* Bloco 3: Telemetria de Sessões & Dispositivos em Tempo Real (auth.sessions + servidor) */}
+      <AdminCard className="space-y-4">
+        <div className="flex items-center justify-between select-none">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+              Telemetria de Sessões & Dispositivos
+            </h3>
+            <span className="text-[11px] text-[#8E8E93] dark:text-[#8E8E93] font-normal">
+              (Servidor / auth.sessions)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-[#8E8E93]">
+            <StatusDot status="online" ping />
+            <span>Sinal recente &lt; 3min</span>
+          </div>
+        </div>
+
+        {telemetrySessions.length === 0 ? (
+          <div className="py-6 text-center text-xs text-[#8E8E93] dark:text-[#8E8E93]">
+            Nenhuma sessão registrada no servidor até o momento.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {telemetrySessions.map((s) => (
+              <div
+                key={s.sessionId}
+                className="p-3 bg-black/[0.02] dark:bg-white/[0.03] rounded-xl border border-black/[0.03] dark:border-white/[0.04] space-y-2 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <StatusDot status={s.isOnline ? 'online' : 'offline'} ping={s.isOnline} />
+                    <span className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                      {s.customName || 'Visitante'}
+                    </span>
+                  </div>
+                  <Badge variant={s.isAnonymous ? 'neutral' : 'accent'}>
+                    {s.isAnonymous ? 'Anônimo' : s.role === 'master' ? 'Master' : s.role === 'manager' ? 'Gerente' : 'Conta'}
+                  </Badge>
+                </div>
+
+                <div className="text-[11px] text-[#6C6C70] dark:text-[#98989D] space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8E8E93]">Aparelho:</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
+                      {s.device || 'Navegador Web'}
+                    </span>
+                  </div>
+                  {s.ipAddress && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8E8E93]">IP:</span>
+                      <span className="font-mono text-slate-600 dark:text-slate-400">
+                        {s.ipAddress}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-black/[0.04] dark:border-white/[0.04]">
+                    <span className="text-[#8E8E93]">Último sinal:</span>
+                    <span className="font-mono text-[10px] text-slate-600 dark:text-slate-400">
+                      {s.formattedLastSeen || s.lastSeen}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </AdminCard>
     </div>
   );
 };

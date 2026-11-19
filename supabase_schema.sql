@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.webgis_logs (
   action TEXT,
   details TEXT,
   session_id TEXT,
+  actor_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -241,27 +242,44 @@ ON public.profiles FOR DELETE
 USING (public.is_master());
 
 -- 9. Políticas RLS e Triggers: public.webgis_user_sessions
--- Triggers de segurança: garantem que visitantes e usuários comuns nunca possam se autopromover ou alterar permissões
+-- Triggers de segurança: garantem que sessões pertençam a auth.uid(), com campos sensíveis forçados pelo servidor
 CREATE OR REPLACE FUNCTION public.protect_user_session_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
+DECLARE
+  v_role TEXT;
 BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Acesso negado: registro de sessão requer autenticação válida (auth.uid requerido)';
+  END IF;
+
+  NEW.auth_uid := auth.uid();
+  NEW.session_id := COALESCE(NEW.session_id, auth.uid()::text);
+  NEW.first_seen := COALESCE(NEW.first_seen, NOW());
+  NEW.last_seen := NOW();
+  NEW.updated_at := NOW();
+
   IF NOT public.is_manager() THEN
-    NEW.role = 'user';
-    NEW.is_blocked = FALSE;
-    NEW.has_custom_permissions = FALSE;
-    NEW.custom_layer_permissions = NULL;
-    NEW.custom_feature_permissions = NULL;
-    NEW.custom_address_columns_permissions = NULL;
-    NEW.custom_feature_properties_permissions = NULL;
+    SELECT role INTO v_role FROM public.profiles WHERE id = auth.uid() AND is_active = TRUE;
+    IF v_role IS NOT NULL THEN
+      NEW.role := v_role;
+    ELSIF (auth.jwt()->>'is_anonymous')::boolean IS TRUE THEN
+      NEW.role := 'visitor';
+    ELSE
+      NEW.role := 'user';
+    END IF;
+
+    NEW.is_blocked := FALSE;
+    NEW.has_custom_permissions := FALSE;
+    NEW.custom_layer_permissions := NULL;
+    NEW.custom_feature_permissions := NULL;
+    NEW.custom_address_columns_permissions := NULL;
+    NEW.custom_feature_properties_permissions := NULL;
   END IF;
-  IF auth.uid() IS NOT NULL THEN
-    NEW.auth_uid = auth.uid();
-  END IF;
-  NEW.updated_at = NOW();
+
   RETURN NEW;
 END;
 $$;
@@ -276,19 +294,28 @@ CREATE OR REPLACE FUNCTION public.protect_user_session_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
 BEGIN
-  IF NOT public.is_manager() THEN
-    NEW.role = OLD.role;
-    NEW.is_blocked = OLD.is_blocked;
-    NEW.has_custom_permissions = OLD.has_custom_permissions;
-    NEW.custom_layer_permissions = OLD.custom_layer_permissions;
-    NEW.custom_feature_permissions = OLD.custom_feature_permissions;
-    NEW.custom_address_columns_permissions = OLD.custom_address_columns_permissions;
-    NEW.custom_feature_properties_permissions = OLD.custom_feature_properties_permissions;
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Acesso negado: atualização de sessão requer autenticação válida';
   END IF;
-  NEW.updated_at = NOW();
+
+  NEW.auth_uid := OLD.auth_uid;
+  NEW.session_id := OLD.session_id;
+  NEW.first_seen := OLD.first_seen;
+  NEW.updated_at := NOW();
+
+  IF NOT public.is_manager() THEN
+    NEW.role := OLD.role;
+    NEW.is_blocked := OLD.is_blocked;
+    NEW.has_custom_permissions := OLD.has_custom_permissions;
+    NEW.custom_layer_permissions := OLD.custom_layer_permissions;
+    NEW.custom_feature_permissions := OLD.custom_feature_permissions;
+    NEW.custom_address_columns_permissions := OLD.custom_address_columns_permissions;
+    NEW.custom_feature_properties_permissions := OLD.custom_feature_properties_permissions;
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -303,25 +330,72 @@ DROP POLICY IF EXISTS "Permitir acesso completo anon webgis_user_sessions" ON pu
 DROP POLICY IF EXISTS "sessions_select_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_select_policy"
 ON public.webgis_user_sessions FOR SELECT
-USING (true);
+USING (auth_uid = auth.uid() OR public.is_manager());
 
 DROP POLICY IF EXISTS "sessions_insert_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_insert_policy"
 ON public.webgis_user_sessions FOR INSERT
-WITH CHECK (true);
+WITH CHECK (auth.uid() IS NOT NULL AND (auth_uid IS NULL OR auth_uid = auth.uid()));
 
 DROP POLICY IF EXISTS "sessions_update_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_update_policy"
 ON public.webgis_user_sessions FOR UPDATE
-USING (true)
-WITH CHECK (true);
+USING (auth_uid = auth.uid() OR public.is_manager())
+WITH CHECK (auth_uid = auth.uid() OR public.is_manager());
 
 DROP POLICY IF EXISTS "sessions_delete_policy" ON public.webgis_user_sessions;
 CREATE POLICY "sessions_delete_policy"
 ON public.webgis_user_sessions FOR DELETE
 USING (public.is_master());
 
--- 10. Políticas RLS: public.webgis_logs
+-- 10. Políticas RLS e Triggers: public.webgis_logs
+CREATE OR REPLACE FUNCTION public.protect_and_enrich_log_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_role TEXT;
+  v_recent_count INT;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Acesso negado: logs de auditoria exigem autenticação válida';
+  END IF;
+
+  NEW.actor_id := auth.uid();
+  NEW.timestamp := NOW();
+  NEW.created_at := NOW();
+  NEW.id := COALESCE(NEW.id, 'log_' || EXTRACT(EPOCH FROM NOW())::BIGINT || '_' || substr(md5(random()::text), 1, 6));
+
+  SELECT role INTO v_role FROM public.profiles WHERE id = auth.uid() AND is_active = TRUE;
+  IF v_role IS NOT NULL THEN
+    NEW.user_role := v_role;
+  ELSIF (auth.jwt()->>'is_anonymous')::boolean IS TRUE THEN
+    NEW.user_role := 'visitor';
+  ELSE
+    NEW.user_role := 'user';
+  END IF;
+
+  SELECT COUNT(*) INTO v_recent_count
+  FROM public.webgis_logs
+  WHERE actor_id = auth.uid()
+    AND created_at > NOW() - INTERVAL '1 minute';
+
+  IF v_recent_count >= 60 THEN
+    RAISE EXCEPTION 'Limite de taxa de auditoria excedido (máximo 60 logs/min por sessão)';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_and_enrich_log_insert ON public.webgis_logs;
+CREATE TRIGGER trg_protect_and_enrich_log_insert
+BEFORE INSERT ON public.webgis_logs
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_and_enrich_log_insert();
+
 DROP POLICY IF EXISTS "Permitir acesso completo anon webgis_logs" ON public.webgis_logs;
 DROP POLICY IF EXISTS "logs_select_policy" ON public.webgis_logs;
 CREATE POLICY "logs_select_policy"
@@ -331,7 +405,12 @@ USING (public.is_manager());
 DROP POLICY IF EXISTS "logs_insert_policy" ON public.webgis_logs;
 CREATE POLICY "logs_insert_policy"
 ON public.webgis_logs FOR INSERT
-WITH CHECK (true);
+WITH CHECK (auth.uid() IS NOT NULL AND (actor_id IS NULL OR actor_id = auth.uid()));
+
+DROP POLICY IF EXISTS "logs_update_policy" ON public.webgis_logs;
+CREATE POLICY "logs_update_policy"
+ON public.webgis_logs FOR UPDATE
+USING (false);
 
 DROP POLICY IF EXISTS "logs_delete_policy" ON public.webgis_logs;
 CREATE POLICY "logs_delete_policy"
@@ -351,12 +430,20 @@ ON public.webgis_settings FOR ALL
 USING (public.is_master())
 WITH CHECK (public.is_master());
 
--- 12. Permissões de Acesso às Tabelas
+-- 12. Permissões de Acesso às Tabelas (Revogados privilégios perigosos de anon)
+REVOKE ALL ON TABLE public.webgis_user_sessions FROM anon;
+REVOKE ALL ON TABLE public.webgis_logs FROM anon;
+
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.webgis_settings TO anon;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles TO authenticated, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.webgis_user_sessions TO anon, authenticated, service_role;
-GRANT SELECT, INSERT, DELETE ON TABLE public.webgis_logs TO anon, authenticated, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.webgis_settings TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.webgis_user_sessions TO authenticated;
+GRANT SELECT, INSERT ON TABLE public.webgis_logs TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.webgis_settings TO authenticated, service_role;
+
+GRANT ALL ON TABLE public.webgis_user_sessions TO service_role;
+GRANT ALL ON TABLE public.webgis_logs TO service_role;
 
 -- 13. Linha inicial padrão para configurações globais
 INSERT INTO public.webgis_settings (id, updated_at)

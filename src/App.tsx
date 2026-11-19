@@ -62,7 +62,8 @@ import {
   logActivity, 
   initAdminService,
   ensureVisitorAuth,
-  registerVisitorAsAccount
+  registerVisitorAsAccount,
+  sendSessionHeartbeat
 } from './services/adminService';
 
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
@@ -741,14 +742,23 @@ export default function App() {
 
   // Logout real: chama supabase.auth.signOut() local, limpa tokens do storage, registra auditoria e limpa estado
   const handleLogout = useCallback(async (reason?: string) => {
+    // 1. Registrar o evento de saída e último sinal enquanto ainda autenticado no servidor
     try {
-      // 1. Chamar signOut local no Supabase Auth ANTES de limpar o estado
+      const who = currentActiveUser?.username ? `@${currentActiveUser.username}` : 'visitante';
+      logActivity('ACESSO', `Sessão encerrada (logout) do usuário ${who}${reason ? ` (${reason})` : ''}`, userRole);
+      await sendSessionHeartbeat();
+    } catch (err) {
+      console.warn('Erro ao registrar log de saída:', err);
+    }
+
+    try {
+      // 2. Chamar signOut local no Supabase Auth ANTES de limpar o estado
       await supabase.auth.signOut({ scope: 'local' });
     } catch (err) {
       console.warn('Erro ao executar signOut no Supabase:', err);
     }
 
-    // 2. Garantir que não sobra token de autenticação no armazenamento
+    // 3. Garantir que não sobra token de autenticação no armazenamento
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
@@ -757,10 +767,6 @@ export default function App() {
         }
       }
     } catch {}
-
-    // 3. Registrar o evento de saída
-    const who = currentActiveUser?.username ? `@${currentActiveUser.username}` : 'visitante';
-    logActivity('ACESSO', `Sessão encerrada (logout) do usuário ${who}${reason ? ` (${reason})` : ''}`, userRole);
 
     // 4. Limpar o estado e voltar à tela inicial
     document.body.style.overflow = '';
@@ -1111,6 +1117,34 @@ export default function App() {
       window.removeEventListener('focus', handleFocusOrVisibility);
     };
   }, [currentActiveUser, isSimulatingUser, handleLogout, refreshPermissions, showToast]);
+
+  // Batimento de presença (heartbeat) periódico para manter last_seen e telemetria de "online agora" atualizados no servidor
+  useEffect(() => {
+    if (!hasEntered) return;
+
+    // Dispara imediatamente ao carregar/entrar
+    sendSessionHeartbeat();
+
+    // Heartbeat curto a cada 60 segundos
+    const hbInterval = setInterval(() => {
+      sendSessionHeartbeat();
+    }, 60000);
+
+    const handleHeartbeatOnFocus = () => {
+      if (document.visibilityState === 'visible') {
+        sendSessionHeartbeat();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleHeartbeatOnFocus);
+    window.addEventListener('focus', handleHeartbeatOnFocus);
+
+    return () => {
+      clearInterval(hbInterval);
+      document.removeEventListener('visibilitychange', handleHeartbeatOnFocus);
+      window.removeEventListener('focus', handleHeartbeatOnFocus);
+    };
+  }, [hasEntered]);
 
   // Helper para verificar se um elemento corresponde ao filtro de município
   const matchesMunicipality = (props: Record<string, any>, filterTerm: string): boolean => {

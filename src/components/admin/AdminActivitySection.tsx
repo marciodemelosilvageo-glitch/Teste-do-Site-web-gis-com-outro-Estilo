@@ -430,6 +430,11 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
                           {log.action}
                         </span>
                         {renderCategoryBadge(log.category)}
+                        {log.actorId && (
+                          <Badge variant="neutral">
+                            {userConf?.isAnonymous ? 'Visitante' : log.userRole === 'master' ? 'Master' : log.userRole === 'manager' ? 'Gerente' : 'Conta'}
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="text-xs text-[#6C6C70] dark:text-[#98989D] flex items-center gap-2 flex-wrap">
