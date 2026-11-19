@@ -163,7 +163,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
         {/* Lista de Ações Rápidas */}
         <div className="flex flex-col gap-2">
           {/* Busca de Endereços Avançada (IBGE CNEFE) */}
-          {onOpenAddressSearch && (
+          {onOpenAddressSearch && can('tool:advanced_search') && (
             <button
               type="button"
               onClick={() => {

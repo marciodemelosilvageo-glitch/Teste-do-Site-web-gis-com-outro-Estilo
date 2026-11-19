@@ -85,17 +85,22 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   };
 
   const handleTabClick = (tab: SidebarTab) => {
+    if (tab === 'details' && !can('tool:feature_specs')) return;
+    if (tab === 'dashboard' && !can('tool:raio_x')) return;
+    if (tab === 'export' && !can('tool:export_data')) return;
     triggerHaptic();
     onSelectTab(activeTab === tab ? null : tab);
   };
 
   // Se houver busca e a gaveta estiver fechada, o 5º botão exibe o ícone e rótulo de Endereços
-  const showAddressIcon = Boolean(hasCnefeSearch && can('allowCnefeSearch') && !isAddressSearchOpen);
+  const showAddressIcon = Boolean(hasCnefeSearch && (can('tool:cnefe_search') || can('tool:advanced_search')) && !isAddressSearchOpen);
 
   const handleProfileOrAddressClick = () => {
     triggerHaptic();
     if (showAddressIcon) {
-      onOpenAddressSearch?.();
+      if (can('tool:advanced_search')) {
+        onOpenAddressSearch?.();
+      }
     } else {
       handleTabClick('profile');
     }

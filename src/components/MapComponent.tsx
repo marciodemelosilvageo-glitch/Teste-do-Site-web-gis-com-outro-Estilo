@@ -1123,6 +1123,10 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   const pointCount = measurePoints.length;
 
   const handleToggleMeasure = useCallback(() => {
+    if (!can('allowMeasureTool') && !can('tool:measure')) {
+      guardAction('tool:measure', 'Medição', () => {});
+      return;
+    }
     if (!mapRef.current) return;
     const measureControl = (mapRef.current as any).measureControl;
     
@@ -1147,7 +1151,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       setIsMeasuringActive(true);
       showToast('📏 Modo Medição ativado! Toque no mapa para marcar pontos.');
     }
-  }, [isMeasuringActive, measurePoints, showToast]);
+  }, [isMeasuringActive, measurePoints, showToast, can, guardAction]);
 
   const handleCancelMeasure = useCallback(() => {
     if (mapRef.current && (mapRef.current as any).measureControl) {
@@ -1296,10 +1300,24 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
   // Fechar o painel de camadas automaticamente se a permissão for desativada
   useEffect(() => {
-    if (allowLayerPanel === false && layersPanelOpen) {
+    if ((allowLayerPanel === false || (!can('allowLayerPanel') && !can('tool:layer_panel'))) && layersPanelOpen) {
       setLayersPanelOpen(false);
     }
-  }, [allowLayerPanel, layersPanelOpen]);
+  }, [allowLayerPanel, layersPanelOpen, can]);
+
+  // Cancelar medição ativa se a permissão for desativada
+  useEffect(() => {
+    if (isMeasuringActive && !can('allowMeasureTool') && !can('tool:measure')) {
+      handleCancelMeasure();
+    }
+  }, [isMeasuringActive, can, handleCancelMeasure]);
+
+  // Fechar o seletor de basemaps se a permissão for desativada
+  useEffect(() => {
+    if (basemapModalOpen && !can('allowBasemapSelector') && !can('tool:basemap_selector')) {
+      setBasemapModalOpen(false);
+    }
+  }, [basemapModalOpen, can]);
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     activeLayers.forEach(name => {
@@ -2100,8 +2118,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast]);
 
   const handleToggleDissolve = useCallback(() => {
-    if (!can('allowDissolveFeatures')) {
-      showToast('Dissolução de feições desativada para seu perfil.');
+    if (!can('allowDissolveFeatures') && !can('tool:dissolve_features')) {
+      guardAction('tool:dissolve_features', 'Dissolver Feições', () => {});
       return;
     }
     if (isDissolved) {
@@ -2118,7 +2136,14 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       logActivity('FEICAO', `Uniu/dissolveu ${selectedPolygonCount} feições poligonais em contorno único`, userRole);
       showToast('Polígonos dissolvidos em contorno único.');
     }
-  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast, can, userRole]);
+  }, [isDissolved, selectedPolygonCount, selectedPolygonFeatures, clearDissolve, computeDissolve, showToast, can, guardAction, userRole]);
+
+  // Desfazer dissolução se a permissão for desativada
+  useEffect(() => {
+    if (isDissolved && !can('allowDissolveFeatures') && !can('tool:dissolve_features')) {
+      clearDissolve();
+    }
+  }, [isDissolved, can, clearDissolve]);
 
   // Inicializar o Leaflet Map
   useEffect(() => {
@@ -3145,7 +3170,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
               }
 
               const isCtrl = ev.originalEvent ? (ev.originalEvent.ctrlKey || ev.originalEvent.metaKey) : false;
-              const multi = isCtrl || isMultiSelectModeRef.current;
+              const multi = (isCtrl || isMultiSelectModeRef.current) && (can('allowMultiSelect') || can('tool:multi_select'));
 
               onSelectionChangeRef.current?.((prevSelected) => {
                 const alreadySelected = prevSelected.some(item => 

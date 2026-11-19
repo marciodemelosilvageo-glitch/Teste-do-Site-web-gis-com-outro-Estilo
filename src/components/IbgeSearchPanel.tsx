@@ -28,6 +28,7 @@ import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 import { buscarEnderecos, listarMunicipios } from '../duckdb';
 import { toTitleCase, normalizeString, normalizeSearchText, parseAddressForSort } from '../utils';
 import { logActivity } from '../services/adminService';
+import { useFeatureAccess } from '../context/FeatureAccessContext';
 
 export interface ExternalPolygonSearchResult {
   results: any[];
@@ -225,6 +226,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   isMobile = false,
   onSearchStateChange
 }) => {
+  const { can, canViewAddressColumn } = useFeatureAccess();
   // Estado para linha selecionada na tabela (baseado em codigo_unico)
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   // Estado para recolher o formulário após busca com resultados no mobile
@@ -248,9 +250,11 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   const visibleTableColumns = useMemo(() => {
     return tableColumns.filter(c => {
       if (allowedColumns && allowedColumns[c.key] === false) return false;
+      if (!canViewAddressColumn(c.key)) return false;
+      if (!can('data:column:address') && ['endereco', 'numero_logradouro', 'complemento', 'cep'].includes(c.key)) return false;
       return userVisibleKeys.includes(c.key);
     });
-  }, [allowedColumns, userVisibleKeys]);
+  }, [allowedColumns, userVisibleKeys, can, canViewAddressColumn]);
 
   const toggleColumnVisibility = (key: string) => {
     setUserVisibleKeys(prev => {
@@ -492,10 +496,15 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
   const filteredModalColumns = useMemo(() => {
     const q = normalizeString(columnSearchText);
-    const base = tableColumns.filter(c => !allowedColumns || allowedColumns[c.key] !== false);
+    const base = tableColumns.filter(c => {
+      if (allowedColumns && allowedColumns[c.key] === false) return false;
+      if (!canViewAddressColumn(c.key)) return false;
+      if (!can('data:column:address') && ['endereco', 'numero_logradouro', 'complemento', 'cep'].includes(c.key)) return false;
+      return true;
+    });
     if (!q) return base;
     return base.filter(c => normalizeString(c.label).includes(q) || normalizeString(c.key).includes(q));
-  }, [columnSearchText, allowedColumns]);
+  }, [columnSearchText, allowedColumns, can, canViewAddressColumn]);
 
   // Ordenação nas colunas
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);

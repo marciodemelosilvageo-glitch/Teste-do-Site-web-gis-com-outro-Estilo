@@ -32,7 +32,7 @@ import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from
 import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase, getUserPosition } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, buscarEnderecosPorCategoriaEmPoligonos, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 import { RecentSearchItem, detectCategoryFromData } from './categories';
-import { FeatureAccessProvider } from './context/FeatureAccessContext';
+import { FeatureAccessProvider, useFeatureAccess } from './context/FeatureAccessContext';
 
 // Carregamento sob demanda (Lazy Loading) para componentes pesados
 const Globe = lazy(() => import('./components/Globe'));
@@ -296,17 +296,37 @@ export default function App() {
     };
   }, [isSimulatingUser, simulatedSessionId, simulatedRole, refreshPermissions]);
 
+  // Notificações flutuantes (toasts) desativadas a pedido do usuário
+  const showToast = useCallback((_msg: string, _duration?: number) => {
+    // Intencionalmente desativado a pedido do usuário para não exibir mensagens flutuantes na interface
+  }, []);
+
+  // Contexto unificado de permissões e controle de acesso
+  const access = useFeatureAccess({
+    currentActiveUser: isSimulatingUser ? (simulatedTargetUser || currentActiveUser) : currentActiveUser,
+    userRole: isSimulatingUser ? simulatedRole : userRole,
+    isMaster,
+    isManager,
+    featurePermissions,
+    layerPermissions,
+    addressColumnsPermissions: effectiveSession?.addressColumnsPermissions || getAddressColumnsPermissions(),
+    featurePropertiesPermissions: effectiveSession?.featurePropertiesPermissions || getFeaturePropertiesPermissions(),
+    showToast
+  });
+  const { can, canViewLayer, guardAction } = access;
+
   // Lista de camadas autorizadas para o perfil ativo
   const allowedLayerNames = useMemo(() => {
-    if (isSimulatingUser && simulatedTargetUser?.customLayerPermissions) {
-      return dataSources
-        .filter(s => simulatedTargetUser.customLayerPermissions?.[s.name] !== false)
-        .map(s => s.name);
-    }
     return dataSources
-      .filter(s => (layerPermissions[s.name] !== false) && (effectiveSession.layerPermissions[s.name] !== false))
+      .filter(s => {
+        if (!canViewLayer(s.name)) return false;
+        if (isSimulatingUser && simulatedTargetUser?.customLayerPermissions) {
+          return simulatedTargetUser.customLayerPermissions[s.name] !== false;
+        }
+        return (layerPermissions[s.name] !== false) && (effectiveSession.layerPermissions[s.name] !== false);
+      })
       .map(s => s.name);
-  }, [isSimulatingUser, simulatedTargetUser, layerPermissions, effectiveSession.layerPermissions]);
+  }, [canViewLayer, isSimulatingUser, simulatedTargetUser, layerPermissions, effectiveSession.layerPermissions]);
 
   // Configurações de Camadas e Seleção
   const [selectedFeatures, setSelectedFeatures] = useState<SelectedFeature[]>([]);
@@ -344,12 +364,12 @@ export default function App() {
           !feat.sourceName || 
           feat.sourceName === 'Coordenadas' || 
           feat.id === 'coord-search' || 
-          allowedLayerNames.includes(feat.sourceName)
+          (allowedLayerNames.includes(feat.sourceName) && canViewLayer(feat.sourceName))
         );
         return filtered.length === prev.length ? prev : filtered;
       });
     }
-  }, [allowedLayerNames]);
+  }, [allowedLayerNames, canViewLayer]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }> | null>(null);
   const [hasCnefeResults, setHasCnefeResults] = useState<boolean>(false);
@@ -472,22 +492,34 @@ export default function App() {
   // Estados de layout estilo Apple Maps (maps.apple.com)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(null);
+  const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
+  const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
+  const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
 
-  // Fechar abas restritas caso a permissão seja revogada
+  // Fechar abas e ferramentas restritas caso a permissão seja revogada
   useEffect(() => {
     if (!isMaster) {
-      if (sidebarTab === 'dashboard' && featurePermissions.allowDashboardRaioX === false) {
+      if (sidebarTab === 'dashboard' && !can('tool:raio_x')) {
         setSidebarTab(null);
-      } else if (sidebarTab === 'details' && featurePermissions.allowFeatureSpecs === false) {
+      } else if (sidebarTab === 'details' && !can('tool:feature_specs')) {
         setSidebarTab(null);
-      } else if (sidebarTab === 'export' && featurePermissions.allowExportData === false) {
+      } else if (sidebarTab === 'export' && !can('tool:export_data')) {
         setSidebarTab(null);
       }
-      if (isPrintMode && featurePermissions.allowPrintA4 === false) {
+      if (isPrintMode && !can('tool:print_a4')) {
         setIsPrintMode(false);
       }
+      if (isMultiSelectMode && !can('tool:multi_select')) {
+        setIsMultiSelectMode(false);
+      }
+      if (isCnefeBottomBarExpanded && !can('tool:advanced_search')) {
+        setIsCnefeBottomBarExpanded(false);
+      }
+      if (isCnefeBottomBarOpen && !can('tool:cnefe_search') && !can('tool:advanced_search')) {
+        setIsCnefeBottomBarOpen(false);
+      }
     }
-  }, [sidebarTab, featurePermissions, isMaster, isPrintMode]);
+  }, [sidebarTab, can, isMaster, isPrintMode, isMultiSelectMode, isCnefeBottomBarExpanded, isCnefeBottomBarOpen]);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
   const [isHospitalSearching, setIsHospitalSearching] = useState(false);
   const [isAddressSearching, setIsAddressSearching] = useState<boolean>(false);
@@ -529,9 +561,6 @@ export default function App() {
       console.warn('Não foi possível carregar lista de municípios sob demanda:', err);
     }
   }, []);
-  const [isCnefeBottomBarOpen, setIsCnefeBottomBarOpen] = useState<boolean>(true);
-  const [isCnefeBottomBarExpanded, setIsCnefeBottomBarExpanded] = useState<boolean>(false);
-  const [isCnefeBottomBarMaximized, setIsCnefeBottomBarMaximized] = useState<boolean>(false);
 
   // Referência para controlar se o Raio-X foi aberto automaticamente por seleção múltipla (2+ feições)
   const isAutoOpenedDashboardRef = useRef<boolean>(false);
@@ -550,18 +579,34 @@ export default function App() {
 
   const handleOpenDetailsTab = useCallback(() => {
     isAutoOpenedDashboardRef.current = false;
-    setSidebarTab('details');
-  }, []);
+    if (can('tool:feature_specs')) {
+      setSidebarTab('details');
+    } else {
+      guardAction('tool:feature_specs', 'Detalhes da Feição', () => {});
+    }
+  }, [can, guardAction]);
 
   const handleClearSearchSelectedFeatureId = useCallback(() => {
     setSearchSelectedFeatureId(null);
   }, []);
 
+  const handleToggleMultiSelect = useCallback(() => {
+    if (!can('tool:multi_select')) {
+      guardAction('tool:multi_select', 'Multiseleção', () => {});
+      return;
+    }
+    setIsMultiSelectMode(prev => {
+      const next = !prev;
+      showToast(next ? 'Multiseleção ativada! Clique em várias áreas.' : 'Multiseleção desativada.');
+      return next;
+    });
+  }, [can, guardAction, showToast]);
+
   // Abrir aba de Detalhes ou Raio-X no estilo Apple Maps quando feições forem selecionadas no mapa:
-  // - 2+ feições válidas para o Raio-X: abre automaticamente a aba "dashboard" (Raio-X) somando dados.
-  // - Se a seleção voltar para 1 feição e foi aberto automaticamente, volta para "details".
-  // - Se o usuário abriu manualmente o Raio-X, mantém nele.
-  // - Feições sem dashboard (plot-, Localidades, Comunidades Rurais) abrem "details".
+  // - 2+ feições válidas para o Raio-X: abre automaticamente a aba "dashboard" (Raio-X) somando dados se permitido.
+  // - Se a seleção voltar para 1 feição e foi aberto automaticamente, volta para "details" (se permitido).
+  // - Se o usuário abriu manualmente o Raio-X, mantém nele se permitido.
+  // - Feições sem dashboard (plot-, Localidades, Comunidades Rurais) abrem "details" apenas se permitido.
   useEffect(() => {
     // Se a seleção partiu de um clique na lista de resultados da busca, mantemos a aba atual ('search')
     const isSilent = isSilentSearchSelectionRef.current && (Date.now() - lastSilentSearchTimestampRef.current < 2500);
@@ -569,6 +614,9 @@ export default function App() {
       isSilentSearchSelectionRef.current = false;
       return;
     }
+
+    const canSpecs = can('tool:feature_specs');
+    const canRaioX = can('tool:raio_x');
 
     if (selectedFeatures.length > 0) {
       const dashboardFeatures = selectedFeatures.filter(f => {
@@ -585,17 +633,34 @@ export default function App() {
       const dashCount = dashboardFeatures.length;
 
       if (dashCount >= 2) {
-        // Seleção múltipla com 2+ feições que contam para o Raio-X vai direto para o Raio-X
-        isAutoOpenedDashboardRef.current = true;
-        setSidebarTab('dashboard');
-      } else if (dashCount === 1) {
-        // Se a seleção voltar a ter 1 feição e o Raio-X tiver sido aberto automaticamente por esse mecanismo, volte para "details"
-        if (isAutoOpenedDashboardRef.current) {
+        // Seleção múltipla com 2+ feições que contam para o Raio-X
+        if (canRaioX) {
+          isAutoOpenedDashboardRef.current = true;
+          setSidebarTab('dashboard');
+        } else if (canSpecs) {
           isAutoOpenedDashboardRef.current = false;
           setSidebarTab('details');
         } else {
-          // Se o usuário abriu o Raio-X manualmente ou já estava nele, mantenha
-          setSidebarTab(prev => (prev === 'dashboard' ? 'dashboard' : 'details'));
+          isAutoOpenedDashboardRef.current = false;
+          setSidebarTab(prev => (prev === 'dashboard' || prev === 'details' ? null : prev));
+        }
+      } else if (dashCount === 1) {
+        // Se a seleção voltar a ter 1 feição e o Raio-X tiver sido aberto automaticamente por esse mecanismo
+        if (isAutoOpenedDashboardRef.current) {
+          isAutoOpenedDashboardRef.current = false;
+          if (canSpecs) {
+            setSidebarTab('details');
+          } else {
+            setSidebarTab(null);
+          }
+        } else {
+          // Se o usuário abriu o Raio-X manualmente ou já estava nele, mantenha se tiver permissão
+          setSidebarTab(prev => {
+            if (prev === 'dashboard') {
+              return canRaioX ? 'dashboard' : (canSpecs ? 'details' : null);
+            }
+            return canSpecs ? 'details' : (canRaioX ? 'dashboard' : null);
+          });
         }
       } else {
         // Apenas feições sem dashboard (Localidades, Comunidades Rurais, pontos plotados)
@@ -604,7 +669,11 @@ export default function App() {
         if (isMobile && isAllPlots) {
           // No mobile: clicar num ponto plotado NÃO abre a aba de detalhes
         } else {
-          setSidebarTab('details');
+          if (canSpecs) {
+            setSidebarTab('details');
+          } else {
+            setSidebarTab(prev => (prev === 'details' ? null : prev));
+          }
         }
       }
     } else {
@@ -612,7 +681,7 @@ export default function App() {
       // Quando o usuário desmarca a feição (nada selecionado), fecha a barra de detalhes da feição
       setSidebarTab(prev => (prev === 'details' ? null : prev));
     }
-  }, [selectedFeatures, isMobile]);
+  }, [selectedFeatures, isMobile, can]);
 
   const [measureHistory, setMeasureHistory] = useState<L.LatLng[] | null>(null);
 
@@ -734,11 +803,6 @@ export default function App() {
     selectFeature: (layer: L.Layer, feature: any, sourceName: string) => void;
     removeMeasurePoint: (index: number) => void;
   } | null>(null);
-
-  // Notificações flutuantes (toasts) desativadas a pedido do usuário
-  const showToast = useCallback((_msg: string, _duration?: number) => {
-    // Intencionalmente desativado a pedido do usuário para não exibir mensagens flutuantes na interface
-  }, []);
 
   // Logout real: chama supabase.auth.signOut() local, limpa tokens do storage, registra auditoria e limpa estado
   const handleLogout = useCallback(async (reason?: string) => {
@@ -905,6 +969,10 @@ export default function App() {
 
       // 3. Tecla M -> Alternar/Acionar régua de medição
       if (e.key.toLowerCase() === 'm' && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!can('tool:measure')) {
+          guardAction('tool:measure', 'Medição', () => {});
+          return;
+        }
         const measureBtn = document.querySelector('#btn-toggle-measure, .leaflet-control-measure-toggle, a.leaflet-control-measure-toggle') as HTMLElement;
         if (measureBtn) {
           e.preventDefault();
@@ -917,6 +985,8 @@ export default function App() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [
+    can,
+    guardAction,
     isAdminModalOpen,
     isHelpOpen,
     isLoginFormOpen,
@@ -1194,6 +1264,10 @@ export default function App() {
 
   // Busca espacial de endereços CNEFE dentro da geometria de um polígono selecionado
   const handleSearchPolygonAddresses = async (feat: { feature?: any; properties?: any; name?: string; title?: string; sourceName?: string; layer?: any }) => {
+    if (!can('tool:search_area_addresses')) {
+      guardAction('tool:search_area_addresses', 'Buscar Endereços na Área', () => {});
+      return;
+    }
     if (isAddressSearchActiveRef.current) return;
     isAddressSearchActiveRef.current = true;
     setIsAddressSearching(true);
@@ -1284,6 +1358,15 @@ export default function App() {
 
   // Busca espacial temática de estabelecimentos (ou todos os endereços) por categoria dentro de uma ou mais feições
   const handleSearchCategoryInFeatures = async (categoryId: string, features: any[] | any) => {
+    const isAll = !categoryId || categoryId === 'todos';
+    if (isAll && !can('tool:search_area_addresses')) {
+      guardAction('tool:search_area_addresses', 'Buscar Endereços na Área', () => {});
+      return;
+    }
+    if (!isAll && !can('tool:search_by_type')) {
+      guardAction('tool:search_by_type', 'Buscar por Tipo', () => {});
+      return;
+    }
     if (isAddressSearchActiveRef.current) return;
     isAddressSearchActiveRef.current = true;
     setIsAddressSearching(true);
@@ -2002,6 +2085,13 @@ export default function App() {
 
       // 3. Usuário NÃO existe: Se informou senha, realiza o auto-cadastro da nova conta
       if (trimmedPassword) {
+        if (!can('account:self_register')) {
+          setWelcomeError('O autocadastro de novas contas está desativado pelo administrador.');
+          guardAction('account:self_register', 'Autocadastro de Conta', () => {});
+          setIsWelcomeSubmitting(false);
+          return;
+        }
+
         if (trimmedPassword.length < 8) {
           setWelcomeError('A senha deve ter no mínimo 8 caracteres para criar sua conta.');
           setIsWelcomeSubmitting(false);
@@ -2194,11 +2284,11 @@ export default function App() {
     try {
       const layersToSearch: { name: string; loader: () => Promise<L.GeoJSON> }[] = [];
 
-      const searchActiveOnlyEffective = (searchActiveLayersOnly || (!isMaster && featurePermissions.allowSearchActiveLayersOnly === true)) && !isCoordSearch;
+      const searchActiveOnlyEffective = (searchActiveLayersOnly || (!isMaster && can('tool:search_active_layers_only'))) && !isCoordSearch;
 
       if (searchActiveOnlyEffective) {
         activeLayers
-          .filter(name => allowedLayerNames.includes(name))
+          .filter(name => allowedLayerNames.includes(name) && canViewLayer(name))
           .forEach(name => {
             layersToSearch.push({
               name,
@@ -2212,7 +2302,7 @@ export default function App() {
           });
       } else {
         dataSources
-          .filter(src => allowedLayerNames.includes(src.name))
+          .filter(src => allowedLayerNames.includes(src.name) && canViewLayer(src.name))
           .forEach(src => {
             layersToSearch.push({
               name: src.name,
@@ -2560,7 +2650,9 @@ export default function App() {
 
         // 1. Envia apenas a feição da coordenada pesquisada para "Detalhes da Feição" (sem selecionar municípios ou outros polígonos)
         setSelectedFeatures([newFeature]);
-        setSidebarTab('details');
+        if (can('tool:feature_specs')) {
+          setSidebarTab('details');
+        }
         // Mantém o estado da barra de ferramentas (se estava minimizada continua minimizada, se expandida continua expandida)
 
         // 2. Fecha a barra de busca suspensa do topo
@@ -2842,7 +2934,9 @@ export default function App() {
       return [...filtered, plotFeature];
     });
 
-    setSidebarTab('details');
+    if (can('tool:feature_specs')) {
+      setSidebarTab('details');
+    }
   };
 
   const handlePlotAddress = useCallback((row: any) => {
@@ -2914,7 +3008,9 @@ export default function App() {
         mapInstance.setView(adjustedLatLng, targetZoom);
       }
     } else {
-      setSidebarTab('details');
+      if (can('tool:feature_specs')) {
+        setSidebarTab('details');
+      }
       if (mapInstance) {
         mapInstance.setView([lat, lng], 17);
       }
@@ -2925,7 +3021,7 @@ export default function App() {
     
     // Rolar a tela para o topo para ver o mapa
     // map is already visible on screen
-  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile]);
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile, can]);
 
   const handlePlotAllAddresses = useCallback((results: any[]) => {
     const validCoords = results
@@ -2991,8 +3087,12 @@ export default function App() {
 
   // Callbacks memoizados da Barra Inferior CNEFE para garantir que o React.memo evite re-renders
   const handleOpenCnefeBottomBar = useCallback(() => {
+    if (!can('tool:cnefe_search') && !can('tool:advanced_search')) {
+      guardAction('tool:advanced_search', 'Busca de Endereços', () => {});
+      return;
+    }
     setIsCnefeBottomBarOpen(true);
-  }, []);
+  }, [can, guardAction]);
 
   const handleCloseCnefeBottomBar = useCallback(() => {
     setIsCnefeBottomBarOpen(false);
@@ -3003,11 +3103,15 @@ export default function App() {
 
   const handleToggleExpandCnefeBottomBar = useCallback(() => {
     const next = !isCnefeBottomBarExpandedRef.current;
+    if (next && !can('tool:advanced_search')) {
+      guardAction('tool:advanced_search', 'Busca Avançada de Endereços', () => {});
+      return;
+    }
     setIsCnefeBottomBarExpanded(next);
     if (!next) {
       setIsCnefeBottomBarMaximized(false);
     }
-  }, []);
+  }, [can, guardAction]);
 
   const handleToggleMaximizeCnefeBottomBar = useCallback(() => {
     setIsCnefeBottomBarMaximized(prev => !prev);
@@ -3639,6 +3743,7 @@ export default function App() {
 
   return (
     <FeatureAccessProvider
+      value={access}
       currentActiveUser={currentActiveUser}
       featurePermissions={featurePermissions}
       layerPermissions={layerPermissions}
@@ -3781,16 +3886,15 @@ export default function App() {
             else handleOpenAdminLogin();
           }}
           onOpenCnefeAddressSearch={() => {
-            if (!isMaster && featurePermissions.allowCnefeSearch === false) {
-              logActivity('ACESSO', 'Tentativa de abrir busca CNEFE bloqueada por permissão', userRole);
-              showToast('⚠️ Acesso restrito: Busca de endereços CNEFE desativada para seu perfil.');
+            if (!can('tool:advanced_search')) {
+              guardAction('tool:advanced_search', 'Busca Avançada', () => {});
               return;
             }
             setIsCnefeBottomBarOpen(true);
             setIsCnefeBottomBarExpanded(true);
           }}
           isAddressSearchOpen={isCnefeBottomBarExpanded}
-          hasCnefeSearch={hasCnefeSearch && (isMaster || featurePermissions.allowCnefeSearch !== false)}
+          hasCnefeSearch={hasCnefeSearch && can('tool:advanced_search')}
         >
           {/* CONTAINER DO MAPA (100% WIDTH / HEIGHT NO MOBILE) */}
           <div className="w-full h-full relative overflow-hidden">
@@ -3803,10 +3907,7 @@ export default function App() {
               isMobile={true}
               isDarkMode={isDarkMode}
               onToggleDarkMode={toggleDarkModeWithTransition}
-              onToggleMultiSelect={() => {
-                setIsMultiSelectMode(!isMultiSelectMode);
-                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
-              }}
+              onToggleMultiSelect={handleToggleMultiSelect}
               selectedFeatures={selectedFeatures}
               onSelectionChange={(features) => {
                 setSelectedFeatures(prev => {
@@ -3883,9 +3984,9 @@ export default function App() {
             {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) - MOBILE */}
             <CnefeBottomBar
               isMobile={true}
-              isOpen={isCnefeBottomBarOpen && (isMaster || featurePermissions.allowCnefeSearch !== false)}
+              isOpen={isCnefeBottomBarOpen && (isMaster || can('tool:cnefe_search') || can('tool:advanced_search'))}
               isStage2Open={!!sidebarTab}
-              isExpanded={isCnefeBottomBarExpanded}
+              isExpanded={isCnefeBottomBarExpanded && can('tool:advanced_search')}
               onOpen={handleOpenCnefeBottomBar}
               onClose={handleCloseCnefeBottomBar}
               onToggleExpand={handleToggleExpandCnefeBottomBar}
@@ -3930,10 +4031,7 @@ export default function App() {
               onRemoveFromSelection={handleRemoveFromSelection}
               onClearSelection={handleClearSelection}
               isMultiSelectMode={isMultiSelectMode}
-              onToggleMultiSelect={() => {
-                setIsMultiSelectMode(!isMultiSelectMode);
-                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
-              }}
+              onToggleMultiSelect={handleToggleMultiSelect}
               onSearchPolygonAddresses={handleSearchPolygonAddresses}
               onSearchCategoryInFeatures={handleSearchCategoryInFeatures}
               onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
@@ -4032,10 +4130,7 @@ export default function App() {
               onRemoveFromSelection={handleRemoveFromSelection}
               onClearSelection={handleClearSelection}
               isMultiSelectMode={isMultiSelectMode}
-              onToggleMultiSelect={() => {
-                setIsMultiSelectMode(!isMultiSelectMode);
-                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
-              }}
+              onToggleMultiSelect={handleToggleMultiSelect}
               onSearchPolygonAddresses={handleSearchPolygonAddresses}
               onSearchCategoryInFeatures={handleSearchCategoryInFeatures}
               onSearchLocalidadeAddresses={handleSearchLocalidadeAddresses}
@@ -4107,10 +4202,7 @@ export default function App() {
               isSidebarCollapsed={isSidebarCollapsed}
               isMultiSelectMode={isMultiSelectMode}
               isMobile={false}
-              onToggleMultiSelect={() => {
-                setIsMultiSelectMode(!isMultiSelectMode);
-                showToast(isMultiSelectMode ? 'Multiseleção desativada.' : 'Multiseleção ativada! Clique em várias áreas.');
-              }}
+              onToggleMultiSelect={handleToggleMultiSelect}
               selectedFeatures={selectedFeatures}
               onSelectionChange={(features) => {
                 setSelectedFeatures(prev => {
@@ -4186,9 +4278,9 @@ export default function App() {
 
             {/* BARRA INFERIOR DE BUSCA DE ENDEREÇOS CNEFE (IBGE) - DESKTOP */}
             <CnefeBottomBar
-              isOpen={isCnefeBottomBarOpen && (isMaster || featurePermissions.allowCnefeSearch !== false)}
+              isOpen={isCnefeBottomBarOpen && (isMaster || can('tool:cnefe_search') || can('tool:advanced_search'))}
               isStage2Open={!!sidebarTab}
-              isExpanded={isCnefeBottomBarExpanded}
+              isExpanded={isCnefeBottomBarExpanded && can('tool:advanced_search')}
               onOpen={handleOpenCnefeBottomBar}
               onClose={handleCloseCnefeBottomBar}
               onToggleExpand={handleToggleExpandCnefeBottomBar}

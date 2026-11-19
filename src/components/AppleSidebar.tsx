@@ -316,6 +316,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     setShowFormatPrompt(false);
   }, [activeDetailFeature?.id, activeTab]);
 
+  // Fechar abas restritas caso a permissão seja revogada
+  useEffect(() => {
+    if (activeTab === 'details' && !can('tool:feature_specs')) {
+      setActiveTab(null);
+    } else if (activeTab === 'dashboard' && !can('tool:raio_x')) {
+      setActiveTab(null);
+    } else if (activeTab === 'export' && !can('tool:export_data')) {
+      setActiveTab(null);
+    }
+  }, [activeTab, can, setActiveTab]);
+
   // Fechar prompt de formato ao pressionar Escape
   useEffect(() => {
     if (!showFormatPrompt) return;
@@ -519,13 +530,13 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     }
   }, [normalizedLayer, isCustomizerModalOpen, customizerLayer, showToast]);
 
-  // Fechar o modal de personalização se a aba de detalhes for fechada ou alterada
+  // Fechar o modal de personalização se a aba de detalhes for fechada ou alterada, ou permissão revogada
   useEffect(() => {
-    if (activeTab !== 'details' && isCustomizerModalOpen) {
+    if ((activeTab !== 'details' || !can('tool:customize_useful_info')) && isCustomizerModalOpen) {
       setIsCustomizerModalOpen(false);
       setCustomizerLayer(null);
     }
-  }, [activeTab, isCustomizerModalOpen]);
+  }, [activeTab, isCustomizerModalOpen, can]);
 
   const handleSaveUsefulCards = (newIds: string[]) => {
     const targetNorm = customizerLayer ? customizerLayer.norm : normalizedLayer;
@@ -1229,7 +1240,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     <>
             {/* ABA: DETALHES DA FEIÇÃO / PLACE CARD (Screenshot 3 do Apple Maps) */}
         {/* ============================================================== */}
-        {activeTab === 'details' && (
+        {activeTab === 'details' && can('tool:feature_specs') && (
           activeDetailFeature ? (
           <div className="space-y-4 animate-fadeIn">
             {/* Header do Cartão do Local */}
@@ -1422,7 +1433,9 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                         aria-busy={isSearchingAddresses}
                         onClick={() => {
                           onSearchPolygonAddresses(activeDetailFeature);
-                          onOpenCnefeBottomBar?.();
+                          if (can('tool:advanced_search')) {
+                            onOpenCnefeBottomBar?.();
+                          }
                         }}
                         className={`flex-1 py-2.5 pl-1.5 pr-0.5 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] rounded-l-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50 ${isSearchingAddresses ? 'cnefe-btn-searching' : ''}`}
                         title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
@@ -1451,7 +1464,9 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                       aria-busy={isSearchingAddresses}
                       onClick={() => {
                         onSearchPolygonAddresses(activeDetailFeature);
-                        onOpenCnefeBottomBar?.();
+                        if (can('tool:advanced_search')) {
+                          onOpenCnefeBottomBar?.();
+                        }
                       }}
                       className={`py-2.5 px-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 text-slate-800 dark:text-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer text-center disabled:opacity-50 ${isSearchingAddresses ? 'cnefe-btn-searching' : ''}`}
                       title={isComunidadeRural ? "Abrir Busca de Endereços desta área na barra inferior" : "Abrir Busca de Endereços Avançado desta área na barra inferior"}
@@ -2267,7 +2282,17 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
   );
 
   if (isMobile) {
-    const isSheetOpen = !!activeTab && activeTab !== 'profile';
+    const isDetailsAllowed = can('tool:feature_specs');
+    const isDashboardAllowed = can('tool:raio_x');
+    const isExportAllowed = can('tool:export_data');
+
+    const isTabPermitted =
+      activeTab === 'details' ? isDetailsAllowed :
+      activeTab === 'dashboard' ? isDashboardAllowed :
+      activeTab === 'export' ? isExportAllowed :
+      true;
+
+    const isSheetOpen = !!activeTab && activeTab !== 'profile' && isTabPermitted;
     const sheetTitle = 
       activeTab === 'search' 
         ? (activeCategorySearchId ? (CATEGORY_UI_META[activeCategorySearchId]?.title || 'Buscar') : 'Buscar')
@@ -2359,7 +2384,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
       >
         <div className="relative w-full h-full min-h-full">
           <AnimatePresence initial={false} mode="wait">
-            {isCustomizerModalOpen ? (
+            {isCustomizerModalOpen && can('tool:customize_useful_info') ? (
               <motion.div
                 key="mobile-customizer-view"
                 initial={{ x: '100%', opacity: 0 }}
@@ -2774,7 +2799,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
 
           {/* Painel de Personalização de Informações Úteis (acoplado dentro do Estágio 2 da barra lateral, sem cobrir o mapa) */}
           <AnimatePresence>
-            {isCustomizerModalOpen && (
+            {isCustomizerModalOpen && can('tool:customize_useful_info') && (
               <FeatureInfoCustomizerModal
                 isOpen={isCustomizerModalOpen}
                 onClose={() => {

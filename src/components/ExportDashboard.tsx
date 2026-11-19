@@ -106,7 +106,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   preferences,
   onUpdatePreferences
 }) => {
-  const { can, canExport, getNumericLimit } = useFeatureAccess();
+  const { can, canExport, canViewLayer, getNumericLimit } = useFeatureAccess();
   const maxExportRows = getNumericLimit('export_rows', 50000);
   const count = selectedFeatures?.length || 0;
   const currentFormat: ExportFormat = preferences?.format || 'geojson';
@@ -121,27 +121,29 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     count > 0 ? 'filtered' : 'full_layer'
   );
 
+  // Lista de camadas disponíveis para download completo
+  const availableLayers = useMemo(() => {
+    return dataSources
+      .filter(ds => canViewLayer(ds.name))
+      .map(ds => ({
+        name: ds.name,
+        url: ds.url,
+        friendlyName: ds.name === 'Municipios' ? 'Municípios (Piauí)' :
+                      ds.name === 'Bairros' ? 'Bairros (Teresina)' :
+                      ds.name === 'Favelas e Comunidades' ? 'Favelas e Comunidades Urbanas' :
+                      ds.name
+      }));
+  }, [canViewLayer]);
+
   // Camada selecionada para exportação completa
   const [selectedLayerName, setSelectedLayerName] = useState<string>(
-    dataSources[0]?.name || 'Municipios'
+    availableLayers[0]?.name || dataSources[0]?.name || 'Municipios'
   );
 
   // Estado de carregamento e erro inline (sem toasts)
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadFormat, setDownloadFormat] = useState<ExportFormat | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-
-  // Lista de camadas disponíveis para download completo
-  const availableLayers = useMemo(() => {
-    return dataSources.map(ds => ({
-      name: ds.name,
-      url: ds.url,
-      friendlyName: ds.name === 'Municipios' ? 'Municípios (Piauí)' :
-                    ds.name === 'Bairros' ? 'Bairros (Teresina)' :
-                    ds.name === 'Favelas e Comunidades' ? 'Favelas e Comunidades Urbanas' :
-                    ds.name
-    }));
-  }, []);
 
   const currentLayer = useMemo(() => {
     return availableLayers.find(l => l.name === selectedLayerName) || availableLayers[0];
@@ -178,8 +180,13 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setExportError(`Exportação no formato ${format.toUpperCase()} bloqueada pelo administrador.`);
       return;
     }
-    if (selectedFeatures.length > maxExportRows && Number.isFinite(maxExportRows)) {
-      setExportError(`O seu perfil possui limite de exportação de até ${maxExportRows.toLocaleString('pt-BR')} linhas (seleção atual: ${selectedFeatures.length.toLocaleString('pt-BR')}). Reduza a seleção ou solicite ampliação de limite ao Administrador.`);
+    const allowedFeatures = selectedFeatures.filter(f => !f.sourceName || canViewLayer(f.sourceName));
+    if (allowedFeatures.length === 0) {
+      setExportError('Nenhuma das feições selecionadas pertence a uma camada permitida para o seu perfil.');
+      return;
+    }
+    if (allowedFeatures.length > maxExportRows && Number.isFinite(maxExportRows)) {
+      setExportError(`O seu perfil possui limite de exportação de até ${maxExportRows.toLocaleString('pt-BR')} linhas (seleção atual: ${allowedFeatures.length.toLocaleString('pt-BR')}). Reduza a seleção ou solicite ampliação de limite ao Administrador.`);
       return;
     }
     setExportError(null);
@@ -187,7 +194,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     setDownloadFormat(format);
 
     try {
-      const res = await exportSelectedFeatures(format, selectedFeatures, 'user');
+      const res = await exportSelectedFeatures(format, allowedFeatures, 'user');
       if (!res.ok) {
         setExportError(res.error || 'Erro ao exportar feições.');
       }
@@ -197,7 +204,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [selectedFeatures, canExport, maxExportRows]);
+  }, [selectedFeatures, canExport, canViewLayer, maxExportRows]);
 
   // ==============================================================
   // EXPORTAÇÃO DA CAMADA COMPLETA
@@ -217,6 +224,10 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
   const handleExportFullLayer = useCallback(async (format: ExportFormat) => {
     if (!currentLayer) return;
+    if (!canViewLayer(currentLayer.name)) {
+      setExportError('Exportação bloqueada: você não possui permissão para acessar esta camada.');
+      return;
+    }
     if (!canExport(format)) {
       setExportError(`Exportação no formato ${format.toUpperCase()} bloqueada pelo administrador.`);
       return;
@@ -265,7 +276,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
       setIsDownloading(false);
       setDownloadFormat(null);
     }
-  }, [currentLayer, fullLayerGeometryKind, canExport, maxExportRows]);
+  }, [currentLayer, fullLayerGeometryKind, canExport, canViewLayer, maxExportRows]);
 
   // Identificador da feição principal
   const primaryFeatureName = useMemo(() => {

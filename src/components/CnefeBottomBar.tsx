@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { IbgeSearchPanel, ExternalPolygonSearchResult } from './IbgeSearchPanel';
 import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
+import { useAccess } from '../context/FeatureAccessContext';
 
 export interface CnefeBottomBarProps {
   isOpen?: boolean;
@@ -61,6 +62,14 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
 }) => {
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
+  const { can, guardAction } = useAccess();
+
+  // Fecha ou recolhe automaticamente a barra se a permissão de busca avançada for revogada
+  useEffect(() => {
+    if (isExpanded && !can('tool:advanced_search')) {
+      onToggleExpand();
+    }
+  }, [isExpanded, can, onToggleExpand]);
 
   // Estados e Refs para gesto de arrasto da gaveta no mobile (< 768px) com dois pontos de parada (half ~55vh e full ~90vh)
   const [mobileSnap, setMobileSnap] = useState<'half' | 'full'>('half');
@@ -95,14 +104,14 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       if (detail?.snap && (detail.snap === 'half' || detail.snap === 'full')) {
         setMobileSnap(detail.snap);
         mobileSnapRef.current = detail.snap;
-        if (!isExpandedRef.current && onToggleExpandRef.current) {
+        if (!isExpandedRef.current && onToggleExpandRef.current && can('tool:advanced_search')) {
           onToggleExpandRef.current();
         }
       }
     };
     window.addEventListener('cnefe-snap-to', handleSnapTo);
     return () => window.removeEventListener('cnefe-snap-to', handleSnapTo);
-  }, [isMobile]);
+  }, [isMobile, can]);
 
   // Fechar/minimizar gaveta mobile com tecla Escape
   useEffect(() => {
@@ -590,6 +599,10 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       e.preventDefault();
       e.stopPropagation();
     }
+    if (!isExpanded && !can('tool:advanced_search')) {
+      guardAction('tool:advanced_search', 'Busca Avançada de Endereços', () => {});
+      return;
+    }
     if (isExpanded) {
       // Ao recolher, reseta estado maximizado e altura customizada
       if (isMaximized && onToggleMaximize) {
@@ -912,19 +925,21 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           )}
 
           {/* Botão Principal de Abrir / Recolher */}
-          <button
-            type="button"
-            onClick={handleToggleExpand}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
-              isExpanded
-                ? 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300'
-                : `bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-blue-500/25 ${isSearchingExternal ? 'animate-pulse cnefe-btn-searching' : ''}`
-            }`}
-            title={isExpanded ? "Recolher barra para ver o mapa completo" : "Abrir busca de endereços de baixo para cima"}
-          >
-            <span>{isExpanded ? 'Recolher' : 'Abrir Busca'}</span>
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 cnefe-bounce-limited" />}
-          </button>
+          {can('tool:advanced_search') && (
+            <button
+              type="button"
+              onClick={handleToggleExpand}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+                isExpanded
+                  ? 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300'
+                  : `bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-blue-500/25 ${isSearchingExternal ? 'animate-pulse cnefe-btn-searching' : ''}`
+              }`}
+              title={isExpanded ? "Recolher barra para ver o mapa completo" : "Abrir busca de endereços de baixo para cima"}
+            >
+              <span>{isExpanded ? 'Recolher' : 'Abrir Busca'}</span>
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 cnefe-bounce-limited" />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -942,20 +957,22 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
         }}
         className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-6 py-2 min-h-0"
       >
-        <IbgeSearchPanel
-          embedded={true}
-          isMaximized={isMaximized}
-          onPlotAddress={onPlotAddress}
-          onPlotAllAddresses={onPlotAllAddresses}
-          onClearPlot={onClearPlot}
-          onUnplot={onUnplot}
-          onClearExternalResult={onClearExternalResult}
-          externalPolygonResult={externalPolygonResult}
-          allowedColumns={allowedColumns}
-          hasPlottedMarkers={hasPlottedMarkers}
-          isExternalSearching={isSearchingExternal}
-          onSearchStateChange={onSearchStateChange}
-        />
+        {can('tool:advanced_search') && (
+          <IbgeSearchPanel
+            embedded={true}
+            isMaximized={isMaximized}
+            onPlotAddress={onPlotAddress}
+            onPlotAllAddresses={onPlotAllAddresses}
+            onClearPlot={onClearPlot}
+            onUnplot={onUnplot}
+            onClearExternalResult={onClearExternalResult}
+            externalPolygonResult={externalPolygonResult}
+            allowedColumns={allowedColumns}
+            hasPlottedMarkers={hasPlottedMarkers}
+            isExternalSearching={isSearchingExternal}
+            onSearchStateChange={onSearchStateChange}
+          />
+        )}
       </div>
     </div>
   );

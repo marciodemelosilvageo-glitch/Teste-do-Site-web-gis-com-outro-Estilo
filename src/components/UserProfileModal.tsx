@@ -28,6 +28,7 @@ import {
   isUsernameAvailableAsync,
   sanitizeUsername
 } from '../services/adminService';
+import { useAccess } from '../context/FeatureAccessContext';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -57,6 +58,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const isRegistered = !!currentUser;
   const isMaster = userRole === 'master' || userRole === 'admin';
   const isManager = userRole === 'manager';
+  const { can, guardAction } = useAccess();
+  const canEditProfile = can('account:edit_own_profile');
+  const canChangePassword = can('account:change_own_password') || !!currentUser?.mustChangePassword;
+  const canSelfRegister = can('account:self_register');
 
   // Estados para Usuário Cadastrado
   const [name, setName] = useState<string>('');
@@ -180,6 +185,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       return;
     }
 
+    if (!canEditProfile && (cleanName !== (currentUser.name || '') || cleanUsername !== (currentUser.username || ''))) {
+      setErrorMessage('A alteração do próprio perfil está desativada pelo administrador.');
+      guardAction('account:edit_own_profile', 'Editar Perfil', () => {});
+      return;
+    }
+
     // Verificação estrita antes de enviar
     if (usernameStatus.available === false) {
       setErrorMessage(usernameStatus.message || 'Este nome de usuário já pertence a outra conta.');
@@ -192,6 +203,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
 
     if (newPassword.trim()) {
+      if (!canChangePassword) {
+        setErrorMessage('A alteração de senha está desativada pelo administrador.');
+        guardAction('account:change_own_password', 'Trocar Senha', () => {});
+        return;
+      }
       if (newPassword.trim().length < 4) {
         setErrorMessage('A nova senha deve ter no mínimo 4 caracteres.');
         return;
@@ -228,6 +244,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleCreateAccountFromVisitor = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (!canSelfRegister) {
+      setErrorMessage('O autocadastro de novas contas está desativado pelo administrador.');
+      guardAction('account:self_register', 'Autocadastro', () => {});
+      return;
+    }
 
     const cleanName = visitorFullName.trim();
     const cleanUser = sanitizeUsername(visitorUsernameInput);
@@ -388,20 +410,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <form onSubmit={handleSaveRegisteredProfile} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Nome Completo:
+                Nome Completo: {!canEditProfile && <span className="text-[10px] text-slate-400 font-normal">(Edição desativada)</span>}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={!canEditProfile}
                 placeholder="Seu nome completo"
-                className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold outline-none ${!canEditProfile ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-500 cursor-not-allowed border-slate-200 dark:border-slate-800' : 'bg-slate-50 dark:bg-slate-800/90 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-red-500'}`}
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Nome de Usuário (@login):
+                Nome de Usuário (@login): {!canEditProfile && <span className="text-[10px] text-slate-400 font-normal">(Edição desativada)</span>}
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-2.5 text-slate-400 font-mono text-xs font-bold">@</span>
@@ -409,14 +432,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  disabled={!canEditProfile}
                   placeholder="usuario"
-                  className={`w-full bg-slate-50 dark:bg-slate-800/90 border rounded-xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-slate-900 dark:text-slate-100 outline-none transition-all ${
-                    usernameStatus.available === false
-                      ? 'border-red-500 ring-2 ring-red-500/30'
-                      : usernameStatus.available === true && sanitizeUsername(username) !== sanitizeUsername(currentUser?.username || '')
-                        ? 'border-emerald-500 ring-2 ring-emerald-500/30'
-                        : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-red-500'
-                  }`}
+                  className={`w-full border rounded-xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold outline-none transition-all ${!canEditProfile ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-500 cursor-not-allowed border-slate-200 dark:border-slate-800' : (usernameStatus.available === false ? 'border-red-500 ring-2 ring-red-500/30' : usernameStatus.available === true && sanitizeUsername(username) !== sanitizeUsername(currentUser?.username || '') ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-red-500 bg-slate-50 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100')}`}
                 />
               </div>
               {usernameStatus.message && (
@@ -434,63 +452,70 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
 
             {/* SEÇÃO DE TROCA DE SENHA */}
-            <div className={`pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3 ${currentUser?.mustChangePassword ? 'p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/60' : ''}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-amber-500" />
-                  {currentUser?.mustChangePassword ? 'Definir Nova Senha Pessoal *' : 'Trocar Senha de Acesso'}
-                </span>
-                <span className="text-[11px] text-slate-400 font-normal">
-                  {currentUser?.mustChangePassword ? 'Obrigatório (mín. 4 caracteres)' : 'Deixe em branco se não quiser mudar'}
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                  Nova Senha: {currentUser?.mustChangePassword && <span className="text-red-500">*</span>}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Digitar sua nova senha..."
-                    className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+            {canChangePassword ? (
+              <div className={`pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3 ${currentUser?.mustChangePassword ? 'p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/60' : ''}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-500" />
+                    {currentUser?.mustChangePassword ? 'Definir Nova Senha Pessoal *' : 'Trocar Senha de Acesso'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    {currentUser?.mustChangePassword ? 'Obrigatório (mín. 4 caracteres)' : 'Deixe em branco se não quiser mudar'}
+                  </span>
                 </div>
-              </div>
 
-              {(newPassword.trim().length > 0 || currentUser?.mustChangePassword) && (
-                <div className="space-y-1.5 animate-fadeIn">
+                <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                    Confirmar Nova Senha: {currentUser?.mustChangePassword && <span className="text-red-500">*</span>}
+                    Nova Senha: {currentUser?.mustChangePassword && <span className="text-red-500">*</span>}
                   </label>
                   <div className="relative">
                     <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Repita a nova senha..."
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Digitar sua nova senha..."
                       className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                     >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {(newPassword.trim().length > 0 || currentUser?.mustChangePassword) && (
+                  <div className="space-y-1.5 animate-fadeIn">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                      Confirmar Nova Senha: {currentUser?.mustChangePassword && <span className="text-red-500">*</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repita a nova senha..."
+                        className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                <Key className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>A alteração da própria senha foi desativada pelo administrador.</span>
+              </div>
+            )}
 
             {/* BOTÕES DE AÇÃO */}
             <div className="pt-3 flex items-center gap-2">
@@ -532,145 +557,171 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* CASO 2: VISITANTE -> FORMULÁRIO DIRETO DE CRIAR CONTA OFICIAL */}
         {!isRegistered && (
           <div className="space-y-4">
-            {/* Banner explicativo */}
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/60 text-xs">
-              <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200">
-                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>Crie seu Acesso Pessoal no WebGIS</span>
-              </div>
-              <p className="text-amber-950/80 dark:text-amber-300/80 text-[11px] mt-1 leading-relaxed">
-                Ao cadastrar um nome de usuário e senha, você terá sua conta oficial salva e poderá acessar de qualquer dispositivo.
-              </p>
-            </div>
-
-            {/* FORMULÁRIO DE CADASTRO OFICIAL */}
-            <form onSubmit={handleCreateAccountFromVisitor} className="space-y-3.5 animate-fadeIn">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Seu Nome Completo:
-                </label>
-                <input
-                  type="text"
-                  value={visitorFullName}
-                  onChange={(e) => setVisitorFullName(e.target.value)}
-                  placeholder="Ex: Carlos da Silva"
-                  required
-                  className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Nome de Usuário / Login:
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-2.5 text-slate-400 font-mono text-xs font-bold">@</span>
-                  <input
-                    type="text"
-                    value={visitorUsernameInput}
-                    onChange={(e) => setVisitorUsernameInput(e.target.value)}
-                    placeholder="carlos.silva"
-                    required
-                    className={`w-full bg-slate-50 dark:bg-slate-800/90 border rounded-xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-slate-900 dark:text-slate-100 outline-none transition-all ${
-                      visitorUsernameStatus.available === false
-                        ? 'border-red-500 ring-2 ring-red-500/30'
-                        : visitorUsernameStatus.available === true
-                          ? 'border-emerald-500 ring-2 ring-emerald-500/30'
-                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-red-500'
-                    }`}
-                  />
+            {!canSelfRegister ? (
+              <div className="p-5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl text-center space-y-3">
+                <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                  Autocadastro Indisponível
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  O cadastro de novas contas está temporariamente desativado pelo administrador do sistema.
+                </p>
+                <div className="pt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLogout();
+                      onClose();
+                    }}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Encerrar Sessão
+                  </button>
                 </div>
-                {visitorUsernameStatus.message && (
-                  <p className={`text-[10px] font-bold flex items-center gap-1 ${
-                    visitorUsernameStatus.checking
-                      ? 'text-slate-400'
-                      : visitorUsernameStatus.available === false
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-emerald-600 dark:text-emerald-400'
-                  }`}>
-                    {visitorUsernameStatus.checking ? <Loader2 className="w-3 h-3 animate-spin" /> : (visitorUsernameStatus.available ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />)}
-                    <span>{visitorUsernameStatus.message}</span>
+              </div>
+            ) : (
+              <>
+                {/* Banner explicativo */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/60 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200">
+                    <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Crie seu Acesso Pessoal no WebGIS</span>
+                  </div>
+                  <p className="text-amber-950/80 dark:text-amber-300/80 text-[11px] mt-1 leading-relaxed">
+                    Ao cadastrar um nome de usuário e senha, você terá sua conta oficial salva e poderá acessar de qualquer dispositivo.
                   </p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Senha de Acesso:
-                </label>
-                <div className="relative">
-                  <input
-                    type={showVisitorPass ? "text" : "password"}
-                    value={visitorPasswordInput}
-                    onChange={(e) => setVisitorPasswordInput(e.target.value)}
-                    placeholder="Mínimo 4 caracteres..."
-                    required
-                    className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowVisitorPass(!showVisitorPass)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    {showVisitorPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-              </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Confirmar Senha:
-                </label>
-                <div className="relative">
-                  <input
-                    type={showVisitorConfirmPass ? "text" : "password"}
-                    value={visitorConfirmPassword}
-                    onChange={(e) => setVisitorConfirmPassword(e.target.value)}
-                    placeholder="Repita a senha..."
-                    required
-                    className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowVisitorConfirmPass(!showVisitorConfirmPass)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    {showVisitorConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+                {/* FORMULÁRIO DE CADASTRO OFICIAL */}
+                <form onSubmit={handleCreateAccountFromVisitor} className="space-y-3.5 animate-fadeIn">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Seu Nome Completo:
+                    </label>
+                    <input
+                      type="text"
+                      value={visitorFullName}
+                      onChange={(e) => setVisitorFullName(e.target.value)}
+                      placeholder="Ex: Carlos da Silva"
+                      required
+                      className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
 
-              <div className="pt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onLogout();
-                    onClose();
-                  }}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Nome de Usuário / Login:
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-slate-400 font-mono text-xs font-bold">@</span>
+                      <input
+                        type="text"
+                        value={visitorUsernameInput}
+                        onChange={(e) => setVisitorUsernameInput(e.target.value)}
+                        placeholder="carlos.silva"
+                        required
+                        className={`w-full bg-slate-50 dark:bg-slate-800/90 border rounded-xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-slate-900 dark:text-slate-100 outline-none transition-all ${
+                          visitorUsernameStatus.available === false
+                            ? 'border-red-500 ring-2 ring-red-500/30'
+                            : visitorUsernameStatus.available === true
+                              ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+                              : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-red-500'
+                        }`}
+                      />
+                    </div>
+                    {visitorUsernameStatus.message && (
+                      <p className={`text-[10px] font-bold flex items-center gap-1 ${
+                        visitorUsernameStatus.checking
+                          ? 'text-slate-400'
+                          : visitorUsernameStatus.available === false
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        {visitorUsernameStatus.checking ? <Loader2 className="w-3 h-3 animate-spin" /> : (visitorUsernameStatus.available ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />)}
+                        <span>{visitorUsernameStatus.message}</span>
+                      </p>
+                    )}
+                  </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-red-600/30 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Cadastrando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>Criar Minha Conta</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Senha de Acesso:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showVisitorPass ? "text" : "password"}
+                        value={visitorPasswordInput}
+                        onChange={(e) => setVisitorPasswordInput(e.target.value)}
+                        placeholder="Mínimo 4 caracteres..."
+                        required
+                        className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowVisitorPass(!showVisitorPass)}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        {showVisitorPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Confirmar Senha:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showVisitorConfirmPass ? "text" : "password"}
+                        value={visitorConfirmPassword}
+                        onChange={(e) => setVisitorConfirmPassword(e.target.value)}
+                        placeholder="Repita a senha..."
+                        required
+                        className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowVisitorConfirmPass(!showVisitorConfirmPass)}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        {showVisitorConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onLogout();
+                        onClose();
+                      }}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-red-600/30 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Cadastrando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Criar Minha Conta</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         )}
       </motion.div>

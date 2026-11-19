@@ -88,6 +88,7 @@ export const normalizeCapabilityKey = (raw: string): string => {
     allowExportGeoJson: 'data:export:geojson',
     allowExportShapefile: 'data:export:shapefile',
     allowExportGeoPackage: 'data:export:geopackage',
+    allowAdvancedSearch: 'tool:advanced_search',
     // Flags de gerência
     allowGenerateLogins: 'admin:users:create',
     allowChangePasswords: 'admin:users:reset_password',
@@ -150,18 +151,34 @@ export const normalizeCapabilityKey = (raw: string): string => {
   return key;
 };
 
-export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
+export interface FeatureAccessStateParams {
+  currentActiveUser?: RegisteredUser | null;
+  userRole?: UserRole;
+  isMaster?: boolean;
+  isManager?: boolean;
+  featurePermissions?: FeaturePermissions;
+  layerPermissions?: Record<string, boolean>;
+  addressColumnsPermissions?: Record<string, boolean>;
+  featurePropertiesPermissions?: Record<string, boolean>;
+  showToast?: (message: string) => void;
+}
+
+export interface FeatureAccessProviderProps extends FeatureAccessStateParams {
+  value?: AccessContextType;
+  children: React.ReactNode;
+}
+
+export const useFeatureAccessState = ({
   currentActiveUser = null,
-  userRole,
-  isMaster,
-  isManager,
+  userRole = 'visitor',
+  isMaster = false,
+  isManager = false,
   featurePermissions = {} as FeaturePermissions,
   layerPermissions = {},
   addressColumnsPermissions = {},
   featurePropertiesPermissions = {},
-  showToast,
-  children
-}) => {
+  showToast
+}: FeatureAccessStateParams = {}): AccessContextType => {
   const isSiteAccount = userRole === 'site_account';
   const isVisitor = userRole === 'visitor' || (!currentActiveUser && !isMaster && !isManager);
 
@@ -204,6 +221,17 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
     // 2. Se a capacidade foi resolvida no mapa efetivo do banco/cache
     if (capabilities[canonicalKey] !== undefined) {
       return capabilities[canonicalKey].can_use;
+    }
+
+    // Caso especial para busca avançada: se não estiver explicitamente mapeada, herda da busca cnefe
+    if (canonicalKey === 'tool:advanced_search') {
+      if (capabilities['tool:cnefe_search'] !== undefined) {
+        return capabilities['tool:cnefe_search'].can_use;
+      }
+      if (featurePermissions.allowCnefeSearch !== undefined) {
+        return featurePermissions.allowCnefeSearch !== false;
+      }
+      return true;
     }
 
     // 3. Fallbacks de compatibilidade com valores legados
@@ -323,11 +351,14 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
       return true;
     }
 
+    const canonical = normalizeCapabilityKey(capabilityKey);
+    console.warn(`[PERMISSIONS BLOCKED] Tentativa de acesso bloqueada: "${actionName}". Poder necessário ausente: "${canonical}" (papel: ${userRole})`);
+
     logActivity(
       'ADMIN',
       `Tentativa de acesso bloqueada por permissão: "${actionName}"`,
       userRole,
-      `Poder necessário ausente: ${normalizeCapabilityKey(capabilityKey)}`
+      `Poder necessário ausente: ${canonical}`
     );
 
     if (showToast) {
@@ -336,7 +367,7 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
     return false;
   }, [can, userRole, showToast]);
 
-  const value = useMemo<AccessContextType>(() => ({
+  return useMemo<AccessContextType>(() => ({
     can,
     canGrant,
     canExport,
@@ -377,6 +408,15 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
     addressColumnsPermissions,
     featurePropertiesPermissions
   ]);
+};
+
+export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
+  value: explicitValue,
+  children,
+  ...props
+}) => {
+  const localValue = useFeatureAccessState(explicitValue ? undefined : props);
+  const value = explicitValue || localValue;
 
   return (
     <AccessContext.Provider value={value}>
@@ -385,33 +425,37 @@ export const FeatureAccessProvider: React.FC<FeatureAccessProviderProps> = ({
   );
 };
 
+const FALLBACK_ACCESS: AccessContextType = {
+  can: () => true,
+  canGrant: () => true,
+  canExport: () => true,
+  canViewLayer: () => true,
+  canViewAddressColumn: () => true,
+  canViewFeatureProperty: () => true,
+  getNumericLimit: () => Infinity,
+  guardAction: (_k, _name, action) => { action(); return true; },
+  userRole: 'master',
+  isMaster: true,
+  isManager: false,
+  isSiteAccount: false,
+  isVisitor: false,
+  effectiveCapabilities: {},
+  refreshAccess: async () => {},
+  featurePermissions: {} as FeaturePermissions,
+  layerPermissions: {},
+  addressColumnsPermissions: {},
+  featurePropertiesPermissions: {}
+};
+
 // Hook principal recomendado para toda a aplicação
-export const useAccess = (): AccessContextType => {
+export const useAccess = (params?: FeatureAccessStateParams): AccessContextType => {
   const ctx = useContext(AccessContext);
-  if (!ctx) {
-    return {
-      can: () => true,
-      canGrant: () => true,
-      canExport: () => true,
-      canViewLayer: () => true,
-      canViewAddressColumn: () => true,
-      canViewFeatureProperty: () => true,
-      getNumericLimit: () => Infinity,
-      guardAction: (_k, _name, action) => { action(); return true; },
-      userRole: 'master',
-      isMaster: true,
-      isManager: false,
-      isSiteAccount: false,
-      isVisitor: false,
-      effectiveCapabilities: {},
-      refreshAccess: async () => {},
-      featurePermissions: {} as FeaturePermissions,
-      layerPermissions: {},
-      addressColumnsPermissions: {},
-      featurePropertiesPermissions: {}
-    };
+  const localValue = useFeatureAccessState(params || {});
+  if (ctx) return ctx;
+  if (params && (params.userRole || params.isMaster !== undefined || params.currentActiveUser !== undefined)) {
+    return localValue;
   }
-  return ctx;
+  return FALLBACK_ACCESS;
 };
 
 // Alias de retrocompatibilidade com componentes existentes

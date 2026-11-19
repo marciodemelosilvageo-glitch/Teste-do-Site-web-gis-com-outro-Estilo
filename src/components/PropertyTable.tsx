@@ -8,6 +8,7 @@ import {
   toTitleCase,
   isCodeOrSystemProperty
 } from '../utils';
+import { useFeatureAccess } from '../context/FeatureAccessContext';
 
 interface PropertyTableProps {
   selectedFeatures: SelectedFeature[];
@@ -39,6 +40,7 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
   onSearchPolygonAddresses,
   onSearchLocalidadeAddresses
 }) => {
+  const { can, canViewFeatureProperty } = useFeatureAccess();
   const count = selectedFeatures?.length || 0;
 
   const handleCopy = useCallback((text: string, label: string) => {
@@ -78,6 +80,13 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
 
         // Verificar permissão administrativa para a propriedade
         if (allowedProperties && allowedProperties[key] === false) return;
+        if (!canViewFeatureProperty(key)) return;
+        if (!can('data:property:feature')) {
+          const lowK = key.toLowerCase();
+          if (lowK.startsWith('v000') || lowK.includes('popula') || lowK.includes('domicil') || lowK.includes('morador') || lowK.includes('taxa')) {
+            return;
+          }
+        }
 
         const low = key.toLowerCase();
         const featNameUpper = String(feat.name || '').toUpperCase().trim();
@@ -201,7 +210,7 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
         metrics
       };
     }
-  }, [selectedFeatures, count, allowedProperties]);
+  }, [selectedFeatures, count, allowedProperties, can, canViewFeatureProperty]);
 
   if (!selectedFeatures || selectedFeatures.length === 0) {
     return null;

@@ -2313,6 +2313,7 @@ export const buildFallbackCapabilitiesMap = (
   const globalFeatures = getFeaturePermissions();
   const legacyToolMap: Record<string, keyof FeaturePermissions> = {
     'tool:cnefe_search': 'allowCnefeSearch',
+    'tool:advanced_search': 'allowCnefeSearch',
     'tool:measure': 'allowMeasureTool',
     'tool:print_a4': 'allowPrintA4',
     'tool:layer_panel': 'allowLayerPanel',
@@ -2557,6 +2558,7 @@ export const getAllCapabilitiesCatalog = (layersList?: string[]): CapabilityItem
   const standardItems: CapabilityItem[] = [
     // Ferramentas
     { key: 'tool:cnefe_search', name: 'Busca CNEFE de Endereços', group: 'ferramentas', description: 'Consulta geocodificada na base do CNEFE/IBGE', riskLevel: 'low' },
+    { key: 'tool:advanced_search', name: 'Busca Avançada de Endereços', group: 'ferramentas', description: 'Painel e gaveta inferior de consulta avançada CNEFE', riskLevel: 'low' },
     { key: 'tool:search_area_addresses', name: 'Buscar Endereços na Área', group: 'ferramentas', description: 'Extração de endereços contidos no interior do polígono', riskLevel: 'medium' },
     { key: 'tool:search_by_type', name: 'Buscar por Categoria / Tipo', group: 'ferramentas', description: 'Filtro por estabelecimentos e tipos de edificação', riskLevel: 'low' },
     { key: 'tool:measure', name: 'Régua e Medição', group: 'ferramentas', description: 'Medição interativa de distâncias lineares e perímetros', riskLevel: 'low' },
@@ -2620,6 +2622,7 @@ export const buildDefaultRolesMatrix = (layersList?: string[]): RoleCapabilities
     const isVisitorAllowed =
       item.group === 'camadas' ||
       item.key === 'tool:cnefe_search' ||
+      item.key === 'tool:advanced_search' ||
       item.key === 'tool:raio_x' ||
       item.key === 'tool:selected_features' ||
       item.key === 'tool:feature_specs' ||

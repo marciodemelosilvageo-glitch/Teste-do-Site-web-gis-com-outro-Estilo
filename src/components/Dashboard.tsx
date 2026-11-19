@@ -16,6 +16,7 @@ import { SelectedFeature } from '../types';
 import { CopyableText } from './CopyableText';
 import { getHomogeneousLayerSelection } from '../utils';
 import { CategorySearchMenu } from './CategorySearchMenu';
+import { useFeatureAccess } from '../context/FeatureAccessContext';
 
 interface DashboardProps {
   selectedFeatures: SelectedFeature[];
@@ -151,13 +152,20 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
-  selectedFeatures, 
+  selectedFeatures: rawSelectedFeatures, 
   showToast,
   onSearchCategoryInFeatures,
   onSearchPolygonAddresses,
   onOpenCnefeBottomBar,
   isSearching = false
 }) => {
+  const { can, canViewLayer } = useFeatureAccess();
+
+  // Filtra feições cuja camada não é permitida para visualização
+  const selectedFeatures = useMemo(() => {
+    if (!rawSelectedFeatures) return [];
+    return rawSelectedFeatures.filter(f => !f.sourceName || canViewLayer(f.sourceName));
+  }, [rawSelectedFeatures, canViewLayer]);
 
   // Homogeneidade da camada selecionada para busca por categoria
   const { sameLayer, layerName, eligibleFeatures } = useMemo(() => {
@@ -520,7 +528,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
       </div>
 
       {/* 1.1 BOTÃO COM SETA: BUSCA DE ENDEREÇOS POR TIPO NAS FEIÇÕES UNIDAS (APENAS MESMA CAMADA) */}
-      {sameLayer && eligibleFeatures.length >= 2 && onSearchCategoryInFeatures && (
+      {sameLayer && eligibleFeatures.length >= 2 && onSearchCategoryInFeatures && (can('tool:search_area_addresses') || can('tool:search_by_type')) && (
         <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-xs flex items-center justify-between gap-3 animate-fadeIn">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0">
@@ -536,29 +544,35 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
             </div>
           </div>
 
-          {/* Botão dividido: Buscar todos | Seta de Categorias */}
+          {/* Botão dividido ou individual conforme permissões */}
           <div className="relative flex items-stretch bg-black/5 dark:bg-white/10 rounded-xl shrink-0 overflow-visible">
-            <button
-              type="button"
-              disabled={isSearching}
-              aria-busy={isSearching}
-              onClick={() => onSearchCategoryInFeatures('todos', eligibleFeatures)}
-              className={`px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 rounded-l-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${isSearching ? 'cnefe-btn-searching' : ''}`}
-              title={`Buscar todos os endereços nestas ${eligibleFeatures.length} áreas`}
-            >
-              {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" /> : null}
-              <span>Buscar</span>
-            </button>
+            {can('tool:search_area_addresses') && (
+              <button
+                type="button"
+                disabled={isSearching}
+                aria-busy={isSearching}
+                onClick={() => onSearchCategoryInFeatures('todos', eligibleFeatures)}
+                className={`px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 ${can('tool:search_by_type') ? 'rounded-l-xl' : 'rounded-xl'} transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${isSearching ? 'cnefe-btn-searching' : ''}`}
+                title={`Buscar todos os endereços nestas ${eligibleFeatures.length} áreas`}
+              >
+                {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" /> : null}
+                <span>Buscar</span>
+              </button>
+            )}
 
-            <div className="w-[1px] my-1.5 bg-black/10 dark:bg-white/10 shrink-0" />
+            {can('tool:search_area_addresses') && can('tool:search_by_type') && (
+              <div className="w-[1px] my-1.5 bg-black/10 dark:bg-white/10 shrink-0" />
+            )}
 
-            <CategorySearchMenu
-              disabled={isSearching}
-              isLoading={isSearching}
-              onSelectCategory={(catId) => onSearchCategoryInFeatures(catId, eligibleFeatures)}
-              align="right"
-              buttonClassName="rounded-r-xl"
-            />
+            {can('tool:search_by_type') && (
+              <CategorySearchMenu
+                disabled={isSearching}
+                isLoading={isSearching}
+                onSelectCategory={(catId) => onSearchCategoryInFeatures(catId, eligibleFeatures)}
+                align="right"
+                buttonClassName={can('tool:search_area_addresses') ? "rounded-r-xl" : "rounded-xl"}
+              />
+            )}
           </div>
         </div>
       )}
