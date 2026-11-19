@@ -15,14 +15,29 @@ BEGIN
   END IF;
 END $$;
 
--- 2. Remove triggers
-DROP TRIGGER IF EXISTS trg_epoch_auth_capabilities ON public.auth_capabilities;
-DROP TRIGGER IF EXISTS trg_epoch_base_roles ON public.base_roles;
-DROP TRIGGER IF EXISTS trg_epoch_role_capabilities ON public.role_capabilities;
-DROP TRIGGER IF EXISTS trg_epoch_user_capabilities ON public.user_capabilities;
-DROP TRIGGER IF EXISTS trg_epoch_user_delegation_scopes ON public.user_delegation_scopes;
-DROP TRIGGER IF EXISTS trg_epoch_webgis_settings ON public.webgis_settings;
-DROP TRIGGER IF EXISTS trg_epoch_profiles ON public.profiles;
+-- 2. Remove triggers defensivamente (apenas nas tabelas que existirem)
+DO $$
+DECLARE
+  t TEXT;
+  tbls TEXT[] := ARRAY[
+    'auth_capabilities',
+    'base_roles',
+    'role_capabilities',
+    'user_capabilities',
+    'user_delegation_scopes',
+    'webgis_settings',
+    'profiles'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tbls LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = t
+    ) THEN
+      EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.%I', 'trg_epoch_' || t, t);
+    END IF;
+  END LOOP;
+END $$;
 
 -- 3. Remove funções
 DROP FUNCTION IF EXISTS public.trg_bump_permissions_epoch();
