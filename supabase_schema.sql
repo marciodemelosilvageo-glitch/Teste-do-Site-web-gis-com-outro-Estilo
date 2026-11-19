@@ -171,6 +171,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Se for um visitante anônimo (ou sem email/username), NÃO cria perfil em public.profiles
+  -- Visitantes anônimos não possuem credenciais de acesso nem perfil em profiles.
+  IF COALESCE(NEW.is_anonymous, FALSE) IS TRUE OR (NEW.email IS NULL AND NEW.raw_user_meta_data->>'username' IS NULL) THEN
+    RETURN NEW;
+  END IF;
+
   INSERT INTO public.profiles (
     id,
     username,
