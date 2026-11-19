@@ -8,17 +8,14 @@ import {
   User,
   Eye,
   EyeOff,
-  AlertTriangle,
-  Lock,
-  Layers,
-  Wrench,
-  Check
+  AlertTriangle
 } from 'lucide-react';
 import {
   FeaturePermissions,
   ManagerPermissions
 } from '../../services/adminService';
 import { dataSources } from '../../data';
+import { Toggle, SegmentedControl } from './ui';
 
 interface AdminUserFormModalProps {
   isOpen: boolean;
@@ -80,28 +77,28 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
   isSaving = false
 }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const [customTab, setCustomTab] = useState<'layers' | 'features'>('features');
+  const [customTab, setCustomTab] = useState<'features' | 'layers'>('features');
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn select-none">
+    <div className="fixed inset-0 z-[10000] bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn select-none">
       <div 
-        className="w-full max-w-2xl bg-white dark:bg-[#1c1c1e] rounded-3xl border border-black/10 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp my-auto"
+        className="w-full max-w-2xl bg-white dark:bg-[#1C1C1E] rounded-3xl border border-black/[0.08] dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho */}
-        <div className="p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between">
+        {/* Cabeçalho Apple com Alça no Mobile */}
+        <div className="p-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-[#007AFF] text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-              {editingUserId ? <Sliders className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+            <div className="w-10 h-10 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center shrink-0">
+              {editingUserId ? <Sliders className="w-5 h-5" strokeWidth={1.6} /> : <UserPlus className="w-5 h-5" strokeWidth={1.6} />}
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+              <h3 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
                 {editingUserId ? 'Editar Usuário & Permissões' : 'Criar Novo Usuário'}
               </h3>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                {editingUserId ? 'Ajuste permissões individuais e dados da conta.' : 'Defina os dados de acesso e cargo do usuário.'}
+              <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
+                {editingUserId ? 'Ajuste permissões e dados da conta.' : 'Defina os dados de acesso e cargo do usuário.'}
               </p>
             </div>
           </div>
@@ -109,26 +106,27 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            className="text-[#8E8E93] hover:text-slate-900 dark:hover:text-white p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Fechar"
+            aria-label="Fechar formulário"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" strokeWidth={1.6} />
           </button>
         </div>
 
         {/* Formulário com Rolagem */}
         <form onSubmit={onSave} className="flex-1 overflow-y-auto p-5 space-y-4">
           {userFormError && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs rounded-xl font-medium flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
+            <div className="p-3 bg-black/[0.04] dark:bg-white/[0.06] border border-[#FF3B30]/30 text-[#FF3B30] dark:text-[#FF453A] text-xs rounded-xl font-medium flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" strokeWidth={1.6} />
               <span>{userFormError}</span>
             </div>
           )}
 
           {/* Dados Principais */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+              <label className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
                 Nome Completo: *
               </label>
               <input
@@ -137,12 +135,12 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
                 value={userFormName}
                 onChange={(e) => setUserFormName(e.target.value)}
                 placeholder="Ex: Maria Santos..."
-                className="w-full min-h-[40px] px-3.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#007AFF] dark:focus:border-[#0A84FF] transition-colors placeholder-[#8E8E93]"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+              <label className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
                 Login / Usuário (@): *
               </label>
               <input
@@ -152,38 +150,39 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
                 value={userFormUsername}
                 onChange={(e) => setUserFormUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
                 placeholder="Ex: maria.santos"
-                className="w-full min-h-[40px] px-3.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs font-mono text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-sm font-mono text-slate-900 dark:text-slate-100 outline-none focus:border-[#007AFF] dark:focus:border-[#0A84FF] transition-colors placeholder-[#8E8E93] disabled:opacity-50"
               />
             </div>
 
             {/* Senha (apenas na criação) */}
             {!editingUserId && (
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                <label className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
                   Senha Provisória Inicial: *
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={userFormPassword}
                     onChange={(e) => setUserFormPassword(e.target.value)}
                     placeholder="Mínimo 4 caracteres..."
-                    className="w-full min-h-[40px] pl-3.5 pr-10 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                    className="w-full min-h-[44px] pl-3.5 pr-11 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#007AFF] dark:focus:border-[#0A84FF] transition-colors placeholder-[#8E8E93]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    className="absolute right-2.5 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#8E8E93] hover:text-slate-900 dark:hover:text-white p-1 cursor-pointer"
+                    aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" strokeWidth={1.6} /> : <Eye className="w-4 h-4" strokeWidth={1.6} />}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+              <label className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
                 Departamento / Setor:
               </label>
               <input
@@ -191,30 +190,30 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
                 value={userFormDepartment}
                 onChange={(e) => setUserFormDepartment(e.target.value)}
                 placeholder="Ex: Planejamento, Geoprocessamento..."
-                className="w-full min-h-[40px] px-3.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#007AFF] dark:focus:border-[#0A84FF] transition-colors placeholder-[#8E8E93]"
               />
             </div>
           </div>
 
-          {/* Seleção de Cargo / Papel */}
-          <div className="space-y-1.5 pt-2 border-t border-black/[0.04] dark:border-white/[0.04]">
-            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+          {/* Seleção de Cargo / Papel Estilo Apple */}
+          <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+            <label className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
               Cargo / Nível de Acesso:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setUserFormRole('user')}
-                className={`min-h-[44px] p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                className={`min-h-[50px] p-3 rounded-2xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
                   userFormRole === 'user'
-                    ? 'border-[#007AFF] bg-[#007AFF]/5 dark:bg-[#007AFF]/10 text-slate-900 dark:text-slate-100'
-                    : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02] text-slate-600 dark:text-slate-400'
+                    ? 'border-[#007AFF] bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-slate-900 dark:text-slate-100'
+                    : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-[#6C6C70] dark:text-[#98989D]'
                 }`}
               >
-                <User className="w-4 h-4 text-slate-500 shrink-0" />
+                <User className={`w-4 h-4 shrink-0 ${userFormRole === 'user' ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`} strokeWidth={1.6} />
                 <div className="min-w-0">
-                  <div className="text-xs font-bold">Usuário Comum</div>
-                  <div className="text-[10px] text-slate-400">Acesso padrão</div>
+                  <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">Comum</div>
+                  <div className="text-xs text-[#8E8E93]">Acesso padrão</div>
                 </div>
               </button>
 
@@ -222,16 +221,16 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setUserFormRole('manager')}
-                  className={`min-h-[44px] p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  className={`min-h-[50px] p-3 rounded-2xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
                     userFormRole === 'manager'
-                      ? 'border-teal-500 bg-teal-500/5 dark:bg-teal-500/10 text-slate-900 dark:text-slate-100'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02] text-slate-600 dark:text-slate-400'
+                      ? 'border-[#007AFF] bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-slate-900 dark:text-slate-100'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-[#6C6C70] dark:text-[#98989D]'
                   }`}
                 >
-                  <Briefcase className="w-4 h-4 text-teal-600 shrink-0" />
+                  <Briefcase className={`w-4 h-4 shrink-0 ${userFormRole === 'manager' ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`} strokeWidth={1.6} />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold">Gerente</div>
-                    <div className="text-[10px] text-slate-400">Gestão de equipe</div>
+                    <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">Gerente</div>
+                    <div className="text-xs text-[#8E8E93]">Gestão de equipe</div>
                   </div>
                 </button>
               )}
@@ -240,71 +239,63 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setUserFormRole('master')}
-                  className={`min-h-[44px] p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  className={`min-h-[50px] p-3 rounded-2xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
                     userFormRole === 'master'
-                      ? 'border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/10 text-slate-900 dark:text-slate-100'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02] text-slate-600 dark:text-slate-400'
+                      ? 'border-[#007AFF] bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-slate-900 dark:text-slate-100'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-[#6C6C70] dark:text-[#98989D]'
                   }`}
                 >
-                  <Crown className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <Crown className={`w-4 h-4 shrink-0 ${userFormRole === 'master' ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`} strokeWidth={1.6} />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold">Master</div>
-                    <div className="text-[10px] text-slate-400">Acesso irrestrito</div>
+                    <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">Master</div>
+                    <div className="text-xs text-[#8E8E93]">Acesso irrestrito</div>
                   </div>
                 </button>
               )}
             </div>
           </div>
 
-          {/* Permissões Específicas do Gerente (quando role === manager) */}
+          {/* Permissões Específicas do Gerente */}
           {userFormRole === 'manager' && (
-            <div className="p-3.5 bg-black/[0.02] dark:bg-white/[0.02] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] space-y-2.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
-                Permissões Atribuídas a este Gerente
+            <div className="p-4 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] space-y-3">
+              <span className="text-xs font-medium uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+                Permissões Atribuídas ao Gerente
               </span>
 
-              <div className="space-y-2">
-                <label className="flex items-center justify-between text-xs cursor-pointer select-none">
-                  <span>Permitir gerar novos logins de usuários</span>
-                  <input
-                    type="checkbox"
+              <div className="space-y-3 divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                <div className="pt-2">
+                  <Toggle
+                    label="Gerar novos logins de usuários"
                     checked={userFormManagerPerms.allowGenerateLogins !== false}
-                    onChange={(e) => setUserFormManagerPerms(prev => ({ ...prev, allowGenerateLogins: e.target.checked }))}
-                    className="w-4 h-4 rounded text-[#007AFF]"
+                    onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowGenerateLogins: checked }))}
                   />
-                </label>
+                </div>
 
                 {isMaster && (
                   <>
-                    <label className="flex items-center justify-between text-xs cursor-pointer select-none">
-                      <span>Permitir criar outros Gerentes (além de usuários comuns)</span>
-                      <input
-                        type="checkbox"
+                    <div className="pt-2">
+                      <Toggle
+                        label="Criar outros Gerentes"
                         checked={userFormManagerPerms.canCreateManagerRole === true}
-                        onChange={(e) => setUserFormManagerPerms(prev => ({ ...prev, canCreateManagerRole: e.target.checked }))}
-                        className="w-4 h-4 rounded text-[#007AFF]"
+                        onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, canCreateManagerRole: checked }))}
                       />
-                    </label>
+                    </div>
 
-                    <label className="flex items-center justify-between text-xs cursor-pointer select-none">
-                      <span>Permitir redefinir senhas dos usuários de sua equipe</span>
-                      <input
-                        type="checkbox"
+                    <div className="pt-2">
+                      <Toggle
+                        label="Redefinir senhas dos usuários de sua equipe"
                         checked={userFormManagerPerms.allowChangePasswords === true}
-                        onChange={(e) => setUserFormManagerPerms(prev => ({ ...prev, allowChangePasswords: e.target.checked }))}
-                        className="w-4 h-4 rounded text-[#007AFF]"
+                        onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowChangePasswords: checked }))}
                       />
-                    </label>
+                    </div>
 
-                    <label className="flex items-center justify-between text-xs cursor-pointer select-none">
-                      <span>Permitir visualizar monitoramento de todos os visitantes</span>
-                      <input
-                        type="checkbox"
+                    <div className="pt-2">
+                      <Toggle
+                        label="Monitorar todos os visitantes anônimos"
                         checked={userFormManagerPerms.allowViewAllVisitors === true}
-                        onChange={(e) => setUserFormManagerPerms(prev => ({ ...prev, allowViewAllVisitors: e.target.checked }))}
-                        className="w-4 h-4 rounded text-[#007AFF]"
+                        onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowViewAllVisitors: checked }))}
                       />
-                    </label>
+                    </div>
                   </>
                 )}
               </div>
@@ -313,62 +304,47 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
 
           {/* Permissões Customizadas (apenas Master) */}
           {isMaster && userFormRole === 'user' && (
-            <div className="space-y-3 pt-2 border-t border-black/[0.04] dark:border-white/[0.04]">
-              <label className="flex items-center justify-between text-xs font-semibold cursor-pointer select-none">
-                <span>Personalizar permissões individuais para este usuário</span>
-                <input
-                  type="checkbox"
-                  checked={userFormHasCustom}
-                  onChange={(e) => setUserFormHasCustom(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#007AFF]"
-                />
-              </label>
+            <div className="space-y-3 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+              <Toggle
+                label="Personalizar permissões individuais para este usuário"
+                checked={userFormHasCustom}
+                onChange={setUserFormHasCustom}
+              />
 
               {userFormHasCustom && (
-                <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] space-y-2">
-                  <div className="flex items-center gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setCustomTab('features')}
-                      className={`px-3 py-1 rounded-lg font-semibold ${customTab === 'features' ? 'bg-[#007AFF] text-white' : 'text-slate-500'}`}
-                    >
-                      Ferramentas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCustomTab('layers')}
-                      className={`px-3 py-1 rounded-lg font-semibold ${customTab === 'layers' ? 'bg-[#007AFF] text-white' : 'text-slate-500'}`}
-                    >
-                      Camadas
-                    </button>
-                  </div>
+                <div className="p-4 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] space-y-3">
+                  <SegmentedControl
+                    size="sm"
+                    options={[
+                      { id: 'features', label: 'Ferramentas' },
+                      { id: 'layers', label: 'Camadas' }
+                    ]}
+                    value={customTab}
+                    onChange={(v) => setCustomTab(v as 'features' | 'layers')}
+                  />
 
                   {customTab === 'features' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pr-1">
                       {(Object.keys(userFormFeatures) as (keyof FeaturePermissions)[]).map(key => (
-                        <label key={key} className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-[#1c1c1e] border border-black/[0.04] cursor-pointer">
-                          <span className="truncate text-[11px] font-medium">{key}</span>
-                          <input
-                            type="checkbox"
+                        <div key={key} className="p-2.5 rounded-xl bg-white dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.06]">
+                          <Toggle
+                            label={String(key)}
                             checked={userFormFeatures[key] !== false}
-                            onChange={(e) => setUserFormFeatures(prev => ({ ...prev, [key]: e.target.checked }))}
-                            className="w-3.5 h-3.5 rounded text-[#007AFF]"
+                            onChange={(checked) => setUserFormFeatures(prev => ({ ...prev, [key]: checked }))}
                           />
-                        </label>
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pr-1">
                       {dataSources.map(ds => (
-                        <label key={ds.name} className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-[#1c1c1e] border border-black/[0.04] cursor-pointer">
-                          <span className="truncate text-[11px] font-medium">{ds.name}</span>
-                          <input
-                            type="checkbox"
+                        <div key={ds.name} className="p-2.5 rounded-xl bg-white dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.06]">
+                          <Toggle
+                            label={ds.name}
                             checked={userFormLayers[ds.name] !== false}
-                            onChange={(e) => setUserFormLayers(prev => ({ ...prev, [ds.name]: e.target.checked }))}
-                            className="w-3.5 h-3.5 rounded text-[#007AFF]"
+                            onChange={(checked) => setUserFormLayers(prev => ({ ...prev, [ds.name]: checked }))}
                           />
-                        </label>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -383,14 +359,14 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="min-h-[40px] px-5 py-2 rounded-xl text-xs font-bold bg-[#007AFF] hover:bg-[#0066d6] text-white cursor-pointer shadow-xs disabled:opacity-50"
+              className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-semibold bg-[#007AFF] hover:bg-[#0062CC] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white cursor-pointer shadow-xs disabled:opacity-50 transition-all"
             >
               {isSaving ? 'Salvando...' : editingUserId ? 'Salvar Alterações' : 'Criar Usuário'}
             </button>

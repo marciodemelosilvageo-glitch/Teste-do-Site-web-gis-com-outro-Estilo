@@ -12,17 +12,14 @@ import {
   Users,
   Eye,
   Sliders,
-  Search,
   Check,
   Ban,
-  Filter,
   History,
   AlertTriangle
 } from 'lucide-react';
 import {
   RegisteredUser,
   ActivityLog,
-  CapabilityItem,
   CapabilityGroup,
   OverrideSetting,
   UserCapabilityOverrideEntry,
@@ -36,6 +33,14 @@ import {
 } from '../../services/adminService';
 import { useAccess } from '../../context/FeatureAccessContext';
 import { dataSources } from '../../data';
+import {
+  Badge,
+  StatusDot,
+  SegmentedControl,
+  SearchField,
+  Banner,
+  AdminCard
+} from './ui';
 
 interface AdminUserDetailModalProps {
   user: RegisteredUser | null;
@@ -98,100 +103,68 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
 
   // Membros criados por este gerente (se for gerente)
   const teamMembers = useMemo(() => {
-    if (!user) return [];
-    return allUsers.filter(u =>
-      (u.createdBy || '').toLowerCase() === user.username.toLowerCase()
-    );
-  }, [allUsers, user]);
+    if (!user || !isUserManager) return [];
+    const myName = (user.username || '').toLowerCase();
+    return allUsers.filter(u => (u.createdBy || '').toLowerCase() === myName);
+  }, [user, isUserManager, allUsers]);
 
-  // Histórico de atividades recentes deste usuário
+  // Logs específicos deste usuário
   const userLogs = useMemo(() => {
     if (!user) return [];
-    const cleanUser = user.username.toLowerCase().replace(/^@/, '');
-    const cleanName = user.name.toLowerCase();
-    const cleanId = user.id.toLowerCase();
+    const myName = (user.username || '').toLowerCase();
+    return logs.filter(l => (l.details || '').toLowerCase().includes(myName) || (l.action || '').toLowerCase().includes(myName)).slice(0, 8);
+  }, [user, logs]);
 
-    return logs.filter(l => {
-      const sId = (l.sessionId || '').toLowerCase().replace(/^@/, '');
-      const act = (l.action || '').toLowerCase();
-      const det = (l.details || '').toLowerCase();
-      return (
-        sId === cleanUser ||
-        sId.includes(cleanUser) ||
-        sId === cleanId ||
-        act.includes(cleanUser) ||
-        det.includes(cleanUser) ||
-        act.includes(cleanName) ||
-        det.includes(cleanName)
-      );
-    }).slice(0, 8);
-  }, [logs, user]);
-
-  // Filtragem dos itens de poderes na aba de exceções
+  // Capacidades filtradas
   const filteredCapabilities = useMemo(() => {
-    return catalog.filter(item => {
-      if (selectedGroup !== 'TODOS' && item.group !== selectedGroup) return false;
+    return catalog.filter(c => {
+      if (selectedGroup !== 'TODOS' && c.group !== selectedGroup) return false;
       if (permSearch.trim()) {
         const term = permSearch.toLowerCase();
-        const mName = item.name.toLowerCase().includes(term);
-        const mKey = item.key.toLowerCase().includes(term);
-        const mDesc = item.description.toLowerCase().includes(term);
-        if (!mName && !mKey && !mDesc) return false;
+        return c.name.toLowerCase().includes(term) || c.key.toLowerCase().includes(term) || c.description.toLowerCase().includes(term);
       }
       return true;
     });
   }, [catalog, selectedGroup, permSearch]);
 
   // Handler para definir exceção individual (Herdar / Permitir / Negar)
-  const handleSetOverride = useCallback(async (
-    capKey: string,
-    overrideType: OverrideSetting
-  ) => {
+  const handleSetOverride = useCallback(async (capKey: string, overrideType: OverrideSetting) => {
     if (!user) return;
-    if (isUserMaster) {
-      showToast?.('⚠️ O Administrador Master possui poderes integrais imutáveis.');
+    if (!isMaster && !canGrant(capKey)) {
+      showToast?.('⚠️ Você não possui permissão delegada pelo Master para alterar este poder.');
       return;
     }
 
-    if (!isMaster) {
-      const allowedToGrant = canGrant(capKey);
-      if (!allowedToGrant) {
-        showToast?.('⚠️ Você não possui permissão concedida pelo Master para alterar ou repassar este poder.');
-        return;
-      }
-    }
-
     const currentEntry = overrides[capKey];
-    await saveUserOverride(user.id, capKey, overrideType, currentEntry?.can_grant || false);
+    const canGrantVal = currentEntry?.can_grant === true;
 
-    const updated = { ...overrides };
-    if (overrideType === 'inherit') {
-      delete updated[capKey];
-    } else {
-      updated[capKey] = {
+    await saveUserOverride(user.id, capKey, overrideType, canGrantVal);
+
+    const updated = {
+      ...overrides,
+      [capKey]: {
         override_type: overrideType,
-        can_grant: currentEntry?.can_grant || false
-      };
-    }
+        can_grant: canGrantVal
+      }
+    };
     setOverrides(updated);
 
-    // Registrar na Trilha de Auditoria Granular
     await logCapabilityAudit({
       performedByName: isMaster ? 'Administrador Master' : 'Gerente Autorizado',
       targetType: 'user',
       targetId: user.username,
       targetName: user.name,
       capabilityKey: capKey,
-      action: overrideType === 'allow' ? 'grant_use' : overrideType === 'deny' ? 'set_deny' : 'remove_override',
-      beforeState: currentEntry || { override_type: 'inherit' },
-      afterState: updated[capKey] || { override_type: 'inherit' },
-      reason: `Exceção individual para @${user.username}: ${overrideType.toUpperCase()}`
+      action: overrideType === 'inherit' ? 'remove_override' : overrideType === 'allow' ? 'grant_use' : 'set_deny',
+      beforeState: currentEntry || { override_type: 'inherit', can_grant: false },
+      afterState: { override_type: overrideType, can_grant: canGrantVal },
+      reason: `Exceção individual para @${user.username} em "${capKey}" definida como ${overrideType.toUpperCase()}`
     });
 
-    showToast?.(`Exceção de "${capKey}" para @${user.username}: ${overrideType.toUpperCase()}`);
-  }, [user, isUserMaster, isMaster, canGrant, overrides, showToast]);
+    showToast?.(`Poder "${capKey}" atualizado para: ${overrideType === 'inherit' ? 'Herdar perfil' : overrideType === 'allow' ? 'Permitido' : 'Negado'}.`);
+  }, [user, isMaster, canGrant, overrides, showToast]);
 
-  // Handler para alternar "pode repassar" (se o usuário for gerente)
+  // Handler para alternar permissão de repasse do gerente ("pode repassar")
   const handleToggleCanGrant = useCallback(async (capKey: string) => {
     if (!user) return;
     if (!isMaster) {
@@ -260,46 +233,38 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   if (!user) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+    <div className="fixed inset-0 z-[10000] bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn select-none">
       <div
-        className="w-full max-w-2xl bg-white dark:bg-[#1c1c1e] rounded-3xl border border-black/10 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp"
+        className="w-full max-w-2xl bg-white dark:bg-[#1C1C1E] rounded-3xl border border-black/[0.08] dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho da Ficha com Foto/Ícone e Dados Básicos */}
-        <div className="p-4 sm:p-5 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between">
+        {/* Cabeçalho da Ficha Estilo Apple */}
+        <div className="p-4 sm:p-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-base shrink-0 shadow-xs ${
-              isUserMaster
-                ? 'bg-indigo-600 text-white'
-                : isUserManager
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-slate-700 text-white'
-            }`}>
-              {isUserMaster ? <Crown className="w-6 h-6" /> : isUserManager ? <Briefcase className="w-6 h-6" /> : user.name.charAt(0).toUpperCase()}
+            <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] flex items-center justify-center font-semibold text-base shrink-0 shadow-xs">
+              {isUserMaster ? <Crown className="w-6 h-6 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} /> : isUserManager ? <Briefcase className="w-6 h-6" strokeWidth={1.6} /> : user.name.charAt(0).toUpperCase()}
             </div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">
+                <h3 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate">
                   {user.name}
                 </h3>
                 {isUserMaster ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 flex items-center gap-1">
-                    <Crown className="w-3 h-3 text-indigo-600" />
-                    <span>Master (Intocável)</span>
-                  </span>
+                  <Badge icon={Crown} variant="neutral">
+                    Master (Intocável)
+                  </Badge>
                 ) : isUserManager ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-teal-100 text-teal-700 dark:bg-teal-950/80 dark:text-teal-300 flex items-center gap-1">
-                    <Briefcase className="w-3 h-3 text-teal-600" />
-                    <span>Gerente</span>
-                  </span>
+                  <Badge icon={Briefcase} variant="neutral">
+                    Gerente
+                  </Badge>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                    Usuário Comum
-                  </span>
+                  <Badge icon={User} variant="neutral">
+                    Comum
+                  </Badge>
                 )}
               </div>
-              <p className="text-xs font-mono text-slate-400 dark:text-slate-500">
+              <p className="text-xs font-mono text-[#8E8E93] dark:text-[#8E8E93] mt-0.5">
                 @{user.username}
               </p>
             </div>
@@ -308,162 +273,129 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            className="text-[#8E8E93] hover:text-slate-900 dark:hover:text-white p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Fechar ficha"
+            aria-label="Fechar Ficha"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" strokeWidth={1.6} />
           </button>
         </div>
 
-        {/* Barra de Abas da Ficha: Geral vs Poderes e Exceções */}
-        <div className="px-5 pt-2 pb-0 border-b border-black/[0.04] dark:border-white/[0.06] flex items-center gap-2 bg-black/[0.015] dark:bg-white/[0.015]">
-          <button
-            type="button"
-            onClick={() => setActiveTab('general')}
-            className={`pb-2 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'general'
-                ? 'border-[#007AFF] text-[#007AFF]'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Informações & Atividade</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('permissions')}
-            className={`pb-2 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'permissions'
-                ? 'border-[#007AFF] text-[#007AFF]'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Poderes & Exceções Individuais</span>
-            {Object.keys(overrides).length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#007AFF] text-white leading-none">
-                {Object.keys(overrides).length}
-              </span>
-            )}
-          </button>
+        {/* Seletor Segmentado de Abas Apple */}
+        <div className="px-5 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02]">
+          <SegmentedControl
+            options={[
+              { id: 'general', label: 'Informações & Atividade', icon: User },
+              {
+                id: 'permissions',
+                label: 'Poderes & Exceções',
+                count: Object.keys(overrides).length > 0 ? Object.keys(overrides).length : undefined,
+                icon: Sliders
+              }
+            ]}
+            value={activeTab}
+            onChange={(v) => setActiveTab(v as 'general' | 'permissions')}
+          />
         </div>
 
         {/* Corpo com Rolagem */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs flex-1">
           {activeTab === 'general' ? (
             <>
-              {/* Se for Master: Mensagem de Intocável */}
+              {/* Se for Master: Banner Neutro com Cadeado */}
               {isUserMaster && (
-                <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl flex items-start gap-3 text-indigo-900 dark:text-indigo-200">
-                  <Crown className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <div className="font-bold">Conta Blindada pelo Banco de Dados</div>
-                    <p className="text-[11.5px] leading-relaxed text-indigo-800/80 dark:text-indigo-300/80">
-                      O Master possui controle absoluto e imunidade estrita. Nenhum usuário ou gatilho de terceiros tem permissão para alterar seus poderes, bloqueá-lo ou excluí-lo.
-                    </p>
-                  </div>
-                </div>
+                <Banner
+                  icon={Lock}
+                  title="Conta Blindada pelo Banco de Dados"
+                  message="O Master possui controle total e imunidade estrita. Nenhum usuário ou gatilho de terceiros tem permissão para alterar seus poderes, bloqueá-lo ou excluí-lo."
+                />
               )}
 
               {/* Informações Cadastrais */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-medium">Departamento</span>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">{user.department || 'Geral'}</div>
+                <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl space-y-1 border border-black/[0.03] dark:border-white/[0.04]">
+                  <span className="text-xs text-[#8E8E93] font-medium">Departamento</span>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100 truncate text-xs">
+                    {user.department || 'Geral'}
+                  </div>
                 </div>
 
-                <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-medium">Status da Conta</span>
-                  <div className="font-semibold flex items-center gap-1.5">
+                <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl space-y-1 border border-black/[0.03] dark:border-white/[0.04]">
+                  <span className="text-xs text-[#8E8E93] font-medium">Status</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
                     {user.isActive === false ? (
-                      <span className="text-rose-600 dark:text-rose-400 font-bold">• Bloqueado</span>
+                      <StatusDot status="destructive" label="Bloqueado" />
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">• Ativo</span>
+                      <StatusDot status="online" label="Ativo" />
                     )}
                   </div>
                 </div>
 
-                <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-medium">Cadastrado por</span>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">@{user.createdBy || 'Sistema'}</div>
+                <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl space-y-1 border border-black/[0.03] dark:border-white/[0.04]">
+                  <span className="text-xs text-[#8E8E93] font-medium">Cadastrado por</span>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100 truncate text-xs">
+                    @{user.createdBy || 'Sistema'}
+                  </div>
                 </div>
 
-                <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-medium">Último Acesso</span>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                    {user.lastLogin ? new Date(user.lastLogin).toLocaleString('pt-BR') : 'Nunca acessou'}
+                <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl space-y-1 border border-black/[0.03] dark:border-white/[0.04]">
+                  <span className="text-xs text-[#8E8E93] font-medium">Último Acesso</span>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100 truncate text-xs">
+                    {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('pt-BR') : 'Nunca acessou'}
                   </div>
                 </div>
               </div>
 
               {/* Segurança de Senha */}
-              <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 rounded-xl flex items-center gap-2.5 text-emerald-800 dark:text-emerald-300">
-                <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <div className="text-[11px] leading-relaxed">
-                  <span className="font-bold">Credenciais Blindadas: </span>
-                  Senhas são protegidas por bcrypt/Argon2 no Supabase Auth e nunca são reveladas ou transmitidas ao cliente.
-                </div>
-              </div>
+              <Banner
+                icon={Lock}
+                title="Credenciais Blindadas"
+                message="Senhas são protegidas por hash no Supabase Auth e nunca são reveladas ou transmitidas ao cliente."
+              />
 
               {/* Se for Gerente: Alcance e Membros da Equipe */}
               {isUserManager && (
-                <div className="space-y-2.5 pt-2 border-t border-black/[0.04] dark:border-white/[0.04]">
+                <div className="space-y-3 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold uppercase tracking-wider text-[11px] text-slate-400 flex items-center gap-1.5">
-                      <Briefcase className="w-3.5 h-3.5 text-teal-600" />
+                    <span className="font-medium uppercase tracking-wider text-xs text-[#6C6C70] dark:text-[#98989D] flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5" strokeWidth={1.6} />
                       Alcance de Gerência
                     </span>
                     {isMaster && (
-                      <div className="flex items-center gap-1 bg-black/[0.04] dark:bg-white/[0.06] p-0.5 rounded-lg">
-                        <button
-                          type="button"
-                          onClick={() => handleScopeChange('team_only')}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                            userScope.scope_type === 'team_only'
-                              ? 'bg-teal-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400'
-                          }`}
-                        >
-                          Somente sua Equipe
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleScopeChange('all_users')}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                            userScope.scope_type === 'all_users'
-                              ? 'bg-teal-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400'
-                          }`}
-                        >
-                          Todos os Usuários
-                        </button>
-                      </div>
+                      <SegmentedControl
+                        size="sm"
+                        options={[
+                          { id: 'team_only', label: 'Somente Equipe' },
+                          { id: 'all_users', label: 'Todos Usuários' }
+                        ]}
+                        value={userScope.scope_type}
+                        onChange={handleScopeChange}
+                      />
                     )}
                   </div>
 
-                  <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl text-[11px] text-slate-600 dark:text-slate-400">
-                    Alcance atual: <strong className="text-slate-900 dark:text-slate-100">{userScope.scope_type === 'team_only' ? 'Equipe Própria (usuários criados por este gerente)' : 'Global (todos os usuários comuns)'}</strong>.
+                  <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl text-xs text-[#6C6C70] dark:text-[#98989D]">
+                    Alcance atual: <strong className="text-slate-900 dark:text-slate-100 font-semibold">{userScope.scope_type === 'team_only' ? 'Equipe Própria (usuários criados por este gerente)' : 'Global (todos os usuários comuns)'}</strong>.
                   </div>
 
                   {/* Lista de Membros da Equipe */}
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-semibold text-slate-400">
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
                       Membros Criados ({teamMembers.length})
                     </div>
                     {teamMembers.length === 0 ? (
-                      <div className="p-3 text-center text-slate-400 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl">
+                      <div className="p-3 text-center text-xs text-[#8E8E93] bg-black/[0.02] dark:bg-white/[0.03] rounded-xl">
                         Nenhum usuário subordinado cadastrado até o momento.
                       </div>
                     ) : (
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                         {teamMembers.map(m => (
-                          <div key={m.id} className="p-2 bg-black/[0.02] dark:bg-white/[0.02] rounded-lg flex items-center justify-between text-xs">
+                          <div key={m.id} className="p-2.5 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl flex items-center justify-between text-xs border border-black/[0.03] dark:border-white/[0.04]">
                             <div>
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</span>
-                              <span className="text-slate-400 text-[11px] ml-1.5">@{m.username}</span>
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">{m.name}</span>
+                              <span className="text-[#8E8E93] ml-1.5 font-mono">@{m.username}</span>
                             </div>
-                            <span className="text-[10px] text-slate-400">{m.department || 'Geral'}</span>
+                            <span className="text-xs text-[#8E8E93]">{m.department || 'Geral'}</span>
                           </div>
                         ))}
                       </div>
@@ -473,27 +405,27 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
               )}
 
               {/* Atividades Recentes do Usuário */}
-              <div className="space-y-2 pt-2 border-t border-black/[0.04] dark:border-white/[0.04]">
-                <span className="font-bold uppercase tracking-wider text-[11px] text-slate-400 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-blue-500" />
+              <div className="space-y-2.5 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                <span className="font-medium uppercase tracking-wider text-xs text-[#6C6C70] dark:text-[#98989D] flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                   Histórico Recente de Atividades
                 </span>
 
                 {userLogs.length === 0 ? (
-                  <div className="p-3 text-center text-slate-400 bg-black/[0.02] dark:bg-white/[0.02] rounded-xl">
+                  <div className="p-3 text-center text-xs text-[#8E8E93] bg-black/[0.02] dark:bg-white/[0.03] rounded-xl">
                     Nenhuma atividade registrada para esta conta.
                   </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                     {userLogs.map(l => (
-                      <div key={l.id} className="p-2 bg-black/[0.02] dark:bg-white/[0.02] rounded-lg text-xs flex items-center justify-between gap-2">
+                      <div key={l.id} className="p-2.5 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl text-xs flex items-center justify-between gap-2 border border-black/[0.03] dark:border-white/[0.04]">
                         <div className="min-w-0">
-                          <div className="font-medium text-slate-800 dark:text-slate-200 truncate">{l.action}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">{l.formattedDate} {l.details && `• ${l.details}`}</div>
+                          <div className="font-medium text-slate-900 dark:text-slate-100 truncate">{l.action}</div>
+                          <div className="text-xs text-[#8E8E93] mt-0.5">{l.formattedDate} {l.details && `• ${l.details}`}</div>
                         </div>
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 shrink-0">
+                        <Badge variant="neutral">
                           {l.category}
-                        </span>
+                        </Badge>
                       </div>
                     ))}
                   </div>
@@ -504,46 +436,39 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
             <>
               {/* ABA DE PODERES & EXCEÇÕES INDIVIDUAIS */}
               {isUserMaster ? (
-                <div className="p-8 text-center space-y-2 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-2xl border border-indigo-200/50 dark:border-indigo-800/40">
-                  <Crown className="w-10 h-10 text-indigo-600 dark:text-indigo-400 mx-auto" />
-                  <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                <div className="p-8 text-center space-y-2 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08]">
+                  <Crown className="w-10 h-10 text-[#007AFF] dark:text-[#0A84FF] mx-auto" strokeWidth={1.6} />
+                  <div className="font-semibold text-slate-900 dark:text-slate-100 text-[15px]">
                     Administrador Master com Acesso Total
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-                    A conta Master herda e executa 100% dos poderes do sistema sem possibilidade de revogação ou exceções individuais.
+                  <p className="text-xs text-[#6C6C70] dark:text-[#98989D] max-w-md mx-auto leading-relaxed">
+                    A conta Master executa 100% dos poderes do sistema sem possibilidade de revogação ou bloqueio.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {/* Explicação da regra de exceções */}
-                  <div className="p-3 bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] rounded-xl text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                    <strong className="text-slate-800 dark:text-slate-200">Regra de Resolução de Poderes: </strong>
-                    A exceção individual sobrepõe o perfil base. Em caso de conflito, o bloqueio <em>Negar</em> tem prioridade máxima sobre <em>Permitir</em>.
-                  </div>
+                <div className="space-y-3.5">
+                  <Banner
+                    message="A exceção individual sobrepõe o perfil base. Em caso de conflito, o bloqueio (Negar) tem prioridade sobre Permitir."
+                  />
 
                   {/* Barra de Busca e Filtro de Grupo */}
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={permSearch}
-                        onChange={(e) => setPermSearch(e.target.value)}
-                        placeholder="Buscar por poder ou camada..."
-                        className="w-full min-h-[38px] pl-9 pr-3 py-1.5 rounded-xl bg-white dark:bg-[#1c1c1e] border border-black/[0.08] dark:border-white/[0.1] text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-                      />
-                    </div>
+                  <div className="space-y-2.5">
+                    <SearchField
+                      value={permSearch}
+                      onChange={setPermSearch}
+                      placeholder="Buscar por poder ou camada..."
+                    />
 
-                    <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
                       {(['TODOS', 'camadas', 'ferramentas', 'dados', 'conta', 'administracao'] as const).map(grp => (
                         <button
                           key={grp}
                           type="button"
                           onClick={() => setSelectedGroup(grp as any)}
-                          className={`min-h-[28px] px-2.5 py-0.5 rounded-lg text-[10.5px] font-semibold cursor-pointer shrink-0 transition-colors ${
+                          className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
                             selectedGroup === grp
-                              ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold'
-                              : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06]'
+                              ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                              : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
                           }`}
                         >
                           {grp === 'TODOS' ? 'Todos' : grp.toUpperCase()}
@@ -553,7 +478,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                   </div>
 
                   {/* Lista de Poderes e Controles de Exceção */}
-                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                  <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
                     {filteredCapabilities.map(cap => {
                       const overrideEntry = overrides[cap.key];
                       const overrideType: OverrideSetting = overrideEntry ? overrideEntry.override_type : 'inherit';
@@ -563,105 +488,65 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                       return (
                         <div
                           key={cap.key}
-                          className="p-3 bg-white dark:bg-[#1c1c1e] rounded-xl border border-black/[0.05] dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-xs"
+                          className="p-3.5 bg-white dark:bg-[#1C1C1E] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs shadow-xs"
                         >
-                          <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="space-y-1 min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-slate-900 dark:text-slate-100">
+                              <span className="font-semibold text-slate-900 dark:text-slate-100 text-[13px]">
                                 {cap.name}
                               </span>
 
                               {/* SELO DE ORIGEM */}
                               {overrideType === 'inherit' ? (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                  vem do perfil
-                                </span>
+                                <Badge variant="neutral">vem do perfil</Badge>
                               ) : overrideType === 'allow' ? (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-500/20">
-                                  individual (permitido)
-                                </span>
+                                <Badge variant="accent">individual (permitido)</Badge>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-500/20">
-                                  individual (negado)
-                                </span>
+                                <Badge variant="destructive">individual (negado)</Badge>
                               )}
                             </div>
 
-                            <div className="text-[10.5px] text-slate-400 font-mono">
+                            <div className="text-xs text-[#8E8E93] font-mono">
                               {cap.key}
                             </div>
-                            <div className="text-[11px] text-slate-500 line-clamp-1">
+                            <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
                               {cap.description}
                             </div>
 
                             {!isEditableByRequester && !isMaster && (
-                              <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                                ⚠️ Poder não delegado pelo Master
+                              <div className="text-xs text-[#FF9500] dark:text-[#FF9F0A] font-medium flex items-center gap-1 mt-0.5">
+                                <StatusDot status="warning" />
+                                <span>Poder não delegado pelo Master</span>
                               </div>
                             )}
                           </div>
 
                           {/* Controles de 3 Estados: Herdar | Permitir | Negar */}
                           <div className="flex items-center gap-2 shrink-0">
-                            <div className="inline-flex rounded-xl bg-black/[0.04] dark:bg-white/[0.06] p-0.5">
-                              <button
-                                type="button"
-                                disabled={!isEditableByRequester}
-                                onClick={() => handleSetOverride(cap.key, 'inherit')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-30 ${
-                                  overrideType === 'inherit'
-                                    ? 'bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs font-bold'
-                                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-                                }`}
-                                title="Herdar valor padrão do perfil do usuário"
-                              >
-                                Herdar
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={!isEditableByRequester}
-                                onClick={() => handleSetOverride(cap.key, 'allow')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-30 flex items-center gap-1 ${
-                                  overrideType === 'allow'
-                                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                                    : 'text-slate-500 hover:text-emerald-600'
-                                }`}
-                                title="Conceder exceção individual permitindo o uso"
-                              >
-                                <Check className="w-3 h-3" />
-                                <span>Permitir</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={!isEditableByRequester}
-                                onClick={() => handleSetOverride(cap.key, 'deny')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-30 flex items-center gap-1 ${
-                                  overrideType === 'deny'
-                                    ? 'bg-rose-600 text-white shadow-xs font-bold'
-                                    : 'text-slate-500 hover:text-rose-600'
-                                }`}
-                                title="Conceder exceção individual bloqueando expressamente"
-                              >
-                                <Ban className="w-3 h-3" />
-                                <span>Negar</span>
-                              </button>
-                            </div>
+                            <SegmentedControl
+                              size="sm"
+                              options={[
+                                { id: 'inherit', label: 'Herdar' },
+                                { id: 'allow', label: 'Permitir', icon: Check },
+                                { id: 'deny', label: 'Negar', icon: Ban }
+                              ]}
+                              value={overrideType}
+                              onChange={(v) => isEditableByRequester && handleSetOverride(cap.key, v as OverrideSetting)}
+                            />
 
                             {/* Se o usuário for Gerente: controle de "Pode Repassar" */}
                             {isUserManager && isMaster && (
                               <button
                                 type="button"
                                 onClick={() => handleToggleCanGrant(cap.key)}
-                                className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                                className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
                                   canGrantCurrent
-                                    ? 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                                    : 'bg-black/[0.02] border-black/10 dark:border-white/10 text-slate-400 hover:text-slate-600'
+                                    ? 'bg-[#007AFF]/10 border-[#007AFF]/30 text-[#007AFF] dark:bg-[#0A84FF]/15 dark:text-[#0A84FF]'
+                                    : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.08] text-[#8E8E93] hover:text-slate-900 dark:hover:text-white'
                                 }`}
-                                title="Autorizar este gerente a repassar/delegar este poder para sua equipe"
+                                title="Autorizar este gerente a repassar este poder para sua equipe"
                               >
-                                <Crown className="w-3 h-3" />
+                                <Crown className="w-3.5 h-3.5" strokeWidth={1.6} />
                                 <span>{canGrantCurrent ? 'Pode Repassar' : 'Sem Repasse'}</span>
                               </button>
                             )}
@@ -677,7 +562,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
         </div>
 
         {/* Rodapé da Ficha: Ver como este usuário, Auditoria e Fechar */}
-        <div className="p-3.5 sm:p-4 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
+        <div className="p-3.5 sm:p-4 border-t border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {onSimulateUser && (
               <button
@@ -686,10 +571,10 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                   onClose();
                   onSimulateUser(user);
                 }}
-                className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0062CC] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] active:scale-[0.98] text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                 title={`Ver a aplicação com a exata visão e poderes de @${user.username}`}
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5" strokeWidth={1.6} />
                 <span>Ver como este usuário</span>
               </button>
             )}
@@ -701,10 +586,10 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                   onClose();
                   onNavigateToAudit();
                 }}
-                className="min-h-[40px] px-3 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Ver alterações na trilha de auditoria"
               >
-                <History className="w-3.5 h-3.5 text-[#007AFF]" />
+                <History className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
                 <span className="hidden sm:inline">Trilha de Alterações</span>
               </button>
             )}
@@ -713,7 +598,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
+            className="min-h-[44px] px-5 py-2 rounded-xl bg-black/[0.05] hover:bg-black/[0.08] dark:bg-white/[0.08] dark:hover:bg-white/[0.12] text-slate-800 dark:text-slate-200 text-xs font-medium cursor-pointer transition-colors"
           >
             Fechar
           </button>

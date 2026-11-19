@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
   Users,
-  Search,
   Plus,
   Crown,
   Briefcase,
   User,
-  ShieldCheck,
   Key,
   Ban,
   CheckCircle2,
@@ -15,12 +13,16 @@ import {
   Eye,
   Smartphone,
   Clock,
-  AlertTriangle,
-  ArrowUpCircle,
-  ArrowDownCircle,
   Filter
 } from 'lucide-react';
-import { RegisteredUser, UserSessionConfig, UserRole } from '../../services/adminService';
+import { RegisteredUser, UserSessionConfig } from '../../services/adminService';
+import {
+  Badge,
+  StatusDot,
+  SegmentedControl,
+  SearchField,
+  AdminCard
+} from './ui';
 
 interface AdminUsersSectionProps {
   registeredUsers: RegisteredUser[];
@@ -57,8 +59,6 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
   onOpenEditUser,
   onOpenResetPassword,
   onToggleUserStatus,
-  onPromoteUser,
-  onDemoteUser,
   onDeleteUser,
   onSelectUserDetail,
   onToggleSessionBlocked,
@@ -122,93 +122,53 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
 
   return (
     <div className="space-y-4 animate-fadeIn">
-      {/* Barra de Topo da Seção: Modos e Botão Novo Usuário */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-black/[0.04] dark:border-white/[0.06]">
-        {/* Seletor Segmentado Apple: Contas vs Visitantes */}
-        <div className="flex items-center gap-1 p-1 bg-black/[0.04] dark:bg-white/[0.06] rounded-xl w-full sm:w-fit">
-          <button
-            type="button"
-            onClick={() => setViewMode('registered')}
-            className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer flex-1 sm:flex-initial ${
-              viewMode === 'registered'
-                ? 'bg-white dark:bg-[#252528] text-[#007AFF] dark:text-[#0a84ff] shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Contas Cadastradas</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/5 dark:bg-white/10 font-bold ml-0.5">
-              {registeredUsers.length}
-            </span>
-          </button>
-
-          {(isMaster || canManagerViewAllVisitors) && (
-            <button
-              type="button"
-              onClick={() => setViewMode('sessions')}
-              className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer flex-1 sm:flex-initial ${
-                viewMode === 'sessions'
-                  ? 'bg-white dark:bg-[#252528] text-[#007AFF] dark:text-[#0a84ff] shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Visitantes</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/5 dark:bg-white/10 font-bold ml-0.5">
-                {Object.keys(userSessions).length}
-              </span>
-            </button>
-          )}
-        </div>
+      {/* Barra de Topo da Seção com SegmentedControl e Botão Novo Usuário */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-black/[0.06] dark:border-white/[0.06]">
+        <SegmentedControl
+          options={[
+            { id: 'registered', label: 'Contas Cadastradas', count: registeredUsers.length, icon: Users },
+            ...((isMaster || canManagerViewAllVisitors)
+              ? [{ id: 'sessions', label: 'Visitantes', count: Object.keys(userSessions).length, icon: Smartphone }]
+              : [])
+          ]}
+          value={viewMode}
+          onChange={(v) => setViewMode(v as 'registered' | 'sessions')}
+        />
 
         {/* Botão Novo Usuário */}
         {canManagerGenerateLogins && (
           <button
             type="button"
             onClick={onOpenCreateUser}
-            className="min-h-[40px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0066d6] active:scale-95 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0062CC] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] active:scale-[0.98] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0 select-none"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" strokeWidth={1.6} />
             <span>Novo Usuário</span>
           </button>
         )}
       </div>
 
-      {/* Barra de Filtros e Busca Estilo iOS Search */}
-      <div className="space-y-2.5">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={viewMode === 'registered' ? "Buscar por nome, @login ou departamento..." : "Buscar visitante por ID, nome ou dispositivo..."}
-            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-white dark:bg-[#1c1c1e] border border-black/[0.06] dark:border-white/[0.08] text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#007AFF]/30 transition-all"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
+      {/* Busca em Cápsula e Filtros */}
+      <div className="space-y-3">
+        <SearchField
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder={viewMode === 'registered' ? "Buscar por nome, @login ou setor..." : "Buscar visitante por ID ou dispositivo..."}
+        />
 
-        {/* Filtros por Pill (se no modo de usuários cadastrados) */}
+        {/* Filtros por Segmentos Sutis (modo de usuários cadastrados) */}
         {viewMode === 'registered' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mr-1 shrink-0 flex items-center gap-1">
-              <Filter className="w-3 h-3" /> Papel:
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs select-none">
+            <span className="text-xs text-[#8E8E93] mr-1 shrink-0 flex items-center gap-1 font-medium">
+              <Filter className="w-3.5 h-3.5" strokeWidth={1.6} /> Papel:
             </span>
             <button
               type="button"
               onClick={() => setRoleFilter('ALL')}
-              className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors ${
+              className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
                 roleFilter === 'ALL'
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold'
-                  : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Todos
@@ -218,10 +178,10 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setRoleFilter('MASTER')}
-                  className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors ${
+                  className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
                     roleFilter === 'MASTER'
-                      ? 'bg-indigo-600 text-white font-bold'
-                      : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                      : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Masters
@@ -229,10 +189,10 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setRoleFilter('MANAGER')}
-                  className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors ${
+                  className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
                     roleFilter === 'MANAGER'
-                      ? 'bg-teal-600 text-white font-bold'
-                      : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                      : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Gerentes
@@ -242,10 +202,10 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
             <button
               type="button"
               onClick={() => setRoleFilter('USER')}
-              className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors ${
+              className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
                 roleFilter === 'USER'
-                  ? 'bg-slate-700 text-white font-bold'
-                  : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Comuns
@@ -254,10 +214,10 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
               <button
                 type="button"
                 onClick={() => setRoleFilter('MY_TEAM')}
-                className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors ${
+                className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors ${
                   roleFilter === 'MY_TEAM'
-                    ? 'bg-teal-600 text-white font-bold'
-                    : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                    : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Minha Equipe
@@ -266,45 +226,49 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
 
             <div className="h-4 w-px bg-black/[0.08] dark:bg-white/[0.08] mx-1 shrink-0" />
 
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mr-1 shrink-0">
+            <span className="text-xs text-[#8E8E93] mr-1 shrink-0 font-medium">
               Status:
             </span>
             <button
               type="button"
               onClick={() => setStatusFilter(statusFilter === 'BLOCKED' ? 'ALL' : 'BLOCKED')}
-              className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors flex items-center gap-1 ${
+              className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors flex items-center gap-1.5 ${
                 statusFilter === 'BLOCKED'
-                  ? 'bg-rose-600 text-white font-bold'
-                  : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Ban className="w-3 h-3" /> Bloqueados
+              <StatusDot status="destructive" />
+              <span>Bloqueados</span>
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter(statusFilter === 'MUST_CHANGE' ? 'ALL' : 'MUST_CHANGE')}
-              className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer shrink-0 transition-colors flex items-center gap-1 ${
+              className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-medium cursor-pointer shrink-0 transition-colors flex items-center gap-1.5 ${
                 statusFilter === 'MUST_CHANGE'
-                  ? 'bg-amber-600 text-white font-bold'
-                  : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold'
+                  : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Key className="w-3 h-3" /> Troca Pendente
+              <StatusDot status="warning" />
+              <span>Troca Pendente</span>
             </button>
           </div>
         )}
       </div>
 
       {/* ========================================================
-          VISÃO 1: LISTA DE USUÁRIOS CADASTRADOS
+          VISÃO 1: LISTA DE USUÁRIOS CADASTRADOS (APPLE INSET)
          ======================================================== */}
       {viewMode === 'registered' && (
         <div className="space-y-2.5">
           {filteredUsers.length === 0 ? (
-            <div className="p-8 text-center bg-white dark:bg-[#1c1c1e] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] text-slate-400 space-y-2">
-              <Users className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
-              <p className="text-xs font-semibold">Nenhum usuário encontrado com os filtros atuais.</p>
-            </div>
+            <AdminCard className="text-center py-10 space-y-2">
+              <Users className="w-8 h-8 mx-auto text-[#8E8E93]" strokeWidth={1.6} />
+              <p className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
+                Nenhum usuário encontrado com os filtros atuais.
+              </p>
+            </AdminCard>
           ) : (
             filteredUsers.map((user) => {
               const isUserMaster = user.role === 'master' || (user.role as any) === 'admin';
@@ -316,68 +280,62 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
               return (
                 <div
                   key={user.id}
-                  className={`p-3.5 bg-white dark:bg-[#1c1c1e] rounded-2xl border transition-all ${
+                  className={`p-3.5 bg-white dark:bg-[#1C1C1E] rounded-2xl border transition-all ${
                     user.isActive === false
-                      ? 'border-rose-200 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/10'
-                      : 'border-black/[0.05] dark:border-white/[0.06] hover:border-black/10 dark:hover:border-white/10'
-                  }`}
+                      ? 'border-[#FF3B30]/30 bg-[#FF3B30]/[0.02]'
+                      : 'border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] dark:hover:border-white/[0.12]'
+                  } shadow-xs`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     {/* Dados Básicos */}
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-xs ${
-                        isUserMaster
-                          ? 'bg-indigo-600 text-white'
-                          : isUserManager
-                            ? 'bg-teal-600 text-white'
-                            : 'bg-slate-700 text-white'
-                      }`}>
-                        {isUserMaster ? <Crown className="w-5 h-5" /> : isUserManager ? <Briefcase className="w-5 h-5" /> : user.name.charAt(0).toUpperCase()}
+                      <div className="w-10 h-10 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] flex items-center justify-center font-semibold text-sm shrink-0 text-[#6C6C70] dark:text-[#98989D] shadow-xs">
+                        {isUserMaster ? (
+                          <Crown className="w-5 h-5 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
+                        ) : isUserManager ? (
+                          <Briefcase className="w-5 h-5 text-[#6C6C70] dark:text-[#98989D]" strokeWidth={1.6} />
+                        ) : (
+                          user.name.charAt(0).toUpperCase()
+                        )}
                       </div>
 
                       <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {user.name}
                           </span>
-                          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                          <span className="text-xs font-mono text-[#8E8E93]">
                             @{user.username}
                           </span>
 
                           {/* Badge de Papel */}
                           {isUserMaster ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300">
+                            <Badge icon={Crown} variant="neutral">
                               Master
-                            </span>
+                            </Badge>
                           ) : isUserManager ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-teal-100 text-teal-700 dark:bg-teal-950/80 dark:text-teal-300">
+                            <Badge icon={Briefcase} variant="neutral">
                               Gerente
-                            </span>
+                            </Badge>
                           ) : (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                            <Badge icon={User} variant="neutral">
                               Comum
-                            </span>
+                            </Badge>
                           )}
 
                           {/* Status */}
                           {user.isActive === false ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                              • Bloqueado
-                            </span>
+                            <StatusDot status="destructive" label="Bloqueado" />
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                              • Ativo
-                            </span>
+                            <StatusDot status="online" label="Ativo" />
                           )}
 
                           {user.mustChangePassword && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
-                              Troca pendente
-                            </span>
+                            <StatusDot status="warning" label="Troca pendente" />
                           )}
                         </div>
 
-                        <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-2 flex-wrap">
+                        <div className="text-xs text-[#8E8E93] flex items-center gap-2 flex-wrap">
                           {user.department && <span>{user.department}</span>}
                           {user.createdBy && <span>• Criado por @{user.createdBy}</span>}
                           {user.lastLogin ? (
@@ -389,16 +347,17 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                       </div>
                     </div>
 
-                    {/* Ações do Usuário (Toque mínimo 44px em mobile) */}
+                    {/* Ações do Usuário (Toque mínimo 44px) */}
                     <div className="flex items-center gap-1 sm:gap-1.5 self-end sm:self-center shrink-0 flex-wrap">
                       {/* 1. Ver Detalhes / Ficha */}
                       <button
                         type="button"
                         onClick={() => onSelectUserDetail(user)}
-                        className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                        className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
                         title="Ver ficha completa do usuário"
+                        aria-label="Ver ficha"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-4 h-4" strokeWidth={1.6} />
                       </button>
 
                       {/* 2. Simular Usuário */}
@@ -406,10 +365,11 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                         <button
                           type="button"
                           onClick={() => onSimulateUser(user)}
-                          className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-[#007AFF] hover:bg-[#007AFF]/10 transition-colors cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/10 transition-colors cursor-pointer flex items-center justify-center"
                           title="Simular visualização deste usuário"
+                          aria-label="Simular usuário"
                         >
-                          <Sliders className="w-4 h-4" />
+                          <Sliders className="w-4 h-4" strokeWidth={1.6} />
                         </button>
                       )}
 
@@ -418,10 +378,11 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenResetPassword(user)}
-                          className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                          title="Redefinir senha de acesso"
+                          className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
+                          title="Redefinir senha provisória"
+                          aria-label="Redefinir senha"
                         >
-                          <Key className="w-4 h-4" />
+                          <Key className="w-4 h-4" strokeWidth={1.6} />
                         </button>
                       )}
 
@@ -430,10 +391,11 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenEditUser(user)}
-                          className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
                           title="Editar permissões customizadas"
+                          aria-label="Editar permissões"
                         >
-                          <Sliders className="w-4 h-4" />
+                          <Sliders className="w-4 h-4" strokeWidth={1.6} />
                         </button>
                       )}
 
@@ -442,49 +404,32 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                         <button
                           type="button"
                           onClick={() => onToggleUserStatus(user)}
-                          className={`min-h-[36px] min-w-[36px] p-2 rounded-xl transition-colors cursor-pointer ${
+                          className={`min-h-[44px] min-w-[44px] p-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center ${
                             user.isActive === false
-                              ? 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-                              : 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                              ? 'text-[#007AFF] hover:bg-[#007AFF]/10'
+                              : 'text-[#FF3B30] dark:text-[#FF453A] hover:bg-[#FF3B30]/10'
                           }`}
                           title={user.isActive === false ? "Reativar conta" : "Bloquear conta"}
+                          aria-label={user.isActive === false ? "Reativar conta" : "Bloquear conta"}
                         >
-                          {user.isActive === false ? <CheckCircle2 className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                          {user.isActive === false ? (
+                            <CheckCircle2 className="w-4 h-4" strokeWidth={1.6} />
+                          ) : (
+                            <Ban className="w-4 h-4" strokeWidth={1.6} />
+                          )}
                         </button>
                       )}
 
-                      {/* 6. Promover a Gerente / Rebaixar (Master) */}
-                      {isMaster && !isUserMaster && (
-                        user.role === 'manager' ? (
-                          <button
-                            type="button"
-                            onClick={() => onDemoteUser(user)}
-                            className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                            title="Rebaixar para Usuário Comum"
-                          >
-                            <ArrowDownCircle className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => onPromoteUser(user)}
-                            className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors cursor-pointer"
-                            title="Promover para Gerente"
-                          >
-                            <ArrowUpCircle className="w-4 h-4" />
-                          </button>
-                        )
-                      )}
-
-                      {/* 7. Excluir (Master) */}
+                      {/* 6. Excluir Conta (Master) */}
                       {isMaster && !isUserMaster && !isSelf && (
                         <button
                           type="button"
                           onClick={() => onDeleteUser(user)}
-                          className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                          title="Excluir conta permanentemente"
+                          className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-[#FF3B30] dark:text-[#FF453A] hover:bg-[#FF3B30]/10 transition-colors cursor-pointer flex items-center justify-center"
+                          title="Excluir usuário permanentemente"
+                          aria-label="Excluir usuário"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" strokeWidth={1.6} />
                         </button>
                       )}
                     </div>
@@ -502,66 +447,74 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
       {viewMode === 'sessions' && (
         <div className="space-y-2.5">
           {sessionList.length === 0 ? (
-            <div className="p-8 text-center bg-white dark:bg-[#1c1c1e] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] text-slate-400 space-y-2">
-              <Smartphone className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
-              <p className="text-xs font-semibold">Nenhuma sessão de visitante registrada no momento.</p>
-            </div>
+            <AdminCard className="text-center py-10 space-y-2">
+              <Smartphone className="w-8 h-8 mx-auto text-[#8E8E93]" strokeWidth={1.6} />
+              <p className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
+                Nenhuma sessão anônima encontrada.
+              </p>
+            </AdminCard>
           ) : (
             sessionList.map((session) => {
-              const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
-              const isOnline = new Date(session.lastSeen).getTime() >= fifteenMinAgo;
-
+              const isBlocked = session.isBlocked === true;
               return (
                 <div
                   key={session.sessionId}
-                  className="p-3.5 bg-white dark:bg-[#1c1c1e] rounded-2xl border border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-3"
+                  className={`p-3.5 bg-white dark:bg-[#1C1C1E] rounded-2xl border transition-all ${
+                    isBlocked
+                      ? 'border-[#FF3B30]/30 bg-[#FF3B30]/[0.02]'
+                      : 'border-black/[0.06] dark:border-white/[0.08]'
+                  } shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-                      <Smartphone className="w-4 h-4" />
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] flex items-center justify-center text-[#8E8E93] shrink-0">
+                      <Smartphone className="w-5 h-5" strokeWidth={1.6} />
                     </div>
 
-                    <div className="min-w-0 space-y-0.5">
+                    <div className="space-y-0.5 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono truncate">
-                          {session.sessionId.slice(0, 16)}...
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
+                          {session.customName || `Visitante #${session.sessionId.slice(-6)}`}
                         </span>
-
-                        {isOnline ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ativo Agora
-                          </span>
+                        {isBlocked ? (
+                          <StatusDot status="destructive" label="Bloqueado" />
                         ) : (
-                          <span className="text-[10px] text-slate-400">Inativo</span>
-                        )}
-
-                        {session.device && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400 font-semibold">
-                            {session.device}
-                          </span>
+                          <StatusDot status="online" label="Online" />
                         )}
                       </div>
 
-                      <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-2">
-                        <span>Acessos: {session.loginCount || 1}</span>
-                        <span>• Última visualização: {session.formattedLastSeen}</span>
+                      <div className="text-xs font-mono text-[#8E8E93] truncate">
+                        ID: {session.sessionId}
+                      </div>
+
+                      <div className="text-xs text-[#6C6C70] dark:text-[#98989D] flex items-center gap-2 flex-wrap">
+                        {session.device && <span>Dispositivo: {session.device}</span>}
+                        {session.lastSeen && <span>• Visto em: {new Date(session.lastSeen).toLocaleString('pt-BR')}</span>}
+                        {session.loginCount && <span>• Acessos: {session.loginCount}</span>}
                       </div>
                     </div>
                   </div>
 
-                  {/* Ação de Bloqueio de Sessão */}
                   {isMaster && onToggleSessionBlocked && (
                     <button
                       type="button"
-                      onClick={() => onToggleSessionBlocked(session.sessionId, !!session.isBlocked)}
-                      className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                        session.isBlocked
-                          ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200'
-                          : 'bg-black/[0.03] dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/[0.06]'
+                      onClick={() => onToggleSessionBlocked(session.sessionId, isBlocked)}
+                      className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-colors self-end sm:self-center shrink-0 flex items-center gap-1.5 ${
+                        isBlocked
+                          ? 'text-[#007AFF] hover:bg-[#007AFF]/10'
+                          : 'text-[#FF3B30] dark:text-[#FF453A] hover:bg-[#FF3B30]/10'
                       }`}
                     >
-                      <Ban className="w-3.5 h-3.5" />
-                      <span>{session.isBlocked ? 'Bloqueado' : 'Bloquear'}</span>
+                      {isBlocked ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" strokeWidth={1.6} />
+                          <span>Desbloquear</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="w-4 h-4" strokeWidth={1.6} />
+                          <span>Bloquear Sessão</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
