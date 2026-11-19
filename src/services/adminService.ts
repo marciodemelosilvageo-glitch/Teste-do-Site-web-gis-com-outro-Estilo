@@ -208,13 +208,76 @@ const STORAGE_KEYS = {
 };
 
 // Notificar componentes sobre mudanças de permissões
-export const notifyPermissionsUpdated = () => {
+export const notifyPermissionsUpdated = (detail?: { reason?: string; scope?: string }) => {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('webgis_permissions_updated'));
+    window.dispatchEvent(new CustomEvent('webgis_permissions_updated', { detail }));
+    // Propaga via Realtime para outras abas e navegadores conectados
+    bumpPermissionsEpochOnServer(detail?.scope || 'global').catch(() => {});
   }
 };
 
-// Sincronização em segundo plano com o Supabase
+/**
+ * Incrementa a época de permissões no servidor (quando o master/gerente salva alterações)
+ */
+export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => {
+  try {
+    await supabase.rpc('bump_permissions_epoch', { p_scope: scope });
+  } catch (err) {
+    // Falha tolerante caso a RPC ainda não exista no projeto
+  }
+};
+
+/**
+ * Recarrega apenas as configurações globais (webgis_settings) de forma leve, sem baixar tabelas inteiras
+ */
+export const refreshGlobalSettingsAsync = async (): Promise<boolean> => {
+  try {
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('webgis_settings')
+      .select('*')
+      .eq('id', 'global')
+      .maybeSingle();
+
+    if (settingsError || !settingsData) return false;
+
+    let hasChanged = false;
+
+    if (settingsData.layer_permissions) {
+      const next = JSON.stringify(settingsData.layer_permissions);
+      if (localStorage.getItem(STORAGE_KEYS.LAYER_PERMISSIONS) !== next) {
+        localStorage.setItem(STORAGE_KEYS.LAYER_PERMISSIONS, next);
+        hasChanged = true;
+      }
+    }
+    if (settingsData.feature_permissions) {
+      const next = JSON.stringify(settingsData.feature_permissions);
+      if (localStorage.getItem(STORAGE_KEYS.FEATURE_PERMISSIONS) !== next) {
+        localStorage.setItem(STORAGE_KEYS.FEATURE_PERMISSIONS, next);
+        hasChanged = true;
+      }
+    }
+    if (settingsData.address_columns_permissions) {
+      const next = JSON.stringify(settingsData.address_columns_permissions);
+      if (localStorage.getItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS) !== next) {
+        localStorage.setItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS, next);
+        hasChanged = true;
+      }
+    }
+    if (settingsData.feature_properties_permissions) {
+      const next = JSON.stringify(settingsData.feature_properties_permissions);
+      if (localStorage.getItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS) !== next) {
+        localStorage.setItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS, next);
+        hasChanged = true;
+      }
+    }
+
+    return hasChanged;
+  } catch {
+    return false;
+  }
+};
+
+// Sincronização inicial com o Supabase
 let isInitialized = false;
 
 export const initAdminService = async (forceRefresh = false) => {
@@ -282,7 +345,7 @@ export const initAdminService = async (forceRefresh = false) => {
       }
     } catch { }
 
-    // 3. Carregar Sessões de Usuários do Supabase
+    // 3. Carregar Sessões de Usuários do Supabase (apenas na inicialização)
     const { data: sessionsData } = await supabase
       .from('webgis_user_sessions')
       .select('*');
@@ -317,26 +380,9 @@ export const initAdminService = async (forceRefresh = false) => {
       notifyPermissionsUpdated();
     }
 
-    // 4. Polling periódico inteligente de sincronização (apenas quando a aba está ativa)
-    if (!(window as any).__webgis_sync_interval_set) {
-      (window as any).__webgis_sync_interval_set = true;
-
-      setInterval(() => {
-        if (typeof document !== 'undefined' && !document.hidden) {
-          initAdminService(true).catch(() => { });
-        }
-      }, 10000);
-
-      // Sincroniza imediatamente sempre que o usuário volta/foca na aba
-      window.addEventListener('focus', () => {
-        initAdminService(true).catch(() => { });
-      });
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-          initAdminService(true).catch(() => { });
-        }
-      });
-    }
+    // 4. Polling pesado de 10s removido com sucesso:
+    // A propagação agora é realizada via Supabase Realtime (permissions_epoch) em ~1 segundo,
+    // complementada por verificação leve de contadores a cada 45s apenas se houver novas épocas.
 
   } catch (err) {
     console.warn('Conexão inicial com Supabase fallback para localStorage:', err);
