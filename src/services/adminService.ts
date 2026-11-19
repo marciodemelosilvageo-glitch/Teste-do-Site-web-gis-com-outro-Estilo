@@ -233,21 +233,42 @@ let isBumpRpcAvailable: boolean | null = (() => {
 
 /**
  * Controle de disponibilidade da Edge Function admin-users (evita erros repetitivos de CORS no console)
+ * Por padrão, permanece desativada (false) quando a função não está implantada no projeto Supabase,
+ * evitando requisições preflight OPTIONS que retornam 404 e geram bloqueio de CORS no console.
  */
-let isEdgeFunctionAvailable: boolean | null = (() => {
+let isEdgeFunctionAvailable: boolean = (() => {
   try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_USE_EDGE_FUNCTIONS === 'true') {
+      return true;
+    }
+    if (typeof localStorage !== 'undefined') {
+      const val = localStorage.getItem('webgis_edge_function_available');
+      if (val === 'true') return true;
+      if (val === 'false') return false;
+    }
     if (typeof sessionStorage !== 'undefined') {
       const val = sessionStorage.getItem('webgis_edge_function_available');
-      if (val === 'false') return false;
       if (val === 'true') return true;
+      if (val === 'false') return false;
     }
   } catch {}
-  return null;
+  return false;
 })();
 
+export const setEdgeFunctionAvailable = (available: boolean) => {
+  isEdgeFunctionAvailable = available;
+  try {
+    localStorage.setItem('webgis_edge_function_available', String(available));
+    sessionStorage.setItem('webgis_edge_function_available', String(available));
+  } catch {}
+};
+
 export const resetEdgeFunctionCheck = () => {
-  isEdgeFunctionAvailable = null;
-  try { sessionStorage.removeItem('webgis_edge_function_available'); } catch {}
+  isEdgeFunctionAvailable = false;
+  try {
+    localStorage.removeItem('webgis_edge_function_available');
+    sessionStorage.removeItem('webgis_edge_function_available');
+  } catch {}
 };
 
 export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => {
@@ -676,8 +697,8 @@ export const saveRegisteredUser = async (
     let createdViaEdgeFunction = false;
     let createdUserId: string | null = null;
 
-    // 1.1 Tenta criar via Edge Function administrativa (se estiver implantada no projeto)
-    if (isEdgeFunctionAvailable !== false) {
+    // 1.1 Tenta criar via Edge Function administrativa (apenas se estiver explicitamente habilitada/implantada)
+    if (isEdgeFunctionAvailable === true) {
       try {
         const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
           body: {
@@ -702,16 +723,13 @@ export const saveRegisteredUser = async (
         if (!fnError && !fnData?.error && (fnData?.user?.id || fnData?.userId)) {
           createdViaEdgeFunction = true;
           createdUserId = fnData?.user?.id || fnData?.userId;
-          isEdgeFunctionAvailable = true;
-          try { sessionStorage.setItem('webgis_edge_function_available', 'true'); } catch {}
+          setEdgeFunctionAvailable(true);
         } else {
-          isEdgeFunctionAvailable = false;
-          try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+          setEdgeFunctionAvailable(false);
           console.warn('Edge Function admin-users não disponível ou retornou erro, aplicando fallback direto:', fnError?.message || fnData?.error);
         }
       } catch (e: any) {
-        isEdgeFunctionAvailable = false;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+        setEdgeFunctionAvailable(false);
         console.warn('Exceção ao invocar Edge Function admin-users (CORS/404), aplicando fallback direto:', e?.message || e);
       }
     }
@@ -915,7 +933,7 @@ export const changeUserPassword = async (
   }
 
   let edgeSuccess = false;
-  if (isEdgeFunctionAvailable !== false) {
+  if (isEdgeFunctionAvailable === true) {
     try {
       const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
         body: {
@@ -929,16 +947,13 @@ export const changeUserPassword = async (
 
       if (!fnError && !fnData?.error) {
         edgeSuccess = true;
-        isEdgeFunctionAvailable = true;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'true'); } catch {}
+        setEdgeFunctionAvailable(true);
       } else {
-        isEdgeFunctionAvailable = false;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+        setEdgeFunctionAvailable(false);
         console.warn('Falha na Edge Function ao alterar senha:', fnError?.message || fnData?.error);
       }
     } catch (err: any) {
-      isEdgeFunctionAvailable = false;
-      try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+      setEdgeFunctionAvailable(false);
       console.warn('Exceção ao invocar Edge Function admin-users (CORS/404):', err?.message || err);
     }
   }
@@ -983,7 +998,7 @@ export const deleteRegisteredUser = async (
   if (!user) return { success: false, users: currentUsers, error: 'Usuário não encontrado.' };
 
   let edgeSuccess = false;
-  if (isEdgeFunctionAvailable !== false) {
+  if (isEdgeFunctionAvailable === true) {
     try {
       const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
         body: {
@@ -994,16 +1009,13 @@ export const deleteRegisteredUser = async (
 
       if (!fnError && !fnData?.error) {
         edgeSuccess = true;
-        isEdgeFunctionAvailable = true;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'true'); } catch {}
+        setEdgeFunctionAvailable(true);
       } else {
-        isEdgeFunctionAvailable = false;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+        setEdgeFunctionAvailable(false);
         console.warn('Falha na Edge Function delete_user, aplicando fallback em profiles:', fnError?.message || fnData?.error);
       }
     } catch (err: any) {
-      isEdgeFunctionAvailable = false;
-      try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+      setEdgeFunctionAvailable(false);
       console.warn('Exceção ao invocar Edge Function delete_user (CORS/404), aplicando fallback:', err?.message || err);
     }
   }
@@ -1039,7 +1051,7 @@ export const toggleRegisteredUserStatus = async (
 
   // Invoca a Edge Function admin-users para garantir bloqueio no profiles E revogação de sessões no Supabase Auth
   let edgeSuccess = false;
-  if (isEdgeFunctionAvailable !== false) {
+  if (isEdgeFunctionAvailable === true) {
     try {
       const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
         body: {
@@ -1053,16 +1065,13 @@ export const toggleRegisteredUserStatus = async (
 
       if (!fnError && !fnData?.error) {
         edgeSuccess = true;
-        isEdgeFunctionAvailable = true;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'true'); } catch {}
+        setEdgeFunctionAvailable(true);
       } else {
-        isEdgeFunctionAvailable = false;
-        try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+        setEdgeFunctionAvailable(false);
         console.warn('Falha na Edge Function toggle_status, aplicando fallback em profiles:', fnError || fnData?.error);
       }
     } catch (e: any) {
-      isEdgeFunctionAvailable = false;
-      try { sessionStorage.setItem('webgis_edge_function_available', 'false'); } catch {}
+      setEdgeFunctionAvailable(false);
       console.warn('Exceção na Edge Function toggle_status, aplicando fallback em profiles:', e?.message || e);
     }
   }
