@@ -1437,19 +1437,46 @@ export const getUserSessions = (): Record<string, UserSessionConfig> => {
   }
 };
 
-// Flag para evitar requisições 404 repetidas caso o Script 06 (telemetria RPC) ainda não tenha sido aplicado no Supabase
-let isTelemetryRpcAvailable: boolean | null = null;
-
 // Obter sessões de usuários diretamente do Supabase em tempo real (ordenadas da mais recente para a mais antiga)
 export const getUserSessionsAsync = async (): Promise<Record<string, UserSessionConfig>> => {
   try {
-    // 1. Tentar ler a telemetria autoritativa do servidor via RPC (disponível para gerente e master)
-    if (isTelemetryRpcAvailable !== false) {
+    // 1. Ler as sessões diretamente da tabela webgis_user_sessions (tabela autoritativa com RLS, sempre disponível e sem erro 404)
+    const { data: sessionsData, error } = await supabase
+      .from('webgis_user_sessions')
+      .select('*')
+      .order('last_seen', { ascending: false });
+
+    if (!error && sessionsData && sessionsData.length > 0) {
+      const localSessions = getUserSessions();
+      sessionsData.forEach((row: any) => {
+        localSessions[row.session_id] = {
+          sessionId: row.session_id,
+          authUid: row.auth_uid,
+          customName: row.custom_name,
+          firstSeen: row.first_seen,
+          lastSeen: row.last_seen,
+          formattedFirstSeen: row.formatted_first_seen,
+          formattedLastSeen: row.formatted_last_seen,
+          role: row.role as UserRole,
+          isBlocked: row.is_blocked,
+          loginCount: row.login_count || 1,
+          hasCustomPermissions: row.has_custom_permissions,
+          customLayerPermissions: row.custom_layer_permissions,
+          customFeaturePermissions: row.custom_feature_permissions,
+          customAddressColumnsPermissions: row.custom_address_columns_permissions,
+          customFeaturePropertiesPermissions: row.custom_feature_properties_permissions,
+        };
+      });
+      localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(localSessions));
+      return localSessions;
+    }
+
+    // 2. Telemetria avançada de servidor via RPC get_telemetry_active_sessions (executada apenas se expressamente habilitada, requer Script 06)
+    if (typeof window !== 'undefined' && localStorage.getItem('webgis_enable_telemetry_rpc') === 'true') {
       const { data: telemetryData, error: telemetryError } = await supabase
         .rpc('get_telemetry_active_sessions');
 
       if (!telemetryError && telemetryData && Array.isArray(telemetryData) && telemetryData.length > 0) {
-        isTelemetryRpcAvailable = true;
         const liveSessions: Record<string, UserSessionConfig> = {};
         telemetryData.forEach((row: any) => {
           const sId = row.session_id || row.auth_uid;
@@ -1480,43 +1507,7 @@ export const getUserSessionsAsync = async (): Promise<Record<string, UserSession
         });
         localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(liveSessions));
         return liveSessions;
-      } else if (telemetryError) {
-        // Se a função RPC não existir no banco (404 / PGRST202), desativa novas chamadas para evitar spam no console
-        if (telemetryError.code === 'PGRST202' || (telemetryError as any)?.status === 404 || telemetryError.message?.includes('not found')) {
-          isTelemetryRpcAvailable = false;
-        }
       }
-    }
-
-    // 2. Fallback caso não seja manager/master ou a RPC ainda não esteja instalada
-    const { data: sessionsData, error } = await supabase
-      .from('webgis_user_sessions')
-      .select('*')
-      .order('last_seen', { ascending: false });
-
-    if (!error && sessionsData && sessionsData.length > 0) {
-      const localSessions = getUserSessions();
-      sessionsData.forEach((row: any) => {
-        localSessions[row.session_id] = {
-          sessionId: row.session_id,
-          authUid: row.auth_uid,
-          customName: row.custom_name,
-          firstSeen: row.first_seen,
-          lastSeen: row.last_seen,
-          formattedFirstSeen: row.formatted_first_seen,
-          formattedLastSeen: row.formatted_last_seen,
-          role: row.role as UserRole,
-          isBlocked: row.is_blocked,
-          loginCount: row.login_count || 1,
-          hasCustomPermissions: row.has_custom_permissions,
-          customLayerPermissions: row.custom_layer_permissions,
-          customFeaturePermissions: row.custom_feature_permissions,
-          customAddressColumnsPermissions: row.custom_address_columns_permissions,
-          customFeaturePropertiesPermissions: row.custom_feature_properties_permissions,
-        };
-      });
-      localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(localSessions));
-      return localSessions;
     }
   } catch (e) {
     console.warn('getUserSessionsAsync: falha ao buscar do Supabase, usando cache local:', e);
