@@ -220,11 +220,21 @@ export const notifyPermissionsUpdated = (detail?: { reason?: string; scope?: str
 /**
  * Incrementa a época de permissões no servidor (quando o master/gerente salva alterações)
  */
+let isBumpRpcAvailable: boolean | null = null;
+
 export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => {
+  if (isBumpRpcAvailable === false) return;
   try {
-    await supabase.rpc('bump_permissions_epoch', { p_scope: scope });
-  } catch (err) {
-    // Falha tolerante caso a RPC ainda não exista no projeto
+    const { error, status } = await supabase.rpc('bump_permissions_epoch', { p_scope: scope });
+    if (error) {
+      if (status === 404 || error.code === 'PGRST202' || error.message?.includes('not found') || (error as any).status === 404) {
+        isBumpRpcAvailable = false;
+      }
+    } else {
+      isBumpRpcAvailable = true;
+    }
+  } catch {
+    isBumpRpcAvailable = false;
   }
 };
 

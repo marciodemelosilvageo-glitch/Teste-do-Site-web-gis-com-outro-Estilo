@@ -15,6 +15,8 @@ let fallbackIntervalId: any = null;
 let debounceTimeout: any = null;
 let lastKnownEpochs: Record<string, number> = {};
 let isCheckingEpoch = false;
+let isEpochTableAvailable: boolean | null = null;
+let isIntentionalClose = false;
 
 /**
  * Consulta leve e rápida de fallback (apenas contadores da tabela permissions_epoch)
@@ -25,7 +27,7 @@ export const checkEpochFallbackAsync = async (
   userRole?: string,
   onPermissionsUpdated?: (info?: { scope?: string; reason?: string }) => void
 ): Promise<boolean> => {
-  if (isCheckingEpoch) return false;
+  if (isCheckingEpoch || isEpochTableAvailable === false) return false;
   isCheckingEpoch = true;
 
   try {
@@ -33,12 +35,22 @@ export const checkEpochFallbackAsync = async (
     if (userRole) scopes.push(`role:${userRole}`);
     if (userId) scopes.push(`user:${userId}`);
 
-    const { data, error } = await supabase
+    const { data, error, status } = await supabase
       .from('permissions_epoch')
       .select('scope, epoch')
       .in('scope', scopes);
 
-    if (error || !Array.isArray(data)) {
+    if (error) {
+      if (status === 404 || error.code === '42P01' || error.message?.includes('not found') || error.message?.includes('does not exist')) {
+        isEpochTableAvailable = false;
+        console.info('ℹ️ [REALTIME] Tabela permissions_epoch não detectada no Supabase. O sistema está operando em modo defensivo.');
+      }
+      return false;
+    }
+
+    isEpochTableAvailable = true;
+
+    if (!Array.isArray(data)) {
       return false;
     }
 
@@ -80,9 +92,12 @@ export const subscribeToPermissionsRealtime = (
 
   // Limpeza de qualquer canal anterior
   unsubscribePermissionsRealtime();
+  isIntentionalClose = false;
 
-  // Executa uma primeira leitura dos contadores para estabelecer a linha de base
-  checkEpochFallbackAsync(userId, userRole).catch(() => {});
+  // Executa uma primeira leitura dos contadores para estabelecer a linha de base (se a tabela estiver disponível)
+  if (isEpochTableAvailable !== false) {
+    checkEpochFallbackAsync(userId, userRole).catch(() => {});
+  }
 
   const channelName = `webgis_perm_sync_${userId || 'visitor'}_${Date.now()}`;
   
@@ -99,33 +114,35 @@ export const subscribeToPermissionsRealtime = (
   try {
     const channel = supabase.channel(channelName);
 
-    // 1. Escuta mudanças na tabela permissions_epoch (INSERT ou UPDATE)
-    channel.on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'permissions_epoch'
-      },
-      (payload: any) => {
-        const record = payload.new || payload.old;
-        const scope: string = record?.scope || '';
-        const epoch: number = Number(record?.epoch) || 0;
+    // 1. Escuta mudanças na tabela permissions_epoch se ela estiver disponível ou ainda não testada
+    if (isEpochTableAvailable !== false) {
+      channel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'permissions_epoch'
+        },
+        (payload: any) => {
+          const record = payload.new || payload.old;
+          const scope: string = record?.scope || '';
+          const epoch: number = Number(record?.epoch) || 0;
 
-        // Determina se a alteração é relevante para este cliente
-        const isGlobal = scope === 'global';
-        const isRole = userRole && (scope === `role:${userRole}` || scope === userRole);
-        const isUser = userId && (scope === `user:${userId}` || scope === userId);
+          // Determina se a alteração é relevante para este cliente
+          const isGlobal = scope === 'global';
+          const isRole = userRole && (scope === `role:${userRole}` || scope === userRole);
+          const isUser = userId && (scope === `user:${userId}` || scope === userId);
 
-        if (isGlobal || isRole || isUser) {
-          console.info(`⚡ [REALTIME] Permissões atualizadas no servidor (escopo: ${scope}, versão: ${epoch}) em tempo real!`);
-          if (epoch > 0) {
-            lastKnownEpochs[scope] = epoch;
+          if (isGlobal || isRole || isUser) {
+            console.info(`⚡ [REALTIME] Permissões atualizadas no servidor (escopo: ${scope}, versão: ${epoch}) em tempo real!`);
+            if (epoch > 0) {
+              lastKnownEpochs[scope] = epoch;
+            }
+            triggerDebouncedUpdate({ scope, reason: 'realtime_epoch' });
           }
-          triggerDebouncedUpdate({ scope, reason: 'realtime_epoch' });
         }
-      }
-    );
+      );
+    }
 
     // 2. Se o usuário estiver autenticado, monitora seu registro em profiles para bloqueio imediato (is_active)
     if (userId) {
@@ -163,24 +180,30 @@ export const subscribeToPermissionsRealtime = (
     channel.subscribe((status: string, err?: any) => {
       if (status === 'SUBSCRIBED') {
         console.info(`🟢 [REALTIME] Conexão Realtime estabelecida com sucesso (${channelName}).`);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        console.warn(`⚠️ [REALTIME] Status do canal: ${status}. Fallback leve ativo.`);
-        if (err) console.warn(err);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        if (!isIntentionalClose) {
+          console.warn(`⚠️ [REALTIME] Status do canal: ${status}. Fallback leve ativo.`);
+          if (err) console.warn(err);
+        }
+      } else if (status === 'CLOSED') {
+        if (!isIntentionalClose) {
+          console.warn(`⚠️ [REALTIME] Status do canal: CLOSED. Fallback leve ativo.`);
+        }
       }
     });
 
     activeChannel = channel;
 
-    // 4. Fallback leve periódico (a cada 45 segundos, apenas se aba visível)
+    // 4. Fallback leve periódico (a cada 45 segundos, apenas se tabela existir e aba visível)
     fallbackIntervalId = setInterval(() => {
-      if (typeof document !== 'undefined' && !document.hidden) {
+      if (typeof document !== 'undefined' && !document.hidden && isEpochTableAvailable !== false) {
         checkEpochFallbackAsync(userId, userRole, triggerDebouncedUpdate).catch(() => {});
       }
     }, 45000);
 
     // 5. Verificação rápida ao focar a aba, mudar visibilidade ou restabelecer conexão de rede
     const handleRecheck = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
+      if (typeof document !== 'undefined' && !document.hidden && isEpochTableAvailable !== false) {
         checkEpochFallbackAsync(userId, userRole, triggerDebouncedUpdate).catch(() => {});
       }
     };
@@ -205,6 +228,7 @@ export const subscribeToPermissionsRealtime = (
  * Encerra a assinatura Realtime e limpa timers associados
  */
 export const unsubscribePermissionsRealtime = () => {
+  isIntentionalClose = true;
   if (debounceTimeout) {
     clearTimeout(debounceTimeout);
     debounceTimeout = null;

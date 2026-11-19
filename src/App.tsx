@@ -873,6 +873,15 @@ export default function App() {
     showToast(reason || 'Sessão encerrada com sucesso.');
   }, [currentActiveUser, userRole, refreshPermissions, showToast]);
 
+  const accessRef = useRef(access);
+  accessRef.current = access;
+  const refreshPermissionsRef = useRef(refreshPermissions);
+  refreshPermissionsRef.current = refreshPermissions;
+  const handleLogoutRef = useRef(handleLogout);
+  handleLogoutRef.current = handleLogout;
+  const showDiscreetNoticeRef = useRef(showDiscreetNotice);
+  showDiscreetNoticeRef.current = showDiscreetNotice;
+
   // Assinatura Supabase Realtime para propagação de poderes e bloqueios em ~1 segundo
   useEffect(() => {
     const activeRole = isSimulatingUser ? simulatedRole : userRole;
@@ -884,20 +893,20 @@ export default function App() {
       onPermissionsUpdated: async (info) => {
         console.info('[REALTIME APP] Permissões atualizadas no servidor:', info);
         await refreshGlobalSettingsAsync();
-        refreshPermissions();
-        access.refreshAccess();
-        showDiscreetNotice('Suas permissões foram atualizadas');
+        refreshPermissionsRef.current();
+        accessRef.current.refreshAccess();
+        showDiscreetNoticeRef.current('Suas permissões foram atualizadas');
       },
       onAccountBlocked: async (reason) => {
         console.warn('[REALTIME APP] Encerramento de sessão recebido via Realtime:', reason);
-        await handleLogout(reason || 'Conta desativada pelo Administrador');
-        showDiscreetNotice('⚠️ Acesso suspenso: sua conta foi desativada');
+        await handleLogoutRef.current(reason || 'Conta desativada pelo Administrador');
+        showDiscreetNoticeRef.current('⚠️ Acesso suspenso: sua conta foi desativada');
       }
     });
 
     const handlePermissionsUpdated = () => {
-      refreshPermissions();
-      access.refreshAccess();
+      refreshPermissionsRef.current();
+      accessRef.current.refreshAccess();
     };
     window.addEventListener('webgis_permissions_updated', handlePermissionsUpdated);
 
@@ -905,7 +914,7 @@ export default function App() {
       unsubscribe();
       window.removeEventListener('webgis_permissions_updated', handlePermissionsUpdated);
     };
-  }, [isSimulatingUser, simulatedRole, simulatedTargetUser?.id, currentActiveUser?.id, userRole, refreshPermissions, handleLogout, access, showDiscreetNotice]);
+  }, [isSimulatingUser, simulatedRole, simulatedTargetUser?.id, currentActiveUser?.id, userRole]);
 
   // Salvar Combinação de Camadas Favoritas (Item 5: Produtividade)
   const handleSaveFavoriteLayers = useCallback(() => {
@@ -1049,9 +1058,7 @@ export default function App() {
 
   // Revalidação obrigatória na abertura: valida sessão e recarrega perfil de public.profiles
   // O localStorage passa a ser apenas cache de exibição e NUNCA fonte de verdade de papel ou poderes
-  const handleLogoutRef = useRef(handleLogout);
   handleLogoutRef.current = handleLogout;
-  const refreshPermissionsRef = useRef(refreshPermissions);
   refreshPermissionsRef.current = refreshPermissions;
   const showToastRef = useRef(showToast);
   showToastRef.current = showToast;
