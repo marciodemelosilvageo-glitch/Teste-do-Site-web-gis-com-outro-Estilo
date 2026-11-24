@@ -57,6 +57,58 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.can_manage_target(
+  p_manager_id UUID,
+  p_target_user_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_mgr_role TEXT;
+  v_target_role TEXT;
+  v_target_created_by TEXT;
+  v_target_dept TEXT;
+  v_mgr_username TEXT;
+  v_scope RECORD;
+BEGIN
+  IF p_manager_id IS NULL OR p_target_user_id IS NULL THEN RETURN FALSE; END IF;
+
+  IF p_manager_id = p_target_user_id THEN RETURN TRUE; END IF;
+
+  SELECT role, username INTO v_mgr_role, v_mgr_username 
+  FROM public.profiles 
+  WHERE id = p_manager_id AND is_active = TRUE;
+
+  IF v_mgr_role = 'master' THEN RETURN TRUE; END IF;
+  IF v_mgr_role <> 'manager' THEN RETURN FALSE; END IF;
+
+  SELECT role, created_by, department INTO v_target_role, v_target_created_by, v_target_dept
+  FROM public.profiles 
+  WHERE id = p_target_user_id;
+
+  IF NOT FOUND THEN RETURN FALSE; END IF;
+
+  IF v_target_role = 'master' THEN RETURN FALSE; END IF;
+
+  SELECT * INTO v_scope FROM public.user_delegation_scopes WHERE manager_id = p_manager_id;
+  IF NOT FOUND THEN
+    RETURN (v_target_created_by IS NOT NULL AND lower(v_target_created_by) = lower(v_mgr_username));
+  END IF;
+
+  IF v_scope.scope_type = 'all_users' THEN
+    RETURN TRUE;
+  ELSIF v_scope.scope_type = 'department' THEN
+    RETURN (v_target_dept = ANY(v_scope.allowed_departments));
+  ELSE
+    RETURN (v_target_created_by IS NOT NULL AND lower(v_target_created_by) = lower(v_mgr_username));
+  END IF;
+END;
+$$;
+
 -- ==============================================================================
 -- 2. NOVA RPC: get_my_access_settings() (Substitui leitura direta de webgis_settings)
 -- ==============================================================================
@@ -686,20 +738,54 @@ USING (
 -- 9. CONCESSÃO DE EXECUÇÃO EXCLUSIVA A AUTHENTICATED NAS RPCS NECESSÁRIAS
 -- ==============================================================================
 
-GRANT EXECUTE ON FUNCTION public.get_my_access_settings() TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.get_effective_capabilities(UUID) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.can(TEXT, UUID) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.can_grant(TEXT, UUID) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.can_manage_target(UUID, UUID) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_master() TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_manager() TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.get_current_user_role() TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.record_trusted_auth_event(TEXT, TEXT, TEXT) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.bump_permissions_epoch(TEXT) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.get_telemetry_active_sessions() TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.admin_delete_user(UUID) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.admin_cleanup_orphan_user(TEXT) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.cleanup_stale_telemetry_and_anonymous(INT, INT) TO authenticated, service_role;
+DO $$
+BEGIN
+  -- Funções criadas diretamente pelo Script 18
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_my_access_settings() TO anon, authenticated, service_role';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_effective_capabilities(UUID) TO authenticated, service_role';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_master() TO authenticated, service_role';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_manager() TO authenticated, service_role';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_current_user_role() TO authenticated, service_role';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.bump_permissions_epoch(TEXT) TO authenticated, service_role';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_telemetry_active_sessions() TO authenticated, service_role';
+
+  -- Concessão segura e defensiva para RPCs auxiliares existentes (ignora se não estiverem instaladas)
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.can(TEXT, UUID) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.can_grant(TEXT, UUID) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.can_manage_target(UUID, UUID) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.record_trusted_auth_event(TEXT, TEXT, TEXT) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.admin_delete_user(UUID) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.admin_cleanup_orphan_user(TEXT) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+
+  BEGIN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.cleanup_stale_telemetry_and_anonymous(INT, INT) TO authenticated, service_role';
+  EXCEPTION WHEN undefined_function THEN NULL;
+  END;
+END;
+$$;
 
 COMMIT;
 

@@ -43,20 +43,31 @@ DROP POLICY IF EXISTS "role_caps_write_admin" ON public.role_capabilities;
 DROP POLICY IF EXISTS "epoch_select_scoped" ON public.permissions_epoch;
 
 -- 2. Restaura políticas abertas de leitura
+DROP POLICY IF EXISTS "capabilities_read_all" ON public.auth_capabilities;
+DROP POLICY IF EXISTS "capabilities_write_master" ON public.auth_capabilities;
 CREATE POLICY "capabilities_read_all" ON public.auth_capabilities FOR SELECT USING (true);
 CREATE POLICY "capabilities_write_master" ON public.auth_capabilities FOR ALL USING (public.is_master()) WITH CHECK (public.is_master());
 
+DROP POLICY IF EXISTS "roles_read_all" ON public.base_roles;
+DROP POLICY IF EXISTS "roles_write_master" ON public.base_roles;
 CREATE POLICY "roles_read_all" ON public.base_roles FOR SELECT USING (true);
 CREATE POLICY "roles_write_master" ON public.base_roles FOR ALL USING (public.is_master()) WITH CHECK (public.is_master());
 
+DROP POLICY IF EXISTS "role_caps_read_all" ON public.role_capabilities;
+DROP POLICY IF EXISTS "role_caps_write_master" ON public.role_capabilities;
 CREATE POLICY "role_caps_read_all" ON public.role_capabilities FOR SELECT USING (true);
 CREATE POLICY "role_caps_write_master" ON public.role_capabilities FOR ALL USING (public.is_master()) WITH CHECK (public.is_master());
 
+DROP POLICY IF EXISTS "settings_read_all" ON public.webgis_settings;
+DROP POLICY IF EXISTS "settings_write_master" ON public.webgis_settings;
 CREATE POLICY "settings_read_all" ON public.webgis_settings FOR SELECT USING (true);
 CREATE POLICY "settings_write_master" ON public.webgis_settings FOR ALL USING (public.is_master()) WITH CHECK (public.is_master());
 
+DROP POLICY IF EXISTS "Leitura publica de permissions_epoch" ON public.permissions_epoch;
 CREATE POLICY "Leitura publica de permissions_epoch" ON public.permissions_epoch FOR SELECT TO anon, authenticated, service_role USING (true);
 
+DROP POLICY IF EXISTS "profiles_select_all" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_self_update" ON public.profiles;
 CREATE POLICY "profiles_select_all" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "profiles_self_update" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
