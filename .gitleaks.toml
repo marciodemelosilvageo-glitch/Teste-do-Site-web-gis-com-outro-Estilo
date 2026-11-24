@@ -1,0 +1,27 @@
+# Configuração de Varredura e Proteção contra Vazamento de Segredos (Gitleaks)
+title = "Gitleaks WebGIS Security Config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Arquivos permitidos e de documentação"
+paths = [
+  '''^\.env\.example$''',
+  '''^package-lock\.json$''',
+  '''^dist/''',
+  '''^build/'''
+]
+
+[[rules]]
+id = "supabase-service-key"
+description = "Supabase Service Role Key detectada"
+regex = '''(?i)(service_role|supabase_service_key)\s*[:=]\s*['"]?(eyJ[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,})['"]?'''
+secretGroup = 2
+severity = "CRITICAL"
+
+[[rules]]
+id = "generic-api-key"
+description = "Chave de API genérica ou token Bearer codificado"
+regex = '''(?i)(apikey|secret_key|api_secret)\s*[:=]\s*['"][a-zA-Z0-9_\-]{24,}['"]'''
+severity = "HIGH"

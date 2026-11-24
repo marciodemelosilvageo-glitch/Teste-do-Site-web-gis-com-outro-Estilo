@@ -291,17 +291,29 @@ export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => 
 };
 
 /**
- * Recarrega apenas as configurações globais (webgis_settings) de forma leve, sem baixar tabelas inteiras
+ * Recarrega apenas as configurações globais de forma leve e segura (via RPC get_my_access_settings com fallback)
  */
 export const refreshGlobalSettingsAsync = async (): Promise<boolean> => {
   try {
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('webgis_settings')
-      .select('*')
-      .eq('id', 'global')
-      .maybeSingle();
+    let settingsData: any = null;
 
-    if (settingsError || !settingsData) return false;
+    // 1. Tenta obter as configurações seguras calculadas pelo servidor para o usuário atual
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_access_settings');
+    if (!rpcError && rpcData) {
+      settingsData = rpcData;
+    } else {
+      // 2. Fallback defensivo para Master/Gerente com permissão direta na tabela webgis_settings
+      const { data: directData, error: directError } = await supabase
+        .from('webgis_settings')
+        .select('*')
+        .eq('id', 'global')
+        .maybeSingle();
+
+      if (directError || !directData) return false;
+      settingsData = directData;
+    }
+
+    if (!settingsData) return false;
 
     let hasChanged = false;
 
@@ -349,14 +361,28 @@ export const initAdminService = async (forceRefresh = false) => {
   isInitialized = true;
 
   try {
-    // 1. Carregar Configurações Globais do Supabase
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('webgis_settings')
-      .select('*')
-      .eq('id', 'global')
-      .maybeSingle();
+    // 1. Carregar Configurações Globais (RPC segura get_my_access_settings com fallback)
+    let settingsData: any = null;
+    let schemaMissing = false;
 
-    if (settingsError && settingsError.code === 'PGRST205') {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_access_settings');
+    if (!rpcError && rpcData) {
+      settingsData = rpcData;
+    } else {
+      const { data: directData, error: directError } = await supabase
+        .from('webgis_settings')
+        .select('*')
+        .eq('id', 'global')
+        .maybeSingle();
+
+      if (directError && directError.code === 'PGRST205') {
+        schemaMissing = true;
+      } else if (!directError && directData) {
+        settingsData = directData;
+      }
+    }
+
+    if (schemaMissing) {
       if (!(window as any).__webgis_schema_warned) {
         (window as any).__webgis_schema_warned = true;
         console.info('ℹ️ WebGIS: Tabelas do Supabase não encontradas. O sistema está utilizando armazenamento local (localStorage). Para ativar a sincronização em nuvem, execute o script supabase_schema.sql no painel do Supabase.');
@@ -366,7 +392,7 @@ export const initAdminService = async (forceRefresh = false) => {
 
     let hasChanged = false;
 
-    if (settingsData && !settingsError) {
+    if (settingsData) {
       if (settingsData.layer_permissions) {
         const next = JSON.stringify(settingsData.layer_permissions);
         if (localStorage.getItem(STORAGE_KEYS.LAYER_PERMISSIONS) !== next) {
@@ -395,8 +421,8 @@ export const initAdminService = async (forceRefresh = false) => {
           hasChanged = true;
         }
       }
-    } else if (!settingsData && !settingsError) {
-      // Cria a linha inicial no Supabase se não existir
+    } else if (!settingsData) {
+      // Cria a linha inicial no Supabase se for Master e ainda não existir
       await syncAllSettingsToSupabase();
     }
 
