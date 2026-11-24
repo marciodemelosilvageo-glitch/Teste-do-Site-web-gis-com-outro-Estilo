@@ -84,7 +84,10 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid() AND is_active = TRUE LIMIT 1;
+  SELECT COALESCE(role, 'visitor') 
+  FROM public.profiles 
+  WHERE id = auth.uid() AND is_active = TRUE 
+  LIMIT 1;
 $$;
 
 CREATE OR REPLACE FUNCTION public.is_master()
@@ -94,9 +97,12 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'master' AND is_active = TRUE
+  SELECT (
+    (current_user IN ('postgres', 'service_role', 'supabase_admin') AND auth.uid() IS NULL)
+    OR EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'master' AND is_active = TRUE
+    )
   );
 $$;
 
@@ -107,9 +113,12 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role IN ('master', 'manager') AND is_active = TRUE
+  SELECT (
+    (current_user IN ('postgres', 'service_role', 'supabase_admin') AND auth.uid() IS NULL)
+    OR EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('master', 'manager') AND is_active = TRUE
+    )
   );
 $$;
 
@@ -121,6 +130,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Permite operações administrativas diretas via SQL Editor / Migrações (postgres / service_role)
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') AND auth.uid() IS NULL THEN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+  END IF;
+
   IF NOT public.is_master() THEN
     -- 1. Proteção de Cargo, Status e Permissões de Gerência
     NEW.role = OLD.role;

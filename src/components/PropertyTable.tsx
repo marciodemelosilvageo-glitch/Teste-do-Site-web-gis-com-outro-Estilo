@@ -212,7 +212,7 @@ export const PropertyTable: React.FC<PropertyTableProps> = ({
     }
   }, [selectedFeatures, count, allowedProperties, can, canViewFeatureProperty]);
 
-  if (!selectedFeatures || selectedFeatures.length === 0) {
+  if (!selectedFeatures || selectedFeatures.length === 0 || !processedData) {
     return null;
   }
 

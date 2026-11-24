@@ -327,7 +327,7 @@ export const MobileSheet: React.FC<MobileSheetProps> = ({
         )}
 
         {/* Conteúdo Rolável do Sheet */}
-        <div className={noPadding ? "flex-1 min-h-0 overflow-hidden flex flex-col" : "flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 select-text pb-[calc(env(safe-area-inset-bottom,0px)+72px)]"}>
+        <div className={noPadding ? "flex-1 min-h-0 overflow-hidden flex flex-col pb-[max(12px,env(safe-area-inset-bottom,0px))]" : "flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 select-text pb-[calc(env(safe-area-inset-bottom,0px)+72px)]"}>
           {children}
         </div>
       </section>

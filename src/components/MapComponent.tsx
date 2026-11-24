@@ -1437,6 +1437,20 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   // Mapeamento de feições e camadas por ID do Leaflet para buscas espaciais
   const layerFeatureMapRef = useRef<Record<string, { feature: any; title: string; sourceName: string; layer: any }>>({});
 
+  // Limpeza de feições indexadas para evitar vazamento de memória (MAP-01)
+  const cleanupLayerFeatureMap = useCallback((sourceName?: string) => {
+    if (!sourceName) {
+      layerFeatureMapRef.current = {};
+      return;
+    }
+    const currentMap = layerFeatureMapRef.current;
+    Object.keys(currentMap).forEach(key => {
+      if (currentMap[key]?.sourceName === sourceName) {
+        delete currentMap[key];
+      }
+    });
+  }, []);
+
   useEffect(() => {
     (window as any).searchAddressesInPolygonByLayerId = (layerId: string) => {
       if (!can('allowSearchAreaAddresses')) {
@@ -2152,7 +2166,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     // Inicializa o Leaflet Map estilo Apple Maps (sem zoom nativo quadrado)
     const map = L.map(mapContainerRef.current, { 
       zoomControl: false,
-      preferCanvas: false,
+      preferCanvas: true,
+      renderer: L.canvas({ padding: 0.5, tolerance: 10 }),
       wheelDebounceTime: 40,
       wheelPxPerZoomLevel: 60
     }).setView([-7.0, -42.8], 7);
@@ -2521,7 +2536,9 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
             <button
               type="button"
               class="apple-cnefe-action-btn"
-              onclick="event.preventDefault(); event.stopPropagation(); if(window.identifyFeaturesFromCtx) window.identifyFeaturesFromCtx('${latFormatted}', '${lngFormatted}');"
+              data-action="identify-features"
+              data-lat="${latFormatted}"
+              data-lng="${lngFormatted}"
               style="background: #007AFF; color: #ffffff; border: 1px solid #007AFF;"
               title="Pesquisar feições e camadas nesta coordenada"
             >
@@ -2549,11 +2566,29 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         closeButton: true
       });
 
+      marker.on('popupopen', (e: any) => {
+        const popupEl = e.popup?.getElement();
+        if (!popupEl) return;
+        const identifyBtn = popupEl.querySelector('button[data-action="identify-features"]');
+        if (identifyBtn) {
+          L.DomEvent.on(identifyBtn, 'click', (ev) => {
+            L.DomEvent.preventDefault(ev);
+            L.DomEvent.stopPropagation(ev);
+            const lat = identifyBtn.getAttribute('data-lat');
+            const lng = identifyBtn.getAttribute('data-lng');
+            if (lat && lng && (window as any).identifyFeaturesFromCtx) {
+              (window as any).identifyFeaturesFromCtx(lat, lng);
+            }
+          });
+        }
+      });
+
       marker.openPopup();
     });
 
     // Função de limpeza do mapa ao desmontar
     return () => {
+      cleanupLayerFeatureMap();
       try {
         resizeObserver.disconnect();
       } catch {}
@@ -2960,6 +2995,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
       dataSources.forEach(source => {
         if (!allowedLayerNames.includes(source.name)) {
+          cleanupLayerFeatureMap(source.name);
           const lyr = loadedLayersRef.current[source.name];
           if (lyr && map.hasLayer(lyr)) {
             try {
@@ -2976,7 +3012,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         }
       });
     }
-  }, [allowedLayerNames]);
+  }, [allowedLayerNames, cleanupLayerFeatureMap]);
 
   // Registrar ações do mapa para o componente pai App.tsx
   useEffect(() => {
@@ -3047,6 +3083,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     if (!searchParams && loadedLayersRef.current[source.name]) {
       return loadedLayersRef.current[source.name];
     }
+
+    cleanupLayerFeatureMap(source.name);
 
     setIsLoading(true);
     setStatusText(`Carregando dados de ${source.name}...`);
@@ -3346,6 +3384,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
   // Remover definitivamente uma camada das Camadas Ativas (envia de volta para Camadas Inativas e recolhe/desexpande)
   const removeLayerFromActive = (sourceName: string) => {
+    cleanupLayerFeatureMap(sourceName);
     setActiveLayers(activeLayers.filter(name => name !== sourceName));
     setExpandedDetails(prev => ({ ...prev, [sourceName]: false }));
     onSelectionChangeRef.current?.((prevSel) => prevSel.filter(f => f.sourceName !== sourceName));
@@ -4310,7 +4349,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setBasemapModalOpen(false)}
-                                className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer active:scale-95"
+                                className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer active:scale-95 touch-target-44"
                                 aria-label="Fechar seletor de mapa base"
                                 title="Fechar"
                               >
@@ -4514,7 +4553,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                     type="button"
                     id="btn-toggle-measure"
                     onClick={handleToggleMeasure}
-                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer ${
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer touch-target-44 ${
                       isMeasuringActive 
                         ? 'bg-[#007AFF] text-white shadow-blue-500/30 ring-2 ring-blue-400/50' 
                         : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
@@ -4534,7 +4573,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                       mapRef.current.setView([-7.0, -42.8], 7, { animate: true });
                     }
                   }}
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer touch-target-44"
                   title="Restaurar Visão Geral / Norte (Apple Maps)"
                   aria-label="Bússola / Resetar Visão"
                 >
@@ -4545,7 +4584,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                 <button 
                   type="button"
                   onClick={toggleUserLocation} 
-                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer ${
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer touch-target-44 ${
                     showUserLocation 
                       ? 'bg-[#007AFF] text-white shadow-blue-500/30' 
                       : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
@@ -4561,7 +4600,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
                   <button 
                     type="button"
                     onClick={onTogglePrintMode}
-                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer ${
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl border border-black/5 dark:border-white/10 backdrop-blur-2xl transition-all cursor-pointer touch-target-44 ${
                       isPrintMode 
                         ? 'bg-[#007AFF] text-white shadow-blue-500/30' 
                         : 'bg-white/85 dark:bg-[#1c1c1e]/85 text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'

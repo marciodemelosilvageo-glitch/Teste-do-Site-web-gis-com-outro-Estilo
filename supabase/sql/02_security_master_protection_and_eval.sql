@@ -251,6 +251,11 @@ DECLARE
   v_caller_id UUID := auth.uid();
   v_active_masters INT;
 BEGIN
+  -- Permite operações administrativas diretas do DBA (SQL Editor / postgres / service_role)
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') AND auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
   -- A. Proteção de conta MASTER existente
   IF OLD.role = 'master' THEN
     -- Regra 1: NINGUÉM, nem outro Master, pode editar a conta de um Master! Apenas o próprio.
@@ -298,6 +303,11 @@ DECLARE
   v_caller_id UUID := auth.uid();
   v_active_masters INT;
 BEGIN
+  -- Permite operações administrativas diretas do DBA (SQL Editor / postgres / service_role)
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') AND auth.uid() IS NULL THEN
+    RETURN OLD;
+  END IF;
+
   IF OLD.role = 'master' THEN
     -- Regra 1: Ninguém pode excluir um master a não ser ele mesmo
     IF v_caller_id IS NULL OR v_caller_id <> OLD.id THEN
@@ -333,6 +343,11 @@ AS $$
 DECLARE
   v_caller_id UUID := auth.uid();
 BEGIN
+  -- Permite operações administrativas diretas do DBA (SQL Editor / postgres / service_role)
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') AND auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
   -- Se for Master, permite
   IF public.is_master() THEN
     RETURN NEW;

@@ -189,7 +189,7 @@ const LAYER_DEFAULT_CARD_IDS: Record<string, string[]> = {
   'comunidades rurais de teresina': ['zona', 'tipoDescritivo'],
 };
 
-export const AppleSidebar: React.FC<AppleSidebarProps> = ({
+const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
   isMobile = false,
   isCollapsed,
   onToggleCollapse,
@@ -1552,7 +1552,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowFormatPrompt(false)}
-                      className="w-5 h-5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 cursor-pointer"
+                      className="w-5 h-5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 cursor-pointer touch-target-44"
                       aria-label="Fechar"
                     >
                       <X className="w-3 h-3" />
@@ -2057,7 +2057,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
                   <button
                     type="button"
                     onClick={onAbandonSearch}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer touch-target-44"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -2674,7 +2674,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               <button
                 type="button"
                 onClick={(e) => onToggleDarkMode(e)}
-                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
+                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors touch-target-44"
                 title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
                 aria-label={isDarkMode ? "Modo Claro" : "Modo Escuro"}
               >
@@ -2691,7 +2691,7 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
               <button
                 type="button"
                 onClick={onLogout}
-                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-500/10 hover:text-red-500 text-slate-400 dark:text-slate-500 cursor-pointer transition-colors"
+                className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-red-500/10 hover:text-red-500 text-slate-400 dark:text-slate-500 cursor-pointer transition-colors touch-target-44"
                 title="Sair"
                 aria-label="Sair"
               >
@@ -2822,3 +2822,6 @@ export const AppleSidebar: React.FC<AppleSidebarProps> = ({
     </aside>
   );
 };
+
+export const AppleSidebar = React.memo(AppleSidebarInner);
+AppleSidebar.displayName = 'AppleSidebar';

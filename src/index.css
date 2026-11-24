@@ -54,12 +54,30 @@ body,
   overscroll-behavior-y: none;
 }
 
-/* Prevenção de auto-zoom no iOS Safari (inputs com menos de 16px no mobile disparam zoom da tela) */
-@media (max-width: 767px) {
+/* Prevenção de auto-zoom no iOS Safari (inputs com menos de 16px no mobile/tablet disparam zoom da tela) */
+@media (max-width: 1023px) {
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
     font-size: 16px !important;
+  }
+
+  /* WCAG 2.5.5 / Apple HIG Touch Target Expansion (mínimo de 44x44px no mobile sem alterar o design visual) */
+  .touch-target-44,
+  .mobile-touch-target {
+    position: relative;
+  }
+  .touch-target-44::after,
+  .mobile-touch-target::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    height: 100%;
   }
 
   /* Escopo exclusivo para o painel de busca avançada mobile:

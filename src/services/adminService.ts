@@ -291,62 +291,184 @@ export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => 
 };
 
 /**
- * Recarrega apenas as configurações globais de forma leve e segura (via RPC get_my_access_settings com fallback)
+ * Estado de recuo exponencial e controle de alertas para a RPC get_my_access_settings
  */
-export const refreshGlobalSettingsAsync = async (): Promise<boolean> => {
-  try {
-    let settingsData: any = null;
+let rpcSettingsFailures = 0;
+let nextRpcSettingsRetryTime = 0;
+let rpcSettingsWarned = false;
+let lastSettingsSyncTimestamp = Date.now();
+let hasStaleSettingsWarnedUI = false;
 
-    // 1. Tenta obter as configurações seguras calculadas pelo servidor para o usuário atual
+// 15 minutos sem sincronização bem-sucedida é considerado desatualizado há muito tempo
+const STALE_SETTINGS_THRESHOLD_MS = 15 * 60 * 1000;
+
+/**
+ * Informa se o cache local de configurações está sem sincronização há muito tempo (> 15 min)
+ */
+export const isSettingsSyncStale = (): boolean => {
+  return Date.now() - lastSettingsSyncTimestamp > STALE_SETTINGS_THRESHOLD_MS;
+};
+
+/**
+ * Verifica se o usuário atual tem permissão para realizar fallback de leitura direta na tabela webgis_settings.
+ * Usuários comuns e visitantes NÃO devem tentar ler a tabela diretamente (bloqueado por RLS).
+ */
+const canAttemptDirectSettingsRead = (): boolean => {
+  try {
+    const active = getCurrentActiveUser();
+    const role = (active?.role || (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ROLE) : null)) as UserRole | null;
+    return role === 'master' || role === 'admin' || role === 'manager';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Aplica os dados de permissões retornados às chaves de localStorage e detecta se houve alteração
+ */
+const applySettingsDataToStorage = (settingsData: any): boolean => {
+  if (!settingsData) return false;
+  let hasChanged = false;
+
+  if (settingsData.layer_permissions) {
+    const next = JSON.stringify(settingsData.layer_permissions);
+    if (localStorage.getItem(STORAGE_KEYS.LAYER_PERMISSIONS) !== next) {
+      localStorage.setItem(STORAGE_KEYS.LAYER_PERMISSIONS, next);
+      hasChanged = true;
+    }
+  }
+  if (settingsData.feature_permissions) {
+    const next = JSON.stringify(settingsData.feature_permissions);
+    if (localStorage.getItem(STORAGE_KEYS.FEATURE_PERMISSIONS) !== next) {
+      localStorage.setItem(STORAGE_KEYS.FEATURE_PERMISSIONS, next);
+      hasChanged = true;
+    }
+  }
+  if (settingsData.address_columns_permissions) {
+    const next = JSON.stringify(settingsData.address_columns_permissions);
+    if (localStorage.getItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS) !== next) {
+      localStorage.setItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS, next);
+      hasChanged = true;
+    }
+  }
+  if (settingsData.feature_properties_permissions) {
+    const next = JSON.stringify(settingsData.feature_properties_permissions);
+    if (localStorage.getItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS) !== next) {
+      localStorage.setItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS, next);
+      hasChanged = true;
+    }
+  }
+
+  return hasChanged;
+};
+
+/**
+ * Consulta a RPC get_my_access_settings com proteção contra loops e falhas em cascata:
+ * 1. Respeita janela de recuo exponencial (30s, 60s, 120s, até 300s).
+ * 2. Emite UM aviso claro no console na primeira falha (sem spam repetitivo por ciclo).
+ * 3. Fallback de leitura direta na tabela webgis_settings EXCLUSIVO para Master e Gerente.
+ * 4. Cache local em localStorage preservado como último recurso.
+ * 5. Notifica a interface apenas se as configurações ficarem desatualizadas por muito tempo (> 15 min).
+ */
+const fetchGlobalSettingsWithBackoffAsync = async (): Promise<{
+  data: any | null;
+  schemaMissing?: boolean;
+}> => {
+  const now = Date.now();
+
+  // Alerta a interface caso as configurações estejam sem sincronização há muito tempo
+  if (!hasStaleSettingsWarnedUI && now - lastSettingsSyncTimestamp > STALE_SETTINGS_THRESHOLD_MS) {
+    hasStaleSettingsWarnedUI = true;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('webgis_settings_stale', {
+          detail: {
+            message: 'Configurações de acesso do sistema estão utilizando dados locais devido a falha na conexão com o servidor.',
+            lastSyncTimestamp: lastSettingsSyncTimestamp
+          }
+        })
+      );
+    }
+  }
+
+  // Se estiver na janela de recuo exponencial, pula nova tentativa da RPC e preserva cache local
+  if (now < nextRpcSettingsRetryTime) {
+    return { data: null };
+  }
+
+  try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_access_settings');
+
     if (!rpcError && rpcData) {
-      settingsData = rpcData;
-    } else {
-      // 2. Fallback defensivo para Master/Gerente com permissão direta na tabela webgis_settings
+      // Sucesso: reseta histórico de falhas e restaura sincronização
+      rpcSettingsFailures = 0;
+      nextRpcSettingsRetryTime = 0;
+      rpcSettingsWarned = false;
+      lastSettingsSyncTimestamp = Date.now();
+      hasStaleSettingsWarnedUI = false;
+      return { data: rpcData };
+    }
+
+    // Falha na RPC: incrementa contador e calcula recuo exponencial
+    rpcSettingsFailures++;
+    // Recuo: 30s, 60s, 120s, 240s, até o teto de 300s (5 minutos)
+    const backoffDelayMs = Math.min(30000 * Math.pow(2, rpcSettingsFailures - 1), 300000);
+    nextRpcSettingsRetryTime = Date.now() + backoffDelayMs;
+
+    // Registra UM aviso claro no console (não um por ciclo)
+    if (!rpcSettingsWarned) {
+      rpcSettingsWarned = true;
+      const errMsg = rpcError?.message || rpcError?.code || 'Erro de comunicação';
+      console.warn(
+        `⚠️ [WebGIS] RPC get_my_access_settings indisponível (${errMsg}). ` +
+        `Ativando recuo exponencial (${Math.round(backoffDelayMs / 1000)}s) e mantendo cache local.`
+      );
+    }
+
+    // Fallback de leitura direta: EXCLUSIVO para Master e Gerente
+    if (canAttemptDirectSettingsRead()) {
       const { data: directData, error: directError } = await supabase
         .from('webgis_settings')
         .select('*')
         .eq('id', 'global')
         .maybeSingle();
 
-      if (directError || !directData) return false;
-      settingsData = directData;
+      if (directError && directError.code === 'PGRST205') {
+        return { data: null, schemaMissing: true };
+      }
+
+      if (!directError && directData) {
+        lastSettingsSyncTimestamp = Date.now();
+        return { data: directData };
+      }
     }
 
+    // Usuário comum e visitante NÃO tentam ler a tabela webgis_settings diretamente
+    return { data: null };
+  } catch {
+    rpcSettingsFailures++;
+    const backoffDelayMs = Math.min(30000 * Math.pow(2, rpcSettingsFailures - 1), 300000);
+    nextRpcSettingsRetryTime = Date.now() + backoffDelayMs;
+
+    if (!rpcSettingsWarned) {
+      rpcSettingsWarned = true;
+      console.warn(
+        `⚠️ [WebGIS] Falha ao consultar configurações no servidor. ` +
+        `Ativando recuo exponencial (${Math.round(backoffDelayMs / 1000)}s) e mantendo cache local.`
+      );
+    }
+    return { data: null };
+  }
+};
+
+/**
+ * Recarrega apenas as configurações globais de forma leve e segura (via RPC get_my_access_settings com recuo exponencial e fallback restrito)
+ */
+export const refreshGlobalSettingsAsync = async (): Promise<boolean> => {
+  try {
+    const { data: settingsData } = await fetchGlobalSettingsWithBackoffAsync();
     if (!settingsData) return false;
-
-    let hasChanged = false;
-
-    if (settingsData.layer_permissions) {
-      const next = JSON.stringify(settingsData.layer_permissions);
-      if (localStorage.getItem(STORAGE_KEYS.LAYER_PERMISSIONS) !== next) {
-        localStorage.setItem(STORAGE_KEYS.LAYER_PERMISSIONS, next);
-        hasChanged = true;
-      }
-    }
-    if (settingsData.feature_permissions) {
-      const next = JSON.stringify(settingsData.feature_permissions);
-      if (localStorage.getItem(STORAGE_KEYS.FEATURE_PERMISSIONS) !== next) {
-        localStorage.setItem(STORAGE_KEYS.FEATURE_PERMISSIONS, next);
-        hasChanged = true;
-      }
-    }
-    if (settingsData.address_columns_permissions) {
-      const next = JSON.stringify(settingsData.address_columns_permissions);
-      if (localStorage.getItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS) !== next) {
-        localStorage.setItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS, next);
-        hasChanged = true;
-      }
-    }
-    if (settingsData.feature_properties_permissions) {
-      const next = JSON.stringify(settingsData.feature_properties_permissions);
-      if (localStorage.getItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS) !== next) {
-        localStorage.setItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS, next);
-        hasChanged = true;
-      }
-    }
-
-    return hasChanged;
+    return applySettingsDataToStorage(settingsData);
   } catch {
     return false;
   }
@@ -361,26 +483,8 @@ export const initAdminService = async (forceRefresh = false) => {
   isInitialized = true;
 
   try {
-    // 1. Carregar Configurações Globais (RPC segura get_my_access_settings com fallback)
-    let settingsData: any = null;
-    let schemaMissing = false;
-
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_access_settings');
-    if (!rpcError && rpcData) {
-      settingsData = rpcData;
-    } else {
-      const { data: directData, error: directError } = await supabase
-        .from('webgis_settings')
-        .select('*')
-        .eq('id', 'global')
-        .maybeSingle();
-
-      if (directError && directError.code === 'PGRST205') {
-        schemaMissing = true;
-      } else if (!directError && directData) {
-        settingsData = directData;
-      }
-    }
+    // 1. Carregar Configurações Globais (RPC segura get_my_access_settings com recuo exponencial e fallback restrito)
+    const { data: settingsData, schemaMissing } = await fetchGlobalSettingsWithBackoffAsync();
 
     if (schemaMissing) {
       if (!(window as any).__webgis_schema_warned) {
@@ -393,36 +497,9 @@ export const initAdminService = async (forceRefresh = false) => {
     let hasChanged = false;
 
     if (settingsData) {
-      if (settingsData.layer_permissions) {
-        const next = JSON.stringify(settingsData.layer_permissions);
-        if (localStorage.getItem(STORAGE_KEYS.LAYER_PERMISSIONS) !== next) {
-          localStorage.setItem(STORAGE_KEYS.LAYER_PERMISSIONS, next);
-          hasChanged = true;
-        }
-      }
-      if (settingsData.feature_permissions) {
-        const next = JSON.stringify(settingsData.feature_permissions);
-        if (localStorage.getItem(STORAGE_KEYS.FEATURE_PERMISSIONS) !== next) {
-          localStorage.setItem(STORAGE_KEYS.FEATURE_PERMISSIONS, next);
-          hasChanged = true;
-        }
-      }
-      if (settingsData.address_columns_permissions) {
-        const next = JSON.stringify(settingsData.address_columns_permissions);
-        if (localStorage.getItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS) !== next) {
-          localStorage.setItem(STORAGE_KEYS.ADDRESS_COLUMNS_PERMISSIONS, next);
-          hasChanged = true;
-        }
-      }
-      if (settingsData.feature_properties_permissions) {
-        const next = JSON.stringify(settingsData.feature_properties_permissions);
-        if (localStorage.getItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS) !== next) {
-          localStorage.setItem(STORAGE_KEYS.FEATURE_PROPERTIES_PERMISSIONS, next);
-          hasChanged = true;
-        }
-      }
-    } else if (!settingsData) {
-      // Cria a linha inicial no Supabase se for Master e ainda não existir
+      hasChanged = applySettingsDataToStorage(settingsData);
+    } else if (canAttemptDirectSettingsRead()) {
+      // Cria a linha inicial no Supabase se for Master/Gerente e ainda não existir
       await syncAllSettingsToSupabase();
     }
 
@@ -434,34 +511,36 @@ export const initAdminService = async (forceRefresh = false) => {
       }
     } catch { }
 
-    // 3. Carregar Sessões de Usuários do Supabase (apenas na inicialização)
-    const { data: sessionsData } = await supabase
-      .from('webgis_user_sessions')
-      .select('*');
+    // 3. Carregar Sessões de Usuários do Supabase (apenas se autenticado como gestor/master)
+    if (canAttemptDirectSettingsRead()) {
+      const { data: sessionsData } = await supabase
+        .from('webgis_user_sessions')
+        .select('*');
 
-    if (sessionsData && sessionsData.length > 0) {
-      const localSessions = getUserSessions();
-      sessionsData.forEach((row: any) => {
-        localSessions[row.session_id] = {
-          sessionId: row.session_id,
-          customName: row.custom_name,
-          firstSeen: row.first_seen,
-          lastSeen: row.last_seen,
-          formattedFirstSeen: row.formatted_first_seen,
-          formattedLastSeen: row.formatted_last_seen,
-          role: row.role as UserRole,
-          isBlocked: row.is_blocked,
-          hasCustomPermissions: row.has_custom_permissions,
-          customLayerPermissions: row.custom_layer_permissions,
-          customFeaturePermissions: row.custom_feature_permissions,
-          customAddressColumnsPermissions: row.custom_address_columns_permissions,
-          customFeaturePropertiesPermissions: row.custom_feature_properties_permissions,
-        };
-      });
-      const nextSessions = JSON.stringify(localSessions);
-      if (localStorage.getItem(STORAGE_KEYS.USER_SESSIONS) !== nextSessions) {
-        localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, nextSessions);
-        hasChanged = true;
+      if (sessionsData && sessionsData.length > 0) {
+        const localSessions = getUserSessions();
+        sessionsData.forEach((row: any) => {
+          localSessions[row.session_id] = {
+            sessionId: row.session_id,
+            customName: row.custom_name,
+            firstSeen: row.first_seen,
+            lastSeen: row.last_seen,
+            formattedFirstSeen: row.formatted_first_seen,
+            formattedLastSeen: row.formatted_last_seen,
+            role: row.role as UserRole,
+            isBlocked: row.is_blocked,
+            hasCustomPermissions: row.has_custom_permissions,
+            customLayerPermissions: row.custom_layer_permissions,
+            customFeaturePermissions: row.custom_feature_permissions,
+            customAddressColumnsPermissions: row.custom_address_columns_permissions,
+            customFeaturePropertiesPermissions: row.custom_feature_properties_permissions,
+          };
+        });
+        const nextSessions = JSON.stringify(localSessions);
+        if (localStorage.getItem(STORAGE_KEYS.USER_SESSIONS) !== nextSessions) {
+          localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, nextSessions);
+          hasChanged = true;
+        }
       }
     }
 
@@ -1905,34 +1984,67 @@ export const saveUserSessionConfig = (sessionId: string, updates: Partial<UserSe
       device: detectClientDevice(),
     };
 
-    sessions[sessionId] = {
+    const initialMerged: UserSessionConfig = {
       ...existing,
       ...updates,
       device: updates.device || existing.device || detectClientDevice(),
       sessionId
     };
 
+    sessions[sessionId] = initialMerged;
     localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(sessions));
 
-    const session = sessions[sessionId];
-
     // Obter auth.uid atual para vincular estritamente no Supabase
-    supabase.auth.getSession().then(({ data: authData }) => {
+    supabase.auth.getSession().then(async ({ data: authData }) => {
       const currentUid = authData?.session?.user?.id;
-      const payload = formatSessionPayloadForSupabase(session, currentUid);
-      supabase
+      // OBJETIVO 2: Só grava no Supabase se houver auth.uid válido (aguarda login anônimo ou de conta)
+      if (!currentUid) {
+        return;
+      }
+
+      const isAnonymous = Boolean(
+        authData?.session?.user?.is_anonymous ||
+        authData?.session?.user?.app_metadata?.provider === 'anonymous'
+      );
+
+      // OBJETIVO 3: Garantir que o session_id corresponda ao usuário autenticado atual.
+      // Quando for visitante ou quando o auth_uid for diferente do gravado, deriva do currentUid
+      let effectiveSessionId = sessionId;
+      if (isAnonymous || (initialMerged.authUid && initialMerged.authUid !== currentUid)) {
+        effectiveSessionId = currentUid;
+        try {
+          sessionStorage.setItem(STORAGE_KEYS.SESSION_ID, effectiveSessionId);
+        } catch {}
+      }
+
+      const targetSession: UserSessionConfig = {
+        ...initialMerged,
+        sessionId: effectiveSessionId,
+        authUid: currentUid,
+        isAnonymous,
+        role: isAnonymous ? 'visitor' : (initialMerged.role || 'user'),
+      };
+
+      sessions[effectiveSessionId] = targetSession;
+      localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(sessions));
+
+      const payload = formatSessionPayloadForSupabase(targetSession, currentUid);
+
+      // OBJETIVO 4: Tratar resposta do upsert e registrar console.warn curto em caso de erro, sem toast
+      const { error } = await supabase
         .from('webgis_user_sessions')
-        .upsert(payload)
-        .then();
-    }).catch(() => {
-      supabase
-        .from('webgis_user_sessions')
-        .upsert(formatSessionPayloadForSupabase(session))
-        .then();
+        .upsert(payload);
+
+      if (error) {
+        console.warn(`[WebGIS] Falha ao sincronizar sessão (${error.code}):`, error.message);
+      }
+    }).catch((err) => {
+      // OBJETIVO 2: Não faz upsert sem auth_uid! Apenas registra aviso curto
+      console.warn('[WebGIS] Erro ao obter sessão para sincronização:', err?.message || err);
     });
 
   } catch (e) {
-    console.error('Erro ao salvar configuração do usuário:', e);
+    console.warn('[WebGIS] Erro ao salvar configuração do usuário:', e);
   }
 };
 
@@ -2043,11 +2155,8 @@ const registerUserSessionActivity = (sessionId: string, role: UserRole = 'user',
 
     localStorage.setItem(STORAGE_KEYS.USER_SESSIONS, JSON.stringify(sessions));
 
-    const s = sessions[sessionId];
-    supabase
-      .from('webgis_user_sessions')
-      .upsert(formatSessionPayloadForSupabase(s))
-      .then();
+    // OBJETIVO 5: Envia batimento de presença leve por auth_uid no servidor sem gerar conflito de chave primária
+    sendSessionHeartbeat().catch(() => {});
 
   } catch (e) { }
 };

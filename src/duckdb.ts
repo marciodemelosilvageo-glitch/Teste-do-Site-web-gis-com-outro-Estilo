@@ -1,20 +1,37 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import duckdb_wasm_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
+import duckdb_worker_eh from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url';
+import duckdb_wasm_mvp from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
+import duckdb_worker_mvp from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
-import { normalizeString, normalizeSearchText, parseAddressForSort, haversineDistanceMeters, formatDistance } from './utils';
+import {
+  normalizeString,
+  normalizeSearchText,
+  parseAddressForSort,
+  haversineDistanceMeters,
+  formatDistance,
+  escapeSqlLiteral,
+  escapeSqlLikePattern
+} from './utils';
+
+// Bundles locais empacotados pelo Vite (dispensam importScripts de CDN externa e cumprem CSP estrita 'self')
+const LOCAL_DUCKDB_BUNDLES: duckdb.DuckDBBundles = {
+  mvp: {
+    mainModule: duckdb_wasm_mvp,
+    mainWorker: duckdb_worker_mvp,
+  },
+  eh: {
+    mainModule: duckdb_wasm_eh,
+    mainWorker: duckdb_worker_eh,
+  },
+};
 
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
 
-// Sanitização de valores para SQL seguro no DuckDB
-export const escapeSqlLiteral = (val: string): string => {
-  return String(val).replace(/'/g, "''");
-};
-
-export const escapeSqlLikePattern = (val: string): string => {
-  // Escapa aspas simples e caracteres de controle
-  return escapeSqlLiteral(val).replace(/[%_\\]/g, '\\$&');
-};
+// Re-exporta sanitização SQL de utils
+export { escapeSqlLiteral, escapeSqlLikePattern };
 
 export async function getDuckDB(): Promise<duckdb.AsyncDuckDB> {
   if (dbInstance) return dbInstance;
@@ -22,19 +39,22 @@ export async function getDuckDB(): Promise<duckdb.AsyncDuckDB> {
 
   initPromise = (async () => {
     try {
-      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+      const bundle = await duckdb.selectBundle(LOCAL_DUCKDB_BUNDLES);
 
-      const worker_url = URL.createObjectURL(
-        new Blob([`importScripts("${bundle.mainWorker!}");`], { type: 'text/javascript' })
-      );
+      let worker: Worker;
+      try {
+        worker = new Worker(bundle.mainWorker!);
+      } catch {
+        const workerResp = await fetch(bundle.mainWorker!);
+        const workerBlob = await workerResp.blob();
+        const blobUrl = URL.createObjectURL(workerBlob);
+        worker = new Worker(blobUrl);
+      }
 
-      const worker = new Worker(worker_url);
       const logger = new duckdb.VoidLogger();
       const db = new duckdb.AsyncDuckDB(logger, worker);
 
       await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      URL.revokeObjectURL(worker_url);
 
       const conn = await db.connect();
       
@@ -306,8 +326,9 @@ export async function buscarEnderecos(
     const whereClauses: string[] = [];
     
     if (municipio && municipio !== 'Todos') {
-      const escMun = escapeSqlLiteral(normalizeString(municipio));
-      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+      const cleanMun = escapeSqlLiteral(municipio.trim());
+      const escMunNorm = escapeSqlLiteral(normalizeString(municipio));
+      whereClauses.push(`("municipio" = '${cleanMun}' OR "municipio" ILIKE '${cleanMun}' OR strip_accents(lower(municipio)) = '${escMunNorm}')`);
     }
 
     const trimmedInput = (textoBusca || '').trim();
@@ -424,11 +445,9 @@ export async function buscarEnderecos(
     }
 
     const sql = `
-      SELECT * FROM (
-        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
-        FROM enderecos
-        ${whereSql}
-      )
+      SELECT *
+      FROM enderecos
+      ${whereSql}
       ${orderBySql}
       LIMIT ${safeLimit};
     `;
@@ -436,7 +455,17 @@ export async function buscarEnderecos(
     const result = await conn.query(sql);
     const rows = result.toArray();
     const rawResults = rows.map(r => r.toJSON());
-    const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+    let totalEncontrado = rawResults.length;
+
+    if (rawResults.length >= safeLimit) {
+      try {
+        const countRes = await conn.query(`SELECT count(*)::BIGINT AS total FROM enderecos ${whereSql}`);
+        const countRow = countRes.toArray()[0]?.toJSON();
+        totalEncontrado = countRow ? Number(countRow.total) : rawResults.length;
+      } catch {
+        totalEncontrado = rawResults.length;
+      }
+    }
 
     // Refina a ordenação de relevância no JavaScript para garantir 100% de precisão no primeiro resultado
     const sortedResults = sortResultsByRelevance(rawResults, trimmedInput, detectedTargetNumber, parsed.complementPhrase);
@@ -565,8 +594,9 @@ export async function buscarEnderecosPorLocalidade(
     const whereClauses: string[] = [];
 
     if (cleanMun && cleanMun !== 'Todos') {
+      const cleanMunEsc = escapeSqlLiteral(cleanMun);
       const escMun = escapeSqlLiteral(normalizeString(cleanMun));
-      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+      whereClauses.push(`("municipio" = '${cleanMunEsc}' OR "municipio" ILIKE '${cleanMunEsc}' OR strip_accents(lower(municipio)) = '${escMun}')`);
     }
 
     if (cleanLoc) {
@@ -578,11 +608,9 @@ export async function buscarEnderecosPorLocalidade(
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     const sql = `
-      SELECT * FROM (
-        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
-        FROM enderecos
-        ${whereSql}
-      )
+      SELECT *
+      FROM enderecos
+      ${whereSql}
       ORDER BY "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC
       LIMIT ${safeLimit};
     `;
@@ -590,7 +618,17 @@ export async function buscarEnderecosPorLocalidade(
     const result = await conn.query(sql);
     const rows = result.toArray();
     let rawResults = rows.map(r => r.toJSON());
-    let totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+    let totalEncontrado = rawResults.length;
+
+    if (rawResults.length >= safeLimit) {
+      try {
+        const countRes = await conn.query(`SELECT count(*)::BIGINT AS total FROM enderecos ${whereSql}`);
+        const countRow = countRes.toArray()[0]?.toJSON();
+        totalEncontrado = countRow ? Number(countRow.total) : rawResults.length;
+      } catch {
+        totalEncontrado = rawResults.length;
+      }
+    }
 
     // Fallback inteligente: se a coluna localidade não estiver preenchida nas linhas do CNEFE
     // daquela região mas o logradouro, bairro ou complemento contiverem o nome da localidade:
@@ -598,8 +636,9 @@ export async function buscarEnderecosPorLocalidade(
       const escLoc = escapeSqlLikePattern(normalizeString(cleanLoc));
       const fallbackClauses: string[] = [];
       if (cleanMun && cleanMun !== 'Todos') {
+        const cleanMunEsc = escapeSqlLiteral(cleanMun);
         const escMun = escapeSqlLiteral(normalizeString(cleanMun));
-        fallbackClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+        fallbackClauses.push(`("municipio" = '${cleanMunEsc}' OR "municipio" ILIKE '${cleanMunEsc}' OR strip_accents(lower(municipio)) = '${escMun}')`);
       }
       fallbackClauses.push(`(
         strip_accents(lower(COALESCE(CAST("endereco" AS VARCHAR), ''))) LIKE '%${escLoc}%' OR
@@ -607,19 +646,27 @@ export async function buscarEnderecosPorLocalidade(
         strip_accents(lower(COALESCE(CAST("complemento" AS VARCHAR), ''))) LIKE '%${escLoc}%'
       )`);
 
+      const fallbackWhere = `WHERE ${fallbackClauses.join(' AND ')}`;
       const fallbackSql = `
-        SELECT * FROM (
-          SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
-          FROM enderecos
-          WHERE ${fallbackClauses.join(' AND ')}
-        )
+        SELECT *
+        FROM enderecos
+        ${fallbackWhere}
         ORDER BY "endereco" ASC, TRY_CAST("numero_logradouro" AS BIGINT) ASC
         LIMIT ${safeLimit};
       `;
       const fallbackRes = await conn.query(fallbackSql);
       const fallbackRows = fallbackRes.toArray();
       rawResults = fallbackRows.map(r => r.toJSON());
-      totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+      totalEncontrado = rawResults.length;
+      if (rawResults.length >= safeLimit) {
+        try {
+          const countRes = await conn.query(`SELECT count(*)::BIGINT AS total FROM enderecos ${fallbackWhere}`);
+          const countRow = countRes.toArray()[0]?.toJSON();
+          totalEncontrado = countRow ? Number(countRow.total) : rawResults.length;
+        } catch {
+          totalEncontrado = rawResults.length;
+        }
+      }
     }
 
     return { results: rawResults, totalEncontrado };
@@ -654,8 +701,9 @@ export async function buscarEnderecosPorEspecie(
     const whereClauses: string[] = [];
 
     if (cleanMun && cleanMun !== 'Todos') {
+      const cleanMunEsc = escapeSqlLiteral(cleanMun);
       const escMun = escapeSqlLiteral(normalizeString(cleanMun));
-      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+      whereClauses.push(`("municipio" = '${cleanMunEsc}' OR "municipio" ILIKE '${cleanMunEsc}' OR strip_accents(lower(municipio)) = '${escMun}')`);
     }
 
     if (cleanEspecie) {
@@ -672,11 +720,9 @@ export async function buscarEnderecosPorEspecie(
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     const sql = `
-      SELECT * FROM (
-        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
-        FROM enderecos
-        ${whereSql}
-      )
+      SELECT *
+      FROM enderecos
+      ${whereSql}
       ORDER BY 
         CASE 
           WHEN strip_accents(lower(trim(municipio))) = 'teresina' THEN 0 
@@ -692,7 +738,17 @@ export async function buscarEnderecosPorEspecie(
     const result = await conn.query(sql);
     const rows = result.toArray();
     const rawResults = rows.map(r => r.toJSON());
-    const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+    let totalEncontrado = rawResults.length;
+
+    if (rawResults.length >= safeLimit) {
+      try {
+        const countRes = await conn.query(`SELECT count(*)::BIGINT AS total FROM enderecos ${whereSql}`);
+        const countRow = countRes.toArray()[0]?.toJSON();
+        totalEncontrado = countRow ? Number(countRow.total) : rawResults.length;
+      } catch {
+        totalEncontrado = rawResults.length;
+      }
+    }
 
     return { results: rawResults, totalEncontrado };
   } catch (e) {
@@ -877,8 +933,9 @@ export async function buscarEnderecosPorCategoria(
 
     // 1. Filtro obrigatório de município
     if (cleanMun && cleanMun !== 'Todos') {
+      const cleanMunEsc = escapeSqlLiteral(cleanMun);
       const escMun = escapeSqlLiteral(normalizeString(cleanMun));
-      whereClauses.push(`strip_accents(lower(municipio)) = '${escMun}'`);
+      whereClauses.push(`("municipio" = '${cleanMunEsc}' OR "municipio" ILIKE '${cleanMunEsc}' OR strip_accents(lower(municipio)) = '${escMun}')`);
     }
 
     // 2. Cláusulas temáticas da categoria (espécies, palavras-chave, exclusões)
@@ -887,11 +944,9 @@ export async function buscarEnderecosPorCategoria(
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     const sql = `
-      SELECT * FROM (
-        SELECT *, count(*) OVER ()::BIGINT AS total_encontrado
-        FROM enderecos
-        ${whereSql}
-      )
+      SELECT *
+      FROM enderecos
+      ${whereSql}
       ORDER BY 
         CASE 
           WHEN strip_accents(lower(trim(municipio))) = 'teresina' THEN 0 
@@ -907,7 +962,17 @@ export async function buscarEnderecosPorCategoria(
     const result = await conn.query(sql);
     const rows = result.toArray();
     const rawResults = rows.map(r => r.toJSON());
-    const totalEncontrado = rawResults.length > 0 ? Number(rawResults[0].total_encontrado) : 0;
+    let totalEncontrado = rawResults.length;
+
+    if (rawResults.length >= safeLimit) {
+      try {
+        const countRes = await conn.query(`SELECT count(*)::BIGINT AS total FROM enderecos ${whereSql}`);
+        const countRow = countRes.toArray()[0]?.toJSON();
+        totalEncontrado = countRow ? Number(countRow.total) : rawResults.length;
+      } catch {
+        totalEncontrado = rawResults.length;
+      }
+    }
 
     return { results: rawResults, totalEncontrado, config };
   } catch (e) {

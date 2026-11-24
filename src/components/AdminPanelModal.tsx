@@ -69,7 +69,7 @@ interface AdminPanelModalProps {
   onUpdateAddressColumnsPermissions?: (newPerms: Record<string, boolean>) => void;
   featurePropertiesPermissions?: Record<string, boolean>;
   onUpdateFeaturePropertiesPermissions?: (newPerms: Record<string, boolean>) => void;
-  onSimulateUser?: (sessionId: string, role?: UserRole) => void;
+  onSimulateUser?: (sessionId: string | null, role?: UserRole) => void;
   onOpenSimulationChoice?: () => void;
   showToast: (msg: string) => void;
 }

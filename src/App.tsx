@@ -182,7 +182,7 @@ export default function App() {
   const [previousUserError, setPreviousUserError] = useState<string | null>(null);
   const [isPreviousUserSubmitting, setIsPreviousUserSubmitting] = useState<boolean>(false);
 
-  const isMobile = useIsMobile(768);
+  const isMobile = useIsMobile(1024);
 
   const [isLoginFormOpen, setIsLoginFormOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
@@ -605,6 +605,52 @@ export default function App() {
       return next;
     });
   }, [can, guardAction, showToast]);
+
+  const handleTogglePrintMode = useCallback(() => {
+    setIsPrintMode(prev => !prev);
+  }, []);
+
+  const handleSelectionChange = useCallback((features: SelectedFeature[] | ((prev: SelectedFeature[]) => SelectedFeature[])) => {
+    setSelectedFeatures(prev => {
+      const nextFeatures = typeof features === 'function' ? features(prev) : features;
+      if (nextFeatures.length === 0) {
+        // Quando desmarca a feição, fecha a barra de detalhes da feição
+        setSearchSelectedFeatureId(null);
+        setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
+        setSearchCoordinates(currCoords => (currCoords && currCoords.some(c => c.isCoordSearch) ? null : currCoords));
+        if ((window as any).removeRightClickPin) {
+          (window as any).removeRightClickPin();
+        }
+      }
+      if (nextFeatures.length === 0 && prev.length === 0) return prev;
+      if (nextFeatures.length > prev.length) {
+        const newest = nextFeatures[nextFeatures.length - 1];
+        if (newest && newest.name) {
+          logActivity('FEICAO', `Selecionou feição no mapa: "${newest.name}"`, userRole, `Camada: ${newest.sourceName} • Total selecionadas: ${nextFeatures.length}`);
+        }
+      }
+      return nextFeatures;
+    });
+  }, [userRole]);
+
+  const handleSetActiveLayers = useCallback((layers: any) => {
+    setActiveLayers(prevLayers => {
+      const nextLayers: string[] = typeof layers === 'function' ? layers(prevLayers) : layers;
+      const added = nextLayers.filter(l => !prevLayers.includes(l));
+      const removed = prevLayers.filter(l => !nextLayers.includes(l));
+      if (added.length > 0) {
+        logActivity('CAMADA', `Ativou camada(s): ${added.join(', ')}`, userRole);
+      }
+      if (removed.length > 0) {
+        logActivity('CAMADA', `Desativou camada(s): ${removed.join(', ')}`, userRole);
+      }
+      return nextLayers;
+    });
+  }, [userRole]);
+
+  const handleRegisterMapActions = useCallback((actions: any) => {
+    mapActionsRef.current = actions;
+  }, []);
 
   // Abrir aba de Detalhes ou Raio-X no estilo Apple Maps quando feições forem selecionadas no mapa:
   // - 2+ feições válidas para o Raio-X: abre automaticamente a aba "dashboard" (Raio-X) somando dados se permitido.
@@ -1098,11 +1144,6 @@ export default function App() {
         }
 
         if (!verifiedUser) {
-          const cachedUser = getCurrentActiveUser();
-          if (cachedUser?.role === 'master' || cachedUser?.role === 'admin') {
-            console.warn('[AUTH] Falha temporária ao validar usuário Master via Supabase Auth. Mantendo sessão ativa.');
-            return;
-          }
           console.warn('[AUTH] Token expirado ou inválido. Encerrando sessão.');
           await handleLogoutRef.current('Sessão expirada');
           return;
@@ -1116,11 +1157,6 @@ export default function App() {
           .maybeSingle();
 
         if (profError || !profile) {
-          const cachedUser = getCurrentActiveUser();
-          if (cachedUser?.role === 'master' || cachedUser?.role === 'admin') {
-            console.warn('[AUTH] Perfil master não retornado pelo banco. Mantendo sessão ativa.');
-            return;
-          }
           console.warn('[AUTH] Perfil não encontrado no banco de dados. Encerrando sessão.');
           await handleLogoutRef.current('Perfil não encontrado');
           return;
@@ -3940,7 +3976,7 @@ export default function App() {
           <div className="w-full h-full relative overflow-hidden">
             <MapComponent 
               isPrintMode={isPrintMode}
-              onTogglePrintMode={() => setIsPrintMode(prev => !prev)}
+              onTogglePrintMode={handleTogglePrintMode}
               isStage2Open={!!sidebarTab}
               isSidebarCollapsed={true}
               isMultiSelectMode={isMultiSelectMode}
@@ -3949,52 +3985,16 @@ export default function App() {
               onToggleDarkMode={toggleDarkModeWithTransition}
               onToggleMultiSelect={handleToggleMultiSelect}
               selectedFeatures={selectedFeatures}
-              onSelectionChange={(features) => {
-                setSelectedFeatures(prev => {
-                  const nextFeatures = typeof features === 'function' ? features(prev) : features;
-                  if (nextFeatures.length === 0) {
-                    // Quando desmarca a feição, fecha a barra de detalhes da feição
-                    setSearchSelectedFeatureId(null);
-                    setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
-                    if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
-                      setSearchCoordinates(null);
-                    }
-                    if ((window as any).removeRightClickPin) {
-                      (window as any).removeRightClickPin();
-                    }
-                  }
-                  if (nextFeatures.length === 0 && prev.length === 0) return prev;
-                  if (nextFeatures.length > prev.length) {
-                    const newest = nextFeatures[nextFeatures.length - 1];
-                    if (newest && newest.name) {
-                      logActivity('FEICAO', `Selecionou feição no mapa: "${newest.name}"`, userRole, `Camada: ${newest.sourceName} • Total selecionadas: ${nextFeatures.length}`);
-                    }
-                  }
-                  return nextFeatures;
-                });
-              }}
+              onSelectionChange={handleSelectionChange}
               showToast={showToast}
               statusText={statusText}
               setStatusText={setStatusText}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
               activeLayers={activeLayers}
-              setActiveLayers={(layers: any) => {
-                const nextLayers: string[] = typeof layers === 'function' ? layers(activeLayers) : layers;
-                const added = nextLayers.filter(l => !activeLayers.includes(l));
-                const removed = activeLayers.filter(l => !nextLayers.includes(l));
-                if (added.length > 0) {
-                  logActivity('CAMADA', `Ativou camada(s): ${added.join(', ')}`, userRole);
-                }
-                if (removed.length > 0) {
-                  logActivity('CAMADA', `Desativou camada(s): ${removed.join(', ')}`, userRole);
-                }
-                setActiveLayers(nextLayers);
-              }}
+              setActiveLayers={handleSetActiveLayers}
               setMapInstance={setMapInstance}
-              registerMapActions={(actions) => {
-                mapActionsRef.current = actions;
-              }}
+              registerMapActions={handleRegisterMapActions}
               allowedLayerNames={allowedLayerNames}
               allowMeasureTool={isAdmin || featurePermissions.allowMeasureTool !== false}
               allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}
@@ -4237,59 +4237,23 @@ export default function App() {
           <div className="flex-1 w-full h-full relative overflow-hidden">
             <MapComponent 
               isPrintMode={isPrintMode}
-              onTogglePrintMode={() => setIsPrintMode(prev => !prev)}
+              onTogglePrintMode={handleTogglePrintMode}
               isStage2Open={!!sidebarTab}
               isSidebarCollapsed={isSidebarCollapsed}
               isMultiSelectMode={isMultiSelectMode}
               isMobile={false}
               onToggleMultiSelect={handleToggleMultiSelect}
               selectedFeatures={selectedFeatures}
-              onSelectionChange={(features) => {
-                setSelectedFeatures(prev => {
-                  const nextFeatures = typeof features === 'function' ? features(prev) : features;
-                  if (nextFeatures.length === 0) {
-                    // Quando desmarca a feição, fecha a barra de detalhes da feição
-                    setSearchSelectedFeatureId(null);
-                    setSidebarTab(currentTab => (currentTab === 'details' ? null : currentTab));
-                    if (searchCoordinates && searchCoordinates.some(c => c.isCoordSearch)) {
-                      setSearchCoordinates(null);
-                    }
-                    if ((window as any).removeRightClickPin) {
-                      (window as any).removeRightClickPin();
-                    }
-                  }
-                  if (nextFeatures.length === 0 && prev.length === 0) return prev;
-                  if (nextFeatures.length > prev.length) {
-                    const newest = nextFeatures[nextFeatures.length - 1];
-                    if (newest && newest.name) {
-                      logActivity('FEICAO', `Selecionou feição no mapa: "${newest.name}"`, userRole, `Camada: ${newest.sourceName} • Total selecionadas: ${nextFeatures.length}`);
-                    }
-                  }
-                  return nextFeatures;
-                });
-              }}
+              onSelectionChange={handleSelectionChange}
               showToast={showToast}
               statusText={statusText}
               setStatusText={setStatusText}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
               activeLayers={activeLayers}
-              setActiveLayers={(layers: any) => {
-                const nextLayers: string[] = typeof layers === 'function' ? layers(activeLayers) : layers;
-                const added = nextLayers.filter(l => !activeLayers.includes(l));
-                const removed = activeLayers.filter(l => !nextLayers.includes(l));
-                if (added.length > 0) {
-                  logActivity('CAMADA', `Ativou camada(s): ${added.join(', ')}`, userRole);
-                }
-                if (removed.length > 0) {
-                  logActivity('CAMADA', `Desativou camada(s): ${removed.join(', ')}`, userRole);
-                }
-                setActiveLayers(nextLayers);
-              }}
+              setActiveLayers={handleSetActiveLayers}
               setMapInstance={setMapInstance}
-              registerMapActions={(actions) => {
-                mapActionsRef.current = actions;
-              }}
+              registerMapActions={handleRegisterMapActions}
               allowedLayerNames={allowedLayerNames}
               allowMeasureTool={isAdmin || featurePermissions.allowMeasureTool !== false}
               allowLayerPanel={isAdmin || featurePermissions.allowLayerPanel !== false}

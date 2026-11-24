@@ -1151,7 +1151,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                           value={municipioBusca}
                           onChange={(e) => setMunicipioBusca(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
-                          className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
+                          className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-base sm:text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
                           autoFocus
                         />
                         <Search size={13} className="absolute left-2.5 top-2 text-slate-400" />
@@ -1220,7 +1220,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     }}
                     onFocus={() => ensureMunicipiosLoaded()}
                     placeholder="Ex: Avenida Frei Serafim, Centro..."
-                    className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all ${isMobile ? 'ibge-field-13' : ''}`}
+                    className={`w-full bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/10 dark:border-white/10 rounded-2xl pl-3.5 pr-16 py-2.5 text-base sm:text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 transition-all ${isMobile ? 'ibge-field-13' : ''}`}
                   />
                   {textoBusca.trim() !== '' && (
                     <div className="absolute right-2.5 flex items-center gap-1">
@@ -1714,7 +1714,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     value={columnSearchText}
                     onChange={(e) => setColumnSearchText(e.target.value)}
                     placeholder="Filtrar colunas..."
-                    className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
+                    className={`w-full bg-black/5 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl pl-7 pr-3 py-1.5 text-base sm:text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[#007AFF] ${isMobile ? 'ibge-field-13' : ''}`}
                   />
                   <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
                 </div>

@@ -38,9 +38,12 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'master' AND is_active = TRUE
+  SELECT (
+    (current_user IN ('postgres', 'service_role', 'supabase_admin') AND auth.uid() IS NULL)
+    OR EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'master' AND is_active = TRUE
+    )
   );
 $$;
 
@@ -51,9 +54,12 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role IN ('master', 'manager') AND is_active = TRUE
+  SELECT (
+    (current_user IN ('postgres', 'service_role', 'supabase_admin') AND auth.uid() IS NULL)
+    OR EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('master', 'manager') AND is_active = TRUE
+    )
   );
 $$;
 
@@ -129,7 +135,6 @@ DECLARE
   v_feat_perms JSONB := '{}'::jsonb;
   v_addr_perms JSONB := '{}'::jsonb;
   v_prop_perms JSONB := '{}'::jsonb;
-  v_sys_config JSONB := '{}'::jsonb;
   v_profile RECORD;
 BEGIN
   -- 2.1 Carrega dados globais de webgis_settings
@@ -139,7 +144,6 @@ BEGIN
     v_feat_perms  := COALESCE(v_settings.feature_permissions, '{}'::jsonb);
     v_addr_perms  := COALESCE(v_settings.address_columns_permissions, '{}'::jsonb);
     v_prop_perms  := COALESCE(v_settings.feature_properties_permissions, '{}'::jsonb);
-    v_sys_config  := COALESCE(v_settings.system_config, '{}'::jsonb);
   END IF;
 
   -- 2.2 Visitante anônimo ou sem login
@@ -149,8 +153,7 @@ BEGIN
       'layer_permissions', v_layer_perms,
       'feature_permissions', v_feat_perms,
       'address_columns_permissions', v_addr_perms,
-      'feature_properties_permissions', v_prop_perms,
-      'system_config', v_sys_config
+      'feature_properties_permissions', v_prop_perms
     );
   END IF;
 
@@ -184,8 +187,7 @@ BEGIN
     'layer_permissions', v_layer_perms,
     'feature_permissions', v_feat_perms,
     'address_columns_permissions', v_addr_perms,
-    'feature_properties_permissions', v_prop_perms,
-    'system_config', v_sys_config
+    'feature_properties_permissions', v_prop_perms
   );
 END;
 $$;
@@ -304,8 +306,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT (public.is_master() OR public.is_manager()) THEN
-    RAISE EXCEPTION 'Acesso negado: apenas administradores podem atualizar épocas de permissão.';
+  IF current_user NOT IN ('postgres', 'service_role', 'supabase_admin') THEN
+    IF NOT (public.is_master() OR public.is_manager()) THEN
+      RAISE EXCEPTION 'Acesso negado: apenas administradores podem atualizar épocas de permissão.';
+    END IF;
   END IF;
 
   INSERT INTO public.permissions_epoch (scope, epoch, updated_at)
