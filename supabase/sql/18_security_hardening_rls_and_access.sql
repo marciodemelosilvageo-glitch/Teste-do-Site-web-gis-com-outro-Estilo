@@ -17,6 +17,7 @@ BEGIN;
 -- 1. FUNÇÕES AUXILIARES DE CONTEXTO E SEGURANÇA (SECURITY DEFINER + search_path)
 -- ==============================================================================
 
+DROP FUNCTION IF EXISTS public.get_current_user_role();
 CREATE OR REPLACE FUNCTION public.get_current_user_role()
 RETURNS TEXT
 LANGUAGE sql
@@ -60,6 +61,7 @@ $$;
 -- 2. NOVA RPC: get_my_access_settings() (Substitui leitura direta de webgis_settings)
 -- ==============================================================================
 
+DROP FUNCTION IF EXISTS public.get_my_access_settings();
 CREATE OR REPLACE FUNCTION public.get_my_access_settings()
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -141,6 +143,9 @@ $$;
 -- ==============================================================================
 
 -- 3.1 get_effective_capabilities: Garante que usuário comum só consulte o próprio auth.uid()
+DROP FUNCTION IF EXISTS public.get_effective_capabilities(UUID);
+DROP FUNCTION IF EXISTS public.get_effective_capabilities();
+
 CREATE OR REPLACE FUNCTION public.get_effective_capabilities(
   p_user_id UUID DEFAULT auth.uid()
 )
@@ -150,7 +155,7 @@ RETURNS TABLE (
   name TEXT,
   can_use BOOLEAN,
   can_grant BOOLEAN,
-  effect TEXT
+  source TEXT
 )
 LANGUAGE plpgsql
 STABLE
@@ -199,7 +204,7 @@ BEGIN
       c.name,
       TRUE AS can_use,
       TRUE AS can_grant,
-      'master'::TEXT AS effect
+      'master'::TEXT AS source
     FROM public.auth_capabilities c
     ORDER BY c.category, c.name;
     RETURN;
@@ -210,9 +215,23 @@ BEGIN
     c.key AS capability_key,
     c.category,
     c.name,
-    COALESCE(uc.can_use, rc.can_use, FALSE) AS can_use,
-    COALESCE(uc.can_grant, rc.can_grant, FALSE) AS can_grant,
-    COALESCE(uc.effect, rc.effect, 'inherit')::TEXT AS effect
+    CASE 
+      WHEN uc.effect = 'deny' THEN FALSE
+      WHEN uc.effect = 'grant' THEN TRUE
+      WHEN rc.can_use IS TRUE THEN TRUE
+      ELSE FALSE
+    END AS can_use,
+    CASE
+      WHEN uc.effect = 'deny' THEN FALSE
+      WHEN uc.can_grant IS TRUE THEN TRUE
+      WHEN rc.can_grant IS TRUE THEN TRUE
+      ELSE FALSE
+    END AS can_grant,
+    CASE
+      WHEN uc.effect IS NOT NULL THEN 'custom'
+      WHEN rc.can_use IS NOT NULL THEN 'role'
+      ELSE 'none'
+    END::TEXT AS source
   FROM public.auth_capabilities c
   LEFT JOIN public.role_capabilities rc 
     ON rc.capability_key = c.key AND rc.role_id = COALESCE(v_role, 'user')
@@ -223,6 +242,9 @@ END;
 $$;
 
 -- 3.2 bump_permissions_epoch: Bloqueia acionamento de usuários comuns e visitantes
+DROP FUNCTION IF EXISTS public.bump_permissions_epoch(TEXT);
+DROP FUNCTION IF EXISTS public.bump_permissions_epoch();
+
 CREATE OR REPLACE FUNCTION public.bump_permissions_epoch(p_scope TEXT DEFAULT 'global')
 RETURNS VOID
 LANGUAGE plpgsql
@@ -243,14 +265,21 @@ END;
 $$;
 
 -- 3.3 get_telemetry_active_sessions: Bloqueia usuários comuns
+DROP FUNCTION IF EXISTS public.get_telemetry_active_sessions();
+
 CREATE OR REPLACE FUNCTION public.get_telemetry_active_sessions()
 RETURNS TABLE (
-  session_id TEXT,
   auth_uid UUID,
+  session_id TEXT,
   username TEXT,
-  name TEXT,
+  display_name TEXT,
   role TEXT,
-  department TEXT,
+  is_anonymous BOOLEAN,
+  first_seen TIMESTAMPTZ,
+  last_seen TIMESTAMPTZ,
+  formatted_first_seen TEXT,
+  formatted_last_seen TEXT,
+  device TEXT,
   ip_address TEXT,
   user_agent TEXT,
   session_created_at TIMESTAMPTZ,
@@ -270,18 +299,31 @@ SET search_path = public, auth
 AS $$
 BEGIN
   IF NOT (public.is_master() OR public.is_manager()) THEN
-    RAISE EXCEPTION 'Acesso negado: visualização de telemetria restrita à equipe de gestão.';
+    RAISE EXCEPTION 'Acesso negado: apenas gerentes e o Administrador Master podem consultar a telemetria do sistema';
   END IF;
 
   RETURN QUERY
   SELECT
-    ws.session_id,
     u.id AS auth_uid,
-    COALESCE(p.username, split_part(u.email, '@', 1), 'visitante') AS username,
-    COALESCE(p.name, ws.custom_name, 'Visitante') AS name,
+    COALESCE(ws.session_id, u.id::text) AS session_id,
+    COALESCE(p.username, (u.raw_user_meta_data->>'username'), 'anonimo') AS username,
+    COALESCE(ws.custom_name, p.name, (u.raw_user_meta_data->>'name'), 'Visitante') AS display_name,
     COALESCE(p.role, ws.role, 'visitor') AS role,
-    COALESCE(p.department, '') AS department,
-    CASE 
+    COALESCE(u.is_anonymous, FALSE) AS is_anonymous,
+    COALESCE(ws.first_seen, u.created_at) AS first_seen,
+    COALESCE(ws.last_seen, s.refreshed_at, s.updated_at, u.last_sign_in_at, u.created_at) AS last_seen,
+    COALESCE(ws.formatted_first_seen, to_char(u.created_at, 'DD/MM/YYYY HH24:MI:SS')) AS formatted_first_seen,
+    COALESCE(ws.formatted_last_seen, to_char(COALESCE(ws.last_seen, u.last_sign_in_at), 'DD/MM/YYYY HH24:MI:SS')) AS formatted_last_seen,
+    COALESCE(ws.device, CASE
+      WHEN s.user_agent ILIKE '%android%' THEN 'Android'
+      WHEN s.user_agent ILIKE '%iphone%' OR s.user_agent ILIKE '%ipad%' THEN 'iOS'
+      WHEN s.user_agent ILIKE '%windows%' THEN 'Windows'
+      WHEN s.user_agent ILIKE '%macintosh%' OR s.user_agent ILIKE '%mac os%' THEN 'macOS'
+      WHEN s.user_agent ILIKE '%linux%' THEN 'Linux'
+      ELSE 'Navegador Web'
+    END) AS device,
+    -- Mascarar IP para segurança se não for master
+    CASE
       WHEN public.is_master() THEN host(s.ip)::text
       ELSE regexp_replace(host(s.ip)::text, '(\d+)\.(\d+)\.(\d+)\.(\d+)', '\1.\2.***.***')
     END AS ip_address,
@@ -306,7 +348,7 @@ BEGIN
     LIMIT 1
   ) s ON true
   WHERE
-    (public.is_master() OR (public.is_manager() AND (p.id IS NULL OR public.can_manage_target(auth.uid(), p.id))))
+    (public.is_master() OR (public.is_manager() AND (p.id IS NULL OR public.can_manage_target(auth.uid(), p.id)) AND (p.role IS NULL OR p.role != 'master')))
   ORDER BY COALESCE(ws.last_seen, u.last_sign_in_at, u.created_at) DESC;
 END;
 $$;
@@ -644,7 +686,7 @@ USING (
 -- 9. CONCESSÃO DE EXECUÇÃO EXCLUSIVA A AUTHENTICATED NAS RPCS NECESSÁRIAS
 -- ==============================================================================
 
-GRANT EXECUTE ON FUNCTION public.get_my_access_settings() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_my_access_settings() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_effective_capabilities(UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.can(TEXT, UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.can_grant(TEXT, UUID) TO authenticated, service_role;
