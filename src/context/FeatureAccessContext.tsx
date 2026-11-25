@@ -55,6 +55,46 @@ export interface FeatureAccessProviderProps {
   children: React.ReactNode;
 }
 
+const LEGACY_TOOL_MAP: Record<string, string> = {
+  allowCnefeSearch: 'tool:cnefe_search',
+  allowMeasureTool: 'tool:measure',
+  allowPrintA4: 'tool:print_a4',
+  allowLayerPanel: 'tool:layer_panel',
+  allowDashboardRaioX: 'tool:raio_x',
+  allowSelectedFeaturesPanel: 'tool:selected_features',
+  allowFeatureSpecs: 'tool:feature_specs',
+  allowSourcesFooter: 'tool:sources_footer',
+  allowSearchActiveLayersOnly: 'tool:search_active_layers_only',
+  allowDissolveFeatures: 'tool:dissolve_features',
+  allowMultiSelect: 'tool:multi_select',
+  allowSearchByType: 'tool:search_by_type',
+  allowSearchAreaAddresses: 'tool:search_area_addresses',
+  allowCustomizeUsefulInfo: 'tool:customize_useful_info',
+  allowBasemapSelector: 'tool:basemap_selector',
+  allowMapLegend: 'tool:map_legend',
+  allowExportData: 'tool:export_data',
+  allowExportCsv: 'data:export:csv',
+  allowExportKml: 'data:export:kml',
+  allowExportKmz: 'data:export:kmz',
+  allowExportGeoJson: 'data:export:geojson',
+  allowExportShapefile: 'data:export:shapefile',
+  allowExportGeoPackage: 'data:export:geopackage',
+  allowAdvancedSearch: 'tool:advanced_search',
+  // Flags de gerência
+  allowGenerateLogins: 'admin:users:create',
+  allowChangePasswords: 'admin:users:reset_password',
+  canCreateManagerRole: 'admin:users:promote_manager',
+  allowViewAllVisitors: 'admin:users:view'
+};
+
+const CANONICAL_TO_LEGACY_TOOL_MAP: Record<string, keyof FeaturePermissions> = Object.entries(LEGACY_TOOL_MAP)
+  .reduce((acc, [legacyKey, canonicalKey]) => {
+    if (!canonicalKey.startsWith('admin:')) {
+      acc[canonicalKey] = legacyKey as keyof FeaturePermissions;
+    }
+    return acc;
+  }, {} as Record<string, keyof FeaturePermissions>);
+
 /**
  * Normaliza qualquer variante de chave de permissão (dot-notation, camelCase legado ou chave canônica)
  * para a chave canônica do catálogo do banco.
@@ -64,38 +104,7 @@ export const normalizeCapabilityKey = (raw: string): string => {
   const key = raw.trim();
 
   // 1. Mapeamento direto de camelCase de FeaturePermissions
-  const legacyToolMap: Record<string, string> = {
-    allowCnefeSearch: 'tool:cnefe_search',
-    allowMeasureTool: 'tool:measure',
-    allowPrintA4: 'tool:print_a4',
-    allowLayerPanel: 'tool:layer_panel',
-    allowDashboardRaioX: 'tool:raio_x',
-    allowSelectedFeaturesPanel: 'tool:selected_features',
-    allowFeatureSpecs: 'tool:feature_specs',
-    allowSourcesFooter: 'tool:sources_footer',
-    allowSearchActiveLayersOnly: 'tool:search_active_layers_only',
-    allowDissolveFeatures: 'tool:dissolve_features',
-    allowMultiSelect: 'tool:multi_select',
-    allowSearchByType: 'tool:search_by_type',
-    allowSearchAreaAddresses: 'tool:search_area_addresses',
-    allowCustomizeUsefulInfo: 'tool:customize_useful_info',
-    allowBasemapSelector: 'tool:basemap_selector',
-    allowMapLegend: 'tool:map_legend',
-    allowExportData: 'tool:export_data',
-    allowExportCsv: 'data:export:csv',
-    allowExportKml: 'data:export:kml',
-    allowExportKmz: 'data:export:kmz',
-    allowExportGeoJson: 'data:export:geojson',
-    allowExportShapefile: 'data:export:shapefile',
-    allowExportGeoPackage: 'data:export:geopackage',
-    allowAdvancedSearch: 'tool:advanced_search',
-    // Flags de gerência
-    allowGenerateLogins: 'admin:users:create',
-    allowChangePasswords: 'admin:users:reset_password',
-    canCreateManagerRole: 'admin:users:promote_manager',
-    allowViewAllVisitors: 'admin:users:view'
-  };
-  if (legacyToolMap[key]) return legacyToolMap[key];
+  if (LEGACY_TOOL_MAP[key]) return LEGACY_TOOL_MAP[key];
 
   // 2. Mapeamento de dot-notation em português
   const dotMap: Record<string, string> = {
@@ -217,10 +226,40 @@ export const useFeatureAccessState = ({
     if (isMaster) return true;
 
     const canonicalKey = normalizeCapabilityKey(rawKey);
+    const capEntry = capabilities[canonicalKey];
 
-    // 2. Se a capacidade foi resolvida no mapa efetivo do banco/cache
-    if (capabilities[canonicalKey] !== undefined) {
-      return capabilities[canonicalKey].can_use;
+    // 2. Override individual explícito por usuário sempre prevalece
+    if (capEntry?.source === 'user') {
+      return capEntry.can_use;
+    }
+
+    // 3. Bloqueios globais definidos pelo Master em webgis_settings prevalecem sobre o padrão do papel
+    const mappedLegacyTool = CANONICAL_TO_LEGACY_TOOL_MAP[canonicalKey];
+    if (mappedLegacyTool && featurePermissions[mappedLegacyTool] === false) {
+      return false;
+    }
+    if (
+      canonicalKey === 'tool:advanced_search' &&
+      featurePermissions.allowCnefeSearch === false
+    ) {
+      return false;
+    }
+    if (canonicalKey.startsWith('layer:')) {
+      const layerName = canonicalKey.slice(6);
+      if (layerPermissions[layerName] === false) return false;
+    }
+    if (canonicalKey.startsWith('data:address_col:')) {
+      const col = canonicalKey.slice(17);
+      if (addressColumnsPermissions[col] === false) return false;
+    }
+    if (canonicalKey.startsWith('data:prop:')) {
+      const prop = canonicalKey.slice(10);
+      if (featurePropertiesPermissions[prop] === false) return false;
+    }
+
+    // 4. Se a capacidade foi resolvida no mapa efetivo do banco/cache
+    if (capEntry !== undefined) {
+      return capEntry.can_use;
     }
 
     // Caso especial para busca avançada: se não estiver explicitamente mapeada, herda da busca cnefe
