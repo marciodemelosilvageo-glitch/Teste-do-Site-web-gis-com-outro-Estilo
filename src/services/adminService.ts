@@ -273,7 +273,11 @@ export const resetEdgeFunctionCheck = () => {
 
 export const bumpPermissionsEpochOnServer = async (scope: string = 'global') => {
   if (isBumpRpcAvailable === false) return;
+  // Apenas Master e Gerentes autenticados podem incrementar a época de permissões no servidor (evita 401/400)
+  if (!canAttemptDirectSettingsRead()) return;
   try {
+    const { data: authData } = await supabase.auth.getSession();
+    if (!authData?.session?.user) return;
     const { error, status } = await supabase.rpc('bump_permissions_epoch', { p_scope: scope });
     if (error) {
       if (status === 404 || error.code === 'PGRST202' || error.message?.includes('not found') || (error as any).status === 404) {
