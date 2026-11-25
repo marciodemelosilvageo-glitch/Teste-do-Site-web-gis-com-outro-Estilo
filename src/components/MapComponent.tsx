@@ -1431,6 +1431,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           featureCount,
           source
         };
+      })
+      .sort((a, b) => {
+        if (a.name === 'Localidades (Piauí)') return -1;
+        if (b.name === 'Localidades (Piauí)') return 1;
+        return 0;
       });
   }, [activeLayers, visibleLayers, layerColorsState, layerStrokeColorsState, layerOpacities, allowedLayerNames, visibleLayersInViewport]);
 
