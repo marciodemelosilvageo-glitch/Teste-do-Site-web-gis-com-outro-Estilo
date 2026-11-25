@@ -55,7 +55,11 @@ export async function getDuckDB(): Promise<duckdb.AsyncDuckDB> {
       const logger = new duckdb.VoidLogger();
       const db = new duckdb.AsyncDuckDB(logger, worker);
 
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      const wasmUrl = new URL(bundle.mainModule, window.location.origin).href;
+      const pthreadUrl = bundle.pthreadWorker
+        ? new URL(bundle.pthreadWorker, window.location.origin).href
+        : undefined;
+      await db.instantiate(wasmUrl, pthreadUrl);
 
       const conn = await db.connect();
       
