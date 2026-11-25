@@ -25,7 +25,7 @@ let isEpochTableAvailable: boolean | null = (() => {
   } catch {}
   return null;
 })();
-let isIntentionalClose = false;
+let activeCleanupFn: (() => void) | null = null;
 
 /**
  * Consulta leve e rápida de fallback (apenas contadores da tabela permissions_epoch)
@@ -40,6 +40,11 @@ export const checkEpochFallbackAsync = async (
   isCheckingEpoch = true;
 
   try {
+    const { data: authData } = await supabase.auth.getSession();
+    if (!authData?.session?.user) {
+      return false;
+    }
+
     const scopes = ['global'];
     if (userRole) scopes.push(`role:${userRole}`);
     if (userId) scopes.push(`user:${userId}`);
@@ -101,17 +106,14 @@ export const subscribeToPermissionsRealtime = (
 ): (() => void) => {
   const { userId, userRole, onPermissionsUpdated, onAccountBlocked } = options;
 
-  // Limpeza de qualquer canal anterior
+  // Limpeza de qualquer assinatura anterior
   unsubscribePermissionsRealtime();
-  isIntentionalClose = false;
 
-  // Executa uma primeira leitura dos contadores para estabelecer a linha de base (se a tabela estiver disponível)
-  if (isEpochTableAvailable !== false) {
-    checkEpochFallbackAsync(userId, userRole).catch(() => {});
-  }
+  let isSubscriptionDisposed = false;
+  let isThisChannelClosed = false;
+  let currentChannel: RealtimeChannel | null = null;
+  let authListener: { subscription: { unsubscribe: () => void } } | null = null;
 
-  const channelName = `webgis_perm_sync_${userId || 'visitor'}_${Date.now()}`;
-  
   const triggerDebouncedUpdate = (info?: { scope?: string; reason?: string; newRole?: string }) => {
     if (debounceTimeout) {
       clearTimeout(debounceTimeout);
@@ -122,124 +124,186 @@ export const subscribeToPermissionsRealtime = (
     }, 150);
   };
 
-  try {
-    const channel = supabase.channel(channelName);
+  const startAuthenticatedRealtime = () => {
+    if (isSubscriptionDisposed || currentChannel) return;
 
-    // 1. Escuta mudanças na tabela permissions_epoch se ela estiver disponível ou ainda não testada
+    // Executa uma primeira leitura dos contadores para estabelecer a linha de base (se a tabela estiver disponível)
     if (isEpochTableAvailable !== false) {
-      channel.on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'permissions_epoch'
-        },
-        (payload: any) => {
-          const record = payload.new || payload.old;
-          const scope: string = record?.scope || '';
-          const epoch: number = Number(record?.epoch) || 0;
-
-          // Determina se a alteração é relevante para este cliente
-          const isGlobal = scope === 'global';
-          const isRole = userRole && (scope === `role:${userRole}` || scope === userRole);
-          const isUser = userId && (scope === `user:${userId}` || scope === userId);
-
-          if (isGlobal || isRole || isUser) {
-            console.info(`⚡ [REALTIME] Permissões atualizadas no servidor (escopo: ${scope}, versão: ${epoch}) em tempo real!`);
-            if (epoch > 0) {
-              lastKnownEpochs[scope] = epoch;
-            }
-            triggerDebouncedUpdate({ scope, reason: 'realtime_epoch' });
-          }
-        }
-      );
+      checkEpochFallbackAsync(userId, userRole).catch(() => {});
     }
 
-    // 2. Se o usuário estiver autenticado, monitora seu registro em profiles para bloqueio imediato (is_active)
-    if (userId) {
-      channel.on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${userId}`
-        },
-        (payload: any) => {
-          const newProfile = payload.new;
-          if (!newProfile) return;
+    const channelName = `webgis_perm_sync_${userId || 'visitor'}_${Date.now()}`;
 
-          // Se a conta foi inativada / suspensa pelo administrador: encerra a sessão na hora
-          if (newProfile.is_active === false) {
-            console.warn('🚨 [REALTIME] Conta de usuário desativada pelo Administrador!');
-            if (onAccountBlocked) {
-              onAccountBlocked('Conta desativada pelo Administrador');
+    try {
+      const channel = supabase.channel(channelName);
+      currentChannel = channel;
+      activeChannel = channel;
+
+      // 1. Escuta mudanças na tabela permissions_epoch se ela estiver disponível ou ainda não testada
+      if (isEpochTableAvailable !== false) {
+        channel.on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'permissions_epoch'
+          },
+          (payload: any) => {
+            const record = payload.new || payload.old;
+            const scope: string = record?.scope || '';
+            const epoch: number = Number(record?.epoch) || 0;
+
+            // Determina se a alteração é relevante para este cliente
+            const isGlobal = scope === 'global';
+            const isRole = userRole && (scope === `role:${userRole}` || scope === userRole);
+            const isUser = userId && (scope === `user:${userId}` || scope === userId);
+
+            if (isGlobal || isRole || isUser) {
+              console.info(`⚡ [REALTIME] Permissões atualizadas no servidor (escopo: ${scope}, versão: ${epoch}) em tempo real!`);
+              if (epoch > 0) {
+                lastKnownEpochs[scope] = epoch;
+              }
+              triggerDebouncedUpdate({ scope, reason: 'realtime_epoch' });
             }
-            return;
           }
+        );
+      }
 
-          // Se o papel do usuário foi alterado (ex: promovido para gerente ou rebaixado)
-          if (newProfile.role && newProfile.role !== userRole) {
-            console.info(`⚡ [REALTIME] Papel do usuário alterado para "${newProfile.role}". Atualizando contexto...`);
-            triggerDebouncedUpdate({ reason: 'role_changed', newRole: newProfile.role });
+      // 2. Se o usuário estiver autenticado, monitora seu registro em profiles para bloqueio imediato (is_active)
+      if (userId) {
+        channel.on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${userId}`
+          },
+          (payload: any) => {
+            const newProfile = payload.new;
+            if (!newProfile) return;
+
+            // Se a conta foi inativada / suspensa pelo administrador: encerra a sessão na hora
+            if (newProfile.is_active === false) {
+              console.warn('🚨 [REALTIME] Conta de usuário desativada pelo Administrador!');
+              if (onAccountBlocked) {
+                onAccountBlocked('Conta desativada pelo Administrador');
+              }
+              return;
+            }
+
+            // Se o papel do usuário foi alterado (ex: promovido para gerente ou rebaixado)
+            if (newProfile.role && newProfile.role !== userRole) {
+              console.info(`⚡ [REALTIME] Papel do usuário alterado para "${newProfile.role}". Atualizando contexto...`);
+              triggerDebouncedUpdate({ reason: 'role_changed', newRole: newProfile.role });
+            }
           }
-        }
-      );
-    }
+        );
+      }
 
-    // 3. Inscreve o canal e gerencia reconexão
-    channel.subscribe((status: string, err?: any) => {
-      if (status === 'SUBSCRIBED') {
-        console.info(`🟢 [REALTIME] Conexão Realtime estabelecida com sucesso (${channelName}).`);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        if (!isIntentionalClose) {
+      // 3. Inscreve o canal e gerencia reconexão
+      channel.subscribe((status: string, err?: any) => {
+        if (isThisChannelClosed || isSubscriptionDisposed) return;
+        if (status === 'SUBSCRIBED') {
+          console.info(`🟢 [REALTIME] Conexão Realtime estabelecida com sucesso (${channelName}).`);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.warn(`⚠️ [REALTIME] Status do canal: ${status}. Fallback leve ativo.`);
           if (err) console.warn(err);
-        }
-      } else if (status === 'CLOSED') {
-        if (!isIntentionalClose) {
+        } else if (status === 'CLOSED') {
           console.warn(`⚠️ [REALTIME] Status do canal: CLOSED. Fallback leve ativo.`);
         }
+      });
+    } catch (err) {
+      console.warn('[REALTIME] Não foi possível inicializar canal Realtime. Fallback ativo:', err);
+    }
+  };
+
+  // Só abre WebSocket Realtime após haver sessão autenticada (evita 401/CHANNEL_ERROR no pré-login)
+  supabase.auth.getSession().then(({ data: authData }) => {
+    if (isSubscriptionDisposed) return;
+    if (authData?.session?.user) {
+      startAuthenticatedRealtime();
+    }
+  }).catch(() => {});
+
+  const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
+    if (isSubscriptionDisposed) return;
+    if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
+      startAuthenticatedRealtime();
+    } else if (event === 'SIGNED_OUT' && currentChannel) {
+      isThisChannelClosed = true;
+      try { supabase.removeChannel(currentChannel); } catch {}
+      if (activeChannel === currentChannel) activeChannel = null;
+      currentChannel = null;
+    }
+  });
+  authListener = authSub;
+
+  // 4. Fallback leve periódico (a cada 45 segundos, apenas se tabela existir e aba visível)
+  fallbackIntervalId = setInterval(() => {
+    if (typeof document !== 'undefined' && !document.hidden && isEpochTableAvailable !== false) {
+      checkEpochFallbackAsync(userId, userRole, triggerDebouncedUpdate).catch(() => {});
+    }
+  }, 45000);
+
+  // 5. Verificação rápida ao focar a aba, mudar visibilidade ou restabelecer conexão de rede
+  const handleRecheck = () => {
+    if (typeof document !== 'undefined' && !document.hidden && isEpochTableAvailable !== false) {
+      checkEpochFallbackAsync(userId, userRole, triggerDebouncedUpdate).catch(() => {});
+    }
+  };
+
+  window.addEventListener('focus', handleRecheck);
+  document.addEventListener('visibilitychange', handleRecheck);
+  window.addEventListener('online', handleRecheck);
+
+  const cleanup = () => {
+    if (isSubscriptionDisposed) return;
+    isSubscriptionDisposed = true;
+    isThisChannelClosed = true;
+
+    window.removeEventListener('focus', handleRecheck);
+    document.removeEventListener('visibilitychange', handleRecheck);
+    window.removeEventListener('online', handleRecheck);
+
+    if (authListener?.subscription) {
+      try { authListener.subscription.unsubscribe(); } catch {}
+      authListener = null;
+    }
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = null;
+    }
+    if (fallbackIntervalId) {
+      clearInterval(fallbackIntervalId);
+      fallbackIntervalId = null;
+    }
+    if (currentChannel) {
+      try {
+        supabase.removeChannel(currentChannel);
+      } catch {}
+      if (activeChannel === currentChannel) {
+        activeChannel = null;
       }
-    });
+      currentChannel = null;
+    }
+    if (activeCleanupFn === cleanup) {
+      activeCleanupFn = null;
+    }
+  };
 
-    activeChannel = channel;
-
-    // 4. Fallback leve periódico (a cada 45 segundos, apenas se tabela existir e aba visível)
-    fallbackIntervalId = setInterval(() => {
-      if (typeof document !== 'undefined' && !document.hidden && isEpochTableAvailable !== false) {
-        checkEpochFallbackAsync(userId, userRole, triggerDebouncedUpdate).catch(() => {});
-      }
-    }, 45000);
-
-    // 5. Verificação rápida ao focar a aba, mudar visibilidade ou restabelecer conexão de rede
-    const handleRecheck = () => {
-      if (typeof document !== 'undefined' && !document.hidden && isEpochTableAvailable !== false) {
-        checkEpochFallbackAsync(userId, userRole, triggerDebouncedUpdate).catch(() => {});
-      }
-    };
-
-    window.addEventListener('focus', handleRecheck);
-    document.addEventListener('visibilitychange', handleRecheck);
-    window.addEventListener('online', handleRecheck);
-
-    return () => {
-      window.removeEventListener('focus', handleRecheck);
-      document.removeEventListener('visibilitychange', handleRecheck);
-      window.removeEventListener('online', handleRecheck);
-      unsubscribePermissionsRealtime();
-    };
-  } catch (err) {
-    console.warn('[REALTIME] Não foi possível inicializar canal Realtime. Fallback ativo:', err);
-    return () => {};
-  }
+  activeCleanupFn = cleanup;
+  return cleanup;
 };
 
 /**
  * Encerra a assinatura Realtime e limpa timers associados
  */
 export const unsubscribePermissionsRealtime = () => {
-  isIntentionalClose = true;
+  if (activeCleanupFn) {
+    activeCleanupFn();
+    activeCleanupFn = null;
+  }
   if (debounceTimeout) {
     clearTimeout(debounceTimeout);
     debounceTimeout = null;

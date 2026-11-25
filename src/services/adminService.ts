@@ -683,6 +683,13 @@ export const ensureVisitorAuth = async (): Promise<string | null> => {
 // SEMPRE busca a lista MAIS RECENTE da tabela public.profiles no Supabase
 export const getRegisteredUsersAsync = async (): Promise<RegisteredUser[]> => {
   try {
+    const { data: authData } = await supabase.auth.getSession();
+    const authUser = authData?.session?.user;
+    // Visitantes anônimos e usuários não autenticados não têm permissão na tabela profiles (evita 401)
+    if (!authUser || isAnonymousUser(authUser)) {
+      return getRegisteredUsers();
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -2881,43 +2888,46 @@ const internalFetchEffectiveCapabilities = async (
 
   if (shouldTryRpc) {
     try {
-      lastRpcCheckTime = now;
-      const { data, error } = await supabase.rpc('get_effective_capabilities', {
-        p_user_id: targetId || null
-      });
-
-      if (error) {
-        // Se a função ainda não foi criada no banco de dados (404 / PGRST202 / schema cache)
-        if (
-          error.code === 'PGRST202' ||
-          error.message?.includes('not found') ||
-          error.message?.includes('schema cache') ||
-          (error as any).status === 404 ||
-          error.message?.includes('404')
-        ) {
-          isRpcAvailable = false;
-          try { sessionStorage.setItem('webgis_rpc_capabilities_available', 'false'); } catch {}
-          console.info(
-            '[WebGIS] Nota: A função SQL "get_effective_capabilities" ainda não foi instalada no Supabase. Utilizando matriz de capacidades segura (fallback local).'
-          );
-        }
-      } else if (Array.isArray(data) && data.length > 0) {
-        isRpcAvailable = true;
-        try { sessionStorage.setItem('webgis_rpc_capabilities_available', 'true'); } catch {}
-        const map: Record<string, EffectiveCapability> = {};
-        data.forEach((row: any) => {
-          if (row.capability_key) {
-            map[row.capability_key] = {
-              can_use: row.can_use === true,
-              can_grant: row.can_grant === true,
-              source: row.source || 'server'
-            };
-          }
+      const { data: authData } = await supabase.auth.getSession();
+      if (authData?.session?.user) {
+        lastRpcCheckTime = now;
+        const { data, error } = await supabase.rpc('get_effective_capabilities', {
+          p_user_id: targetId || null
         });
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(map));
-        } catch (e) { }
-        return map;
+
+        if (error) {
+          // Se a função ainda não foi criada no banco de dados (404 / PGRST202 / schema cache)
+          if (
+            error.code === 'PGRST202' ||
+            error.message?.includes('not found') ||
+            error.message?.includes('schema cache') ||
+            (error as any).status === 404 ||
+            error.message?.includes('404')
+          ) {
+            isRpcAvailable = false;
+            try { sessionStorage.setItem('webgis_rpc_capabilities_available', 'false'); } catch {}
+            console.info(
+              '[WebGIS] Nota: A função SQL "get_effective_capabilities" ainda não foi instalada no Supabase. Utilizando matriz de capacidades segura (fallback local).'
+            );
+          }
+        } else if (Array.isArray(data) && data.length > 0) {
+          isRpcAvailable = true;
+          try { sessionStorage.setItem('webgis_rpc_capabilities_available', 'true'); } catch {}
+          const map: Record<string, EffectiveCapability> = {};
+          data.forEach((row: any) => {
+            if (row.capability_key) {
+              map[row.capability_key] = {
+                can_use: row.can_use === true,
+                can_grant: row.can_grant === true,
+                source: row.source || 'server'
+              };
+            }
+          });
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(map));
+          } catch (e) { }
+          return map;
+        }
       }
     } catch (e) {
       isRpcAvailable = false;
