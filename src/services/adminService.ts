@@ -3332,16 +3332,19 @@ export const saveManagerScope = async (
     const updated = { ...current, ...scope };
     localStorage.setItem(`${STORAGE_KEYS.USER_DELEGATION_SCOPES}_${managerId}`, JSON.stringify(updated));
 
-    try {
-      await supabase.from('user_delegation_scopes').upsert({
-        manager_id: managerId,
-        scope_type: updated.scope_type,
-        can_manage_site_accounts: updated.can_manage_site_accounts,
-        can_manage_visitors: updated.can_manage_visitors,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'manager_id' });
-    } catch {
-      // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(managerId);
+    if (isUuid) {
+      try {
+        await supabase.from('user_delegation_scopes').upsert({
+          manager_id: managerId,
+          scope_type: updated.scope_type,
+          can_manage_site_accounts: updated.can_manage_site_accounts,
+          can_manage_visitors: updated.can_manage_visitors,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'manager_id' });
+      } catch {
+        // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
+      }
     }
 
     notifyPermissionsUpdated();
