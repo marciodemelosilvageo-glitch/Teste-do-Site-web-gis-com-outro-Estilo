@@ -1640,8 +1640,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     </div>
                   ) : !isMobile ? (
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-                      <Filter size={12} className="text-[#007AFF]" />
-                      <span>Dica: Use os campos <strong>Filtrar...</strong> abaixo de cada coluna para refinar os resultados exibidos.</span>
+                      <Search size={12} className="text-[#007AFF]" />
+                      <span>Dica: Clique na <strong>lupa</strong> ao lado do nome da coluna para filtrar os resultados.</span>
                     </span>
                   ) : null}
                 </div>
@@ -1872,7 +1872,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
             )}
 
             {/* Popover de Filtro por Coluna no Mobile */}
-            {isMobile && activeFilterColKey && typeof document !== 'undefined' && createPortal(
+            {activeFilterColKey && typeof document !== 'undefined' && createPortal(
               <div
                 ref={filterPopoverRef}
                 style={{
@@ -2019,31 +2019,29 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                                     </span>
                                   </button>
 
-                                  {/* Ícone de Lupa para Filtro por Coluna no Mobile */}
-                                  {isMobile && (
-                                    <button
-                                      ref={el => { filterTriggerRefs.current[col.key] = el; }}
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleFilterPopover(col.key);
-                                      }}
-                                      className={`min-w-[36px] min-h-[36px] w-9 h-9 -mr-1.5 rounded-xl flex items-center justify-center cursor-pointer active:scale-90 transition-all shrink-0 ${
-                                        hasActiveFilter
-                                          ? 'text-[#007AFF] bg-[#007AFF]/15 dark:bg-[#007AFF]/25 font-bold'
-                                          : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
-                                      }`}
-                                      title={`Filtrar por ${col.label}`}
-                                      aria-label={`Filtrar por ${col.label}`}
-                                    >
-                                      <div className="relative flex items-center justify-center">
-                                        <Search size={14} className={hasActiveFilter ? 'fill-[#007AFF] stroke-[2.5]' : 'stroke-[2]'} />
-                                        {hasActiveFilter && (
-                                          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
-                                        )}
-                                      </div>
-                                    </button>
-                                  )}
+                                  {/* Ícone de Lupa para Filtro por Coluna */}
+                                  <button
+                                    ref={el => { filterTriggerRefs.current[col.key] = el; }}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFilterPopover(col.key);
+                                    }}
+                                    className={`${isMobile ? 'min-w-[36px] min-h-[36px] w-9 h-9 -mr-1.5' : 'w-7 h-7'} rounded-xl flex items-center justify-center cursor-pointer active:scale-90 transition-all shrink-0 ${
+                                      hasActiveFilter
+                                        ? 'text-[#007AFF] bg-[#007AFF]/15 dark:bg-[#007AFF]/25 font-bold'
+                                        : 'text-slate-400 dark:text-slate-500 hover:text-[#007AFF] dark:hover:text-[#64D2FF] hover:bg-black/5 dark:hover:bg-white/10'
+                                    }`}
+                                    title={`Filtrar por ${col.label}`}
+                                    aria-label={`Filtrar por ${col.label}`}
+                                  >
+                                    <div className="relative flex items-center justify-center">
+                                      <Search size={14} className={hasActiveFilter ? 'fill-[#007AFF] stroke-[2.5]' : 'stroke-[2]'} />
+                                      {hasActiveFilter && (
+                                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
+                                      )}
+                                    </div>
+                                  </button>
                                 </div>
                                 
                                 {/* Alça de redimensionamento estilo Excel */}
@@ -2070,72 +2068,6 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                             );
                           })}
                         </tr>
-
-                        {/* Linha 2: Caixas de Filtro Individuais por Coluna (Apenas Desktop) */}
-                        {!isMobile && (
-                          <tr 
-                            style={{ top: `${firstRowHeight}px` }}
-                            className="bg-slate-200/95 dark:bg-[#242426]/95 border-b border-black/10 dark:border-white/10 sticky z-20"
-                          >
-                            <th 
-                              style={{ top: `${firstRowHeight}px` }}
-                              className="px-1.5 py-1.5 sticky left-0 z-30 bg-slate-200 dark:bg-[#242426] shadow-r text-center"
-                            >
-                              <Filter size={11} className="mx-auto text-slate-400" />
-                            </th>
-                            {visibleTableColumns.map(col => {
-                              const width = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 180;
-                              const filterVal = columnFilters[col.key] || '';
-                              const hasActiveFilter = Boolean(filterVal && filterVal.trim());
-
-                              return (
-                                <th
-                                  key={`filter-${col.key}`}
-                                  style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px`, top: `${firstRowHeight}px` }}
-                                  className="px-2 py-1.5 font-normal sticky z-20 bg-slate-200/95 dark:bg-[#242426]/95"
-                                >
-                                  <div className="relative flex items-center w-full rounded-lg border transition-all border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#1c1c1e]/80 hover:border-black/20 dark:hover:border-white/20">
-                                    <input
-                                      type="text"
-                                      value={filterVal}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setColumnFilters(prev => {
-                                          if (!val) {
-                                            const copy = { ...prev };
-                                            delete copy[col.key];
-                                            return copy;
-                                          }
-                                          return { ...prev, [col.key]: val };
-                                        });
-                                      }}
-                                      placeholder="Filtrar..."
-                                      className="w-full pl-2 pr-6 py-1 text-[11px] font-medium text-slate-800 dark:text-slate-100 outline-none bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
-                                      title={`Filtrar por ${col.label}`}
-                                    />
-                                    {hasActiveFilter && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setColumnFilters(prev => {
-                                            const copy = { ...prev };
-                                            delete copy[col.key];
-                                            return copy;
-                                          });
-                                        }}
-                                        className="absolute right-1 p-0.5 rounded text-slate-400 hover:text-rose-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                                        title={`Limpar filtro de ${col.label}`}
-                                        aria-label={`Limpar filtro de ${col.label}`}
-                                      >
-                                        <X size={11} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </th>
-                              );
-                            })}
-                          </tr>
-                        )}
                       </thead>
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
                         {processedResults.map((row, i) => {
