@@ -20,7 +20,7 @@ import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
 import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition, escapeHtml } from '../utils';
-import { createCategoryPinIcon, detectCategoryFromData } from '../categories';
+import { createCategoryPinIcon, detectCategoryFromData, getCategoryConfig } from '../categories';
 import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 import { useFeatureAccess } from '../context/FeatureAccessContext';
 import { logActivity } from '../services/adminService';
@@ -516,6 +516,13 @@ const getMeasureExportFilename = (ext: string) => {
   return `area_medida_${y}${m}${d}_${hh}${mm}.${ext}`;
 };
 
+interface PlottedLegendItem {
+  key: string;
+  label: string;
+  pinColor: string;
+  count: number;
+}
+
 interface MapBottomOverlaysProps {
   isPrintMode?: boolean;
   isStage2Open?: boolean;
@@ -529,6 +536,7 @@ interface MapBottomOverlaysProps {
     isPointLayer?: boolean;
     featureCount: number;
   }>;
+  plottedLegendItems?: PlottedLegendItem[];
   toggleLayerVisibility: (name: string) => void;
   showToast: (msg: string) => void;
   getZoom?: () => number;
@@ -539,6 +547,7 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
   isStage2Open = false,
   isMobile = false,
   activeVisibleLayers,
+  plottedLegendItems = [],
   toggleLayerVisibility,
   showToast,
   getZoom
@@ -687,7 +696,7 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
                   Legenda
                 </span>
                 <span className="text-[9px] bg-blue-100 dark:bg-blue-950/80 text-[#007AFF] dark:text-[#0a84ff] font-extrabold px-1.5 py-0.2 rounded-full">
-                  {activeVisibleLayers.length} {activeVisibleLayers.length === 1 ? 'ativa' : 'ativas'}
+                  {activeVisibleLayers.length + plottedLegendItems.length} {(activeVisibleLayers.length + plottedLegendItems.length) === 1 ? 'ativa' : 'ativas'}
                 </span>
               </div>
               <button
@@ -705,7 +714,36 @@ const MapBottomOverlays: React.FC<MapBottomOverlaysProps> = React.memo(({
 
             {/* Lista de Feições e Camadas da Legenda */}
             <div className="p-2 max-h-52 overflow-y-auto custom-scrollbar space-y-1.5 text-left">
-              {activeVisibleLayers.length === 0 ? (
+              {plottedLegendItems.length > 0 && (
+                <div className="space-y-1 pb-1.5 mb-1.5 border-b border-black/5 dark:border-white/10">
+                  {plottedLegendItems.map(pItem => {
+                    const cat = getCategoryConfig(pItem.key);
+                    const CatIcon = cat?.icon || MapPin;
+                    return (
+                      <div
+                        key={`plotted-${pItem.key}`}
+                        className="flex items-center gap-2 p-1.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.04]"
+                      >
+                        <div
+                          className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-white shadow-xs"
+                          style={{ backgroundColor: pItem.pinColor }}
+                        >
+                          <CatIcon className="w-3 h-3" strokeWidth={2.3} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-bold truncate text-slate-800 dark:text-slate-100">
+                            {pItem.label}
+                          </div>
+                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">
+                            {pItem.count} {pItem.count === 1 ? 'ponto no mapa' : 'pontos no mapa'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {activeVisibleLayers.length === 0 && plottedLegendItems.length === 0 ? (
                 <div className="p-2.5 text-center text-slate-400 dark:text-slate-500 text-[11px] italic font-medium">
                   Nenhuma feição nesta área visível do mapa.
                 </div>
@@ -2688,6 +2726,53 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   }, [basemap]);
 
+  const [plottedLegendItems, setPlottedLegendItems] = useState<PlottedLegendItem[]>([]);
+
+  const syncPlottedLegend = useCallback((visibleMarkers: Iterable<any>) => {
+    const counts = new Map<string, number>();
+    for (const marker of visibleMarkers) {
+      const key = (marker as any).categoryOrigem || 'endereco-padrao';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    const nextItems: PlottedLegendItem[] = [];
+    counts.forEach((count, key) => {
+      const cat = getCategoryConfig(key);
+      if (cat) {
+        nextItems.push({
+          key: cat.origem,
+          label: cat.name,
+          pinColor: cat.pinColor,
+          count,
+        });
+      } else {
+        nextItems.push({
+          key: 'endereco-padrao',
+          label: 'Endereços Plotados',
+          pinColor: '#007AFF',
+          count,
+        });
+      }
+    });
+
+    // Ordenar: categorias específicas primeiro, depois Endereços Plotados
+    nextItems.sort((a, b) => {
+      if (a.key === 'endereco-padrao' && b.key !== 'endereco-padrao') return 1;
+      if (b.key === 'endereco-padrao' && a.key !== 'endereco-padrao') return -1;
+      return b.count - a.count;
+    });
+
+    setPlottedLegendItems(prev => {
+      if (
+        prev.length === nextItems.length &&
+        prev.every((p, idx) => p.key === nextItems[idx].key && p.count === nextItems[idx].count)
+      ) {
+        return prev;
+      }
+      return nextItems;
+    });
+  }, []);
+
   // Função para renderizar progressivamente apenas os pontos de busca/CNEFE visíveis no viewport
   // Mantém 60 FPS mesmo com milhares de pontos plotados (ex: hospitais de um município inteiro)
   const updatePlottedViewport = useCallback(() => {
@@ -2705,6 +2790,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     const allMarkers = allSearchMarkersRef.current;
     if (!allMarkers || allMarkers.length === 0) {
       layer.clearLayers();
+      syncPlottedLegend([]);
       return;
     }
 
@@ -2720,6 +2806,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         layer.clearLayers();
         layer.addLayer(singleMarker);
       }
+      syncPlottedLegend([singleMarker]);
       return;
     }
 
@@ -2728,6 +2815,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     // Se o zoom for muito distante (< 7), oculta pontos para não poluir o mapa estadual
     if (currentZoom < 7) {
       layer.clearLayers();
+      syncPlottedLegend([]);
       return;
     }
 
@@ -2788,7 +2876,13 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         layer.removeLayer(marker);
       }
     });
-  }, []);
+
+    const visibleForLegend: any[] = [];
+    layer.eachLayer((marker: any) => {
+      visibleForLegend.push(marker);
+    });
+    syncPlottedLegend(visibleForLegend);
+  }, [syncPlottedLegend]);
 
   // Monitorar busca por coordenada para exibir marcadores temporários com controle de viewport
   useEffect(() => {
@@ -2847,11 +2941,15 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           return low.includes('saúde') || low.includes('saude') || low.includes('hospital') || low.includes('ubs') || low.includes('clínica') || low.includes('clinica') || low.includes('maternidade') || low.includes('pronto socorro');
         }) || (label || '').toLowerCase().includes('hospital') || (label || '').toLowerCase().includes('saude') || (especieRaw || '').toLowerCase().includes('saude') || (estabRaw || '').toLowerCase().includes('hospital');
 
-        const detectedOrigem = coord.origem || detectCategoryFromData(rawAddress, coord.label) || (isSaude ? 'tipo-saude' : undefined);
+        const detectedOrigem =
+          (coord.origem && coord.origem.startsWith('tipo-') ? coord.origem : undefined) ||
+          detectCategoryFromData(rawAddress, coord.label || coord.origem) ||
+          (isSaude ? 'tipo-saude' : undefined);
         const chosenIcon = createCategoryPinIcon(detectedOrigem);
 
         // Criar marcador para renderização progressiva por viewport
         const marker = L.marker([lat, lng], { icon: chosenIcon });
+        (marker as any).categoryOrigem = detectedOrigem || 'endereco-padrao';
         (marker as any).featureLatLng = L.latLng(lat, lng);
         (marker as any).minZoom = searchCoordinates.length === 1 ? 1 : minZooms[index];
         (marker as any).plotIndex = index;
@@ -4058,6 +4156,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           isStage2Open={isStage2Open}
           isMobile={isMobile}
           activeVisibleLayers={activeVisibleLayers}
+          plottedLegendItems={plottedLegendItems}
           toggleLayerVisibility={toggleLayerVisibility}
           showToast={showToast}
           getZoom={() => mapRef.current ? mapRef.current.getZoom() : 10}

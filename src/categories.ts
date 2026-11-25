@@ -1,4 +1,6 @@
 import L from 'leaflet';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { 
   Hospital, 
   Pill, 
@@ -233,6 +235,7 @@ export const detectCategoryFromData = (row: any, fallbackTermOrOrigem?: string):
 
 /**
  * Gera o DivIcon SVG padrão do Leaflet para o pino de cada categoria
+ * utilizando exatamente o mesmo ícone Lucide exibido no menu "Buscar por Tipo" e na Legenda.
  */
 export const createCategoryPinIcon = (origemOrCatId?: string): L.DivIcon => {
   const cat = getCategoryConfig(origemOrCatId);
@@ -240,21 +243,17 @@ export const createCategoryPinIcon = (origemOrCatId?: string): L.DivIcon => {
   let innerSvg = '';
   let pinColor = '#007AFF'; // Azul padrão
 
-  if (cat?.origem === 'tipo-saude' || origemOrCatId === 'tipo-saude') {
-    pinColor = '#DC2626';
-    innerSvg = '<path d="M11 6.5H15V10.5H19V14.5H15V18.5H11V14.5H7V10.5H11V6.5Z" fill="#FFFFFF"/>';
-  } else if (cat?.origem === 'tipo-farmacias' || origemOrCatId === 'tipo-farmacias') {
-    pinColor = '#EC4899';
-    innerSvg = '<path d="M10 15.5L16 9.5M8.5 11.5L11.5 8.5C12.8 7.2 15 7.2 16.3 8.5C17.6 9.8 17.6 12 16.3 13.3L13.3 16.3C12 17.6 9.8 17.6 8.5 16.3C7.2 15 7.2 12.8 8.5 11.5Z" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>';
-  } else if (cat?.origem === 'tipo-restaurantes' || origemOrCatId === 'tipo-restaurantes') {
-    pinColor = '#F97316';
-    innerSvg = '<path d="M8.5 7V11M10.5 7V11M12.5 7V11M8.5 11C8.5 12.1 9.4 13 10.5 13V18M16.5 7V18M16.5 7C14.8 7 14.5 8.5 14.5 10.5C14.5 12 14.8 13 16.5 13" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
-  } else if (cat?.origem === 'tipo-postos' || origemOrCatId === 'tipo-postos') {
-    pinColor = '#0284C7';
-    innerSvg = '<path d="M8 7.5H13.5V17.5H8V7.5Z" fill="#FFFFFF"/><path d="M13.5 9.5H15.5C16.6 9.5 17.5 10.4 17.5 11.5V15M17.5 15L15.5 13" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="9.2" y="9.2" width="3.1" height="2.5" rx="0.5" fill="#0284C7"/>';
-  } else if (cat?.origem === 'tipo-hoteis' || origemOrCatId === 'tipo-hoteis') {
-    pinColor = '#8B5CF6';
-    innerSvg = '<circle cx="9" cy="11" r="1.3" fill="#FFFFFF"/><path d="M7 11V17M19 12.5V17M7 13.5H19M7 15.5H19" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M11.5 13.5V11.2C11.5 10.5 12.2 10 13 10H16.5C17.3 10 18 10.5 18 11.2V13.5" fill="#FFFFFF"/>';
+  if (cat) {
+    pinColor = cat.pinColor;
+    const rawLucideSvg = renderToStaticMarkup(
+      React.createElement(cat.icon, {
+        size: 13,
+        color: '#FFFFFF',
+        strokeWidth: 2.3
+      })
+    );
+    // Posiciona o ícone Lucide 13x13 centralizado na cabeça circular do pino (26x32)
+    innerSvg = rawLucideSvg.replace('<svg ', '<svg x="6.5" y="6" ');
   } else {
     // Ponto padrão de endereço
     innerSvg = '<circle cx="13" cy="12.5" r="4.5" fill="#FFFFFF"/>';
