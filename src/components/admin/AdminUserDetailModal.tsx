@@ -506,9 +506,6 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                               )}
                             </div>
 
-                            <div className="text-xs text-[#8E8E93] font-mono">
-                              {cap.key}
-                            </div>
                             <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
                               {cap.description}
                             </div>
