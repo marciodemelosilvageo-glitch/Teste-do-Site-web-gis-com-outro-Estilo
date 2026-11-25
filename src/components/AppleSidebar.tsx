@@ -2201,6 +2201,20 @@ const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
                           {typedItems.map((item, idx) => {
                             const props = item.polygonLayer.feature.properties;
                             const identifier = getIdentifier(props, groupName);
+                            const rawMuni =
+                              props?.NM_MUN ??
+                              props?.['Nome do município'] ??
+                              props?.['Nome do municipio'] ??
+                              props?.MUNICIPIO ??
+                              props?.Municipio ??
+                              props?.municipio ??
+                              '';
+                            const muniStr = String(rawMuni || '').trim();
+                            const showMuni =
+                              muniStr.length > 0 &&
+                              groupName !== 'Municipios' &&
+                              muniStr.toLowerCase() !== String(identifier || '').trim().toLowerCase();
+
                             return (
                               <button
                                 key={idx}
@@ -2217,6 +2231,11 @@ const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
                                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
                                     {identifier}
                                   </p>
+                                  {showMuni && (
+                                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                      {toTitleCase(muniStr)}
+                                    </p>
+                                  )}
                                 </div>
                                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               </button>

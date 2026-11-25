@@ -2542,7 +2542,10 @@ export default function App() {
 
         const calculateSimilarity = (s1: string, s2: string): number => {
           if (!s1 || !s2) return 0;
-          if (s1 === s2 || s2.includes(s1)) return 1.0;
+          if (s1 === s2) return 1.25;
+          const lengthRatio = Math.min(1, s1.length / Math.max(s1.length, s2.length));
+          if (s2.startsWith(s1)) return 1.12 + lengthRatio * 0.05;
+          if (s2.includes(s1)) return 1.0 + lengthRatio * 0.05;
           
           const words2 = s2.split(/\s+/);
           let bestWordSim = 0;
@@ -2679,9 +2682,13 @@ export default function App() {
         }
       }
 
-      // Ordenar e formatar resultados
+      // Ordenar e formatar resultados (maior relevância primeiro; desempate alfabético)
       Object.keys(tempResults).forEach(key => {
-        tempResults[key].sort((a, b) => a.distance - b.distance);
+        tempResults[key].sort((a, b) => {
+          const diff = a.distance - b.distance;
+          if (Math.abs(diff) > 0.0001) return diff;
+          return String(a.value || '').localeCompare(String(b.value || ''), 'pt-BR');
+        });
       });
 
       setSearchResults(tempResults);
