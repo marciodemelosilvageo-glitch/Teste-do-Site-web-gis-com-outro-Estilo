@@ -508,7 +508,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
 DECLARE
   v_caller UUID := auth.uid();
@@ -517,6 +517,7 @@ DECLARE
   v_is_master BOOLEAN := FALSE;
   v_is_mgr BOOLEAN := FALSE;
   v_role TEXT;
+  v_is_anon BOOLEAN := FALSE;
 BEGIN
   IF v_caller IS NULL THEN RETURN; END IF;
 
@@ -535,6 +536,15 @@ BEGIN
   END IF;
 
   SELECT role INTO v_role FROM public.profiles WHERE id = v_target AND is_active = TRUE;
+
+  IF v_role IS NULL THEN
+    IF v_target = v_caller AND COALESCE((auth.jwt()->>'is_anonymous')::boolean, FALSE) IS TRUE THEN
+      v_role := 'visitor';
+    ELSE
+      SELECT COALESCE(u.is_anonymous, FALSE) INTO v_is_anon FROM auth.users u WHERE u.id = v_target;
+      v_role := CASE WHEN v_is_anon THEN 'visitor' ELSE 'user' END;
+    END IF;
+  END IF;
 
   IF v_role = 'master' THEN
     RETURN QUERY
@@ -567,7 +577,7 @@ BEGIN
       ELSE 'none'
     END::TEXT AS source
   FROM public.auth_capabilities c
-  LEFT JOIN public.role_capabilities rc ON rc.capability_key = c.key AND rc.role_id = COALESCE(v_role, 'user')
+  LEFT JOIN public.role_capabilities rc ON rc.capability_key = c.key AND rc.role_id = v_role
   LEFT JOIN public.user_capabilities uc ON uc.capability_key = c.key AND uc.user_id = v_target
   ORDER BY c.category, c.name;
 END;

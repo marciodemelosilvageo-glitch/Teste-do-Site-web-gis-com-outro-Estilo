@@ -229,7 +229,7 @@ export const useFeatureAccessState = ({
     const capEntry = capabilities[canonicalKey];
 
     // 2. Override individual explícito por usuário sempre prevalece
-    if (capEntry?.source === 'user') {
+    if (capEntry?.source === 'custom' || capEntry?.source === 'user') {
       return capEntry.can_use;
     }
 
