@@ -1908,6 +1908,9 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   };
 
+  const selectedSvgOverlayRef = useRef<L.LayerGroup | null>(null);
+  const selectedSvgRendererRef = useRef<L.SVG | null>(null);
+
   // Sincronizar seleção com os estilos visuais e animação tracejada no mapa
   useEffect(() => {
     // Redefine todos os estilos para os padrões antes de aplicar a nova seleção
@@ -1917,13 +1920,59 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       });
     });
 
+    // Limpa camada SVG anterior da borda animada
+    if (selectedSvgOverlayRef.current && mapRef.current) {
+      mapRef.current.removeLayer(selectedSvgOverlayRef.current);
+      selectedSvgOverlayRef.current = null;
+    }
+
+    const svgFeatures: any[] = [];
+
     // Aplica o estilo destacado na lista atualizada de selecionados
     selectedFeatures.forEach(feat => {
       const lyr = feat.layer as any;
       if (lyr) {
         applySelectedStyleToLayer(lyr, true);
+        const geo = lyr.feature || (typeof lyr.toGeoJSON === 'function' ? lyr.toGeoJSON() : null);
+        const geomType = geo?.geometry?.type;
+        if (geo && geomType && geomType !== 'Point' && geomType !== 'MultiPoint') {
+          svgFeatures.push(geo);
+        }
       }
     });
+
+    // Renderiza a borda tracejada animada (marching ants) em SVG por cima do Canvas para manter fluidez + animação
+    if (svgFeatures.length > 0 && mapRef.current) {
+      if (!selectedSvgRendererRef.current) {
+        selectedSvgRendererRef.current = L.svg({ padding: 0.5 });
+      }
+      const overlayGroup = L.layerGroup();
+      svgFeatures.forEach(geo => {
+        const animLayer = L.geoJSON(geo, {
+          interactive: false,
+          style: {
+            renderer: selectedSvgRendererRef.current!,
+            stroke: true,
+            weight: 3.5,
+            color: '#007AFF',
+            dashArray: '6, 6',
+            fill: false,
+            fillOpacity: 0,
+            opacity: 1,
+            className: 'selected-feature-animated-dash'
+          }
+        });
+        animLayer.eachLayer((sub: any) => {
+          const el = sub._path || (typeof sub.getElement === 'function' ? sub.getElement() : null);
+          if (el) {
+            el.classList.add('selected-feature-animated-dash');
+          }
+        });
+        overlayGroup.addLayer(animLayer);
+      });
+      overlayGroup.addTo(mapRef.current);
+      selectedSvgOverlayRef.current = overlayGroup;
+    }
 
     // Sincroniza e redesenha a camada de Localidades na tela para o estado Apple Maps selecionado/deselecionado
     const locLayer = loadedLayersRef.current["Localidades (Piauí)"];
