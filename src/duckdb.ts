@@ -43,12 +43,13 @@ export async function getDuckDB(): Promise<duckdb.AsyncDuckDB> {
 
       let worker: Worker;
       try {
-        worker = new Worker(bundle.mainWorker!);
-      } catch {
+        // Cria o Worker via blob: para herdar sempre a CSP atual do documento (evita CSP antiga em cache de /assets/*.worker.js)
         const workerResp = await fetch(bundle.mainWorker!);
         const workerBlob = await workerResp.blob();
         const blobUrl = URL.createObjectURL(workerBlob);
         worker = new Worker(blobUrl);
+      } catch {
+        worker = new Worker(bundle.mainWorker!);
       }
 
       const logger = new duckdb.VoidLogger();
