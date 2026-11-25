@@ -51,7 +51,8 @@ import {
   LifeBuoy,
   Phone,
   Mail,
-  MessageCircle
+  MessageCircle,
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from '../types';
@@ -2667,10 +2668,22 @@ const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
               </div>
             </button>
 
-            {/* Ações de Modo Escuro e Sair (visíveis no card quando expandido) */}
+            {/* Ações de Painel Admin, Modo Escuro e Sair (visíveis no card quando expandido) */}
             <div className={`items-center gap-1 shrink-0 transition-all duration-300 ease-out overflow-hidden ${
-              isCollapsed ? 'opacity-0 max-w-0 pointer-events-none hidden' : 'opacity-100 max-w-[80px] flex'
+              isCollapsed ? 'opacity-0 max-w-0 pointer-events-none hidden' : 'opacity-100 max-w-[120px] flex'
             }`}>
+              {(isMaster || isManager) && (
+                <button
+                  type="button"
+                  onClick={onOpenAdminPanel}
+                  className="p-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-[#007AFF]/15 hover:text-[#007AFF] text-slate-700 dark:text-slate-300 cursor-pointer transition-colors touch-target-44"
+                  title="Painel Administrativo"
+                  aria-label="Abrir Painel Administrativo"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={(e) => onToggleDarkMode(e)}
@@ -2699,6 +2712,23 @@ const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Botão de Painel Admin (Engrenagem) quando Recolhido */}
+          {(isMaster || isManager) && (
+            <div className={`transition-all duration-300 ease-out flex items-center justify-center w-full ${
+              isCollapsed ? 'opacity-100 max-h-12' : 'opacity-0 max-h-0 pointer-events-none overflow-hidden'
+            }`}>
+              <button
+                type="button"
+                onClick={onOpenAdminPanel}
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[#007AFF]/15 hover:text-[#007AFF] transition-colors cursor-pointer"
+                title="Painel Administrativo"
+                aria-label="Abrir Painel Administrativo"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Botão de Modo Escuro Isolado quando Recolhido */}
           <div className={`transition-all duration-300 ease-out flex items-center justify-center w-full ${

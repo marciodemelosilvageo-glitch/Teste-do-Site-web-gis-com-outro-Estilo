@@ -519,11 +519,8 @@ export default function App() {
       if (isCnefeBottomBarExpanded && !can('tool:advanced_search')) {
         setIsCnefeBottomBarExpanded(false);
       }
-      if (isCnefeBottomBarOpen && !can('tool:cnefe_search') && !can('tool:advanced_search')) {
-        setIsCnefeBottomBarOpen(false);
-      }
     }
-  }, [sidebarTab, can, isMaster, isPrintMode, isMultiSelectMode, isCnefeBottomBarExpanded, isCnefeBottomBarOpen]);
+  }, [sidebarTab, can, isMaster, isPrintMode, isMultiSelectMode, isCnefeBottomBarExpanded]);
   const [isFullTableModalOpen, setIsFullTableModalOpen] = useState<boolean>(false);
   const [isHospitalSearching, setIsHospitalSearching] = useState(false);
   const [isAddressSearching, setIsAddressSearching] = useState<boolean>(false);
