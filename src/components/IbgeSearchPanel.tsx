@@ -1871,87 +1871,6 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
               document.body
             )}
 
-            {/* Popover de Filtro por Coluna no Mobile */}
-            {activeFilterColKey && typeof document !== 'undefined' && createPortal(
-              <div
-                ref={filterPopoverRef}
-                style={{
-                  position: 'fixed',
-                  top: `${filterPopoverPos.top}px`,
-                  left: `${filterPopoverPos.left}px`,
-                  width: `${filterPopoverPos.width}px`,
-                  zIndex: MOBILE_Z_INDEX.POPOVER
-                }}
-                className="bg-white/95 dark:bg-[#2c2c2e]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.28)] p-2.5 flex flex-col gap-1.5 animate-fadeIn pointer-events-auto select-none"
-              >
-                <div className="flex items-center justify-between px-1 pb-1">
-                  <span className="text-[12px] font-bold text-slate-700 dark:text-slate-300 truncate">
-                    Filtrar {tableColumns.find(c => c.key === activeFilterColKey)?.label || activeFilterColKey}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveFilterColKey(null)}
-                    className="w-6 h-6 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer active:bg-black/5 dark:active:bg-white/10"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-
-                {/* Input de filtro anti-zoom iOS */}
-                <div className="relative h-9 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/10 dark:border-white/10 overflow-hidden flex items-center">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none z-10" />
-                  <div className="w-full h-full flex items-center pl-8 pr-7" style={{ transformOrigin: 'left center' }}>
-                    <input
-                      autoFocus
-                      type="text"
-                      value={columnFilters[activeFilterColKey] || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setColumnFilters(prev => {
-                          if (!val) {
-                            const copy = { ...prev };
-                            delete copy[activeFilterColKey];
-                            return copy;
-                          }
-                          return { ...prev, [activeFilterColKey]: val };
-                        });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === 'Escape') {
-                          setActiveFilterColKey(null);
-                        }
-                      }}
-                      placeholder="Filtrar nesta coluna..."
-                      style={{
-                        fontSize: '16px',
-                        transform: 'scale(0.8125)', // 16px * 0.8125 = 13px visual
-                        transformOrigin: 'left center',
-                        width: '123.07%',
-                      }}
-                      className="h-full bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 outline-none border-none p-0 font-medium"
-                    />
-                  </div>
-                  {Boolean(columnFilters[activeFilterColKey]?.trim()) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setColumnFilters(prev => {
-                          const copy = { ...prev };
-                          delete copy[activeFilterColKey];
-                          return copy;
-                        });
-                      }}
-                      className="absolute right-2 p-1 text-slate-400 hover:text-rose-500 cursor-pointer"
-                      title="Limpar filtro"
-                    >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>,
-              document.body
-            )}
-            
             {results.length > 0 ? (
               <>
                 {processedResults.length > 0 ? (
@@ -1995,53 +1914,107 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1 w-full pr-2.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSort(col.key)}
-                                    className={`flex items-center gap-1.5 min-w-0 flex-1 text-left truncate select-none transition-colors cursor-pointer ${
-                                      hasActiveFilter 
-                                        ? 'text-[#007AFF] dark:text-[#64D2FF]' 
-                                        : 'text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] group-hover/th:text-[#007AFF]'
-                                    }`}
-                                    title={`${col.label} (Clique para ordenar; arraste a borda para redimensionar)`}
-                                  >
-                                    <span className="truncate font-black">{col.label}</span>
-                                    <span className="shrink-0">
-                                      {isSorted ? (
-                                        sortConfig?.direction === 'asc' ? (
-                                          <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-                                        ) : (
-                                          <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
-                                        )
-                                      ) : (
-                                        <ArrowUpDown size={11} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
-                                      )}
-                                    </span>
-                                  </button>
-
-                                  {/* Ícone de Lupa para Filtro por Coluna */}
-                                  <button
-                                    ref={el => { filterTriggerRefs.current[col.key] = el; }}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleFilterPopover(col.key);
-                                    }}
-                                    className={`${isMobile ? 'min-w-[36px] min-h-[36px] w-9 h-9 -mr-1.5' : 'w-7 h-7'} rounded-xl flex items-center justify-center cursor-pointer active:scale-90 transition-all shrink-0 ${
-                                      hasActiveFilter
-                                        ? 'text-[#007AFF] bg-[#007AFF]/15 dark:bg-[#007AFF]/25 font-bold'
-                                        : 'text-slate-400 dark:text-slate-500 hover:text-[#007AFF] dark:hover:text-[#64D2FF] hover:bg-black/5 dark:hover:bg-white/10'
-                                    }`}
-                                    title={`Filtrar por ${col.label}`}
-                                    aria-label={`Filtrar por ${col.label}`}
-                                  >
-                                    <div className="relative flex items-center justify-center">
-                                      <Search size={14} className={hasActiveFilter ? 'fill-[#007AFF] stroke-[2.5]' : 'stroke-[2]'} />
-                                      {hasActiveFilter && (
-                                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
-                                      )}
+                                  {activeFilterColKey === col.key ? (
+                                    <div
+                                      ref={filterPopoverRef}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="relative flex items-center w-full h-7 rounded-lg border border-[#007AFF]/60 bg-white dark:bg-[#1c1c1e] shadow-xs px-2 gap-1.5 normal-case"
+                                    >
+                                      <Search size={12} className="text-[#007AFF] shrink-0" />
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={columnFilters[col.key] || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setColumnFilters(prev => {
+                                            if (!val) {
+                                              const copy = { ...prev };
+                                              delete copy[col.key];
+                                              return copy;
+                                            }
+                                            return { ...prev, [col.key]: val };
+                                          });
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === 'Escape') {
+                                            e.preventDefault();
+                                            setActiveFilterColKey(null);
+                                          }
+                                        }}
+                                        placeholder={`Filtrar ${col.label}...`}
+                                        className="w-full min-w-0 bg-transparent text-[11px] font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none border-none p-0"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (hasActiveFilter) {
+                                            setColumnFilters(prev => {
+                                              const copy = { ...prev };
+                                              delete copy[col.key];
+                                              return copy;
+                                            });
+                                          }
+                                          setActiveFilterColKey(null);
+                                        }}
+                                        className="p-0.5 rounded text-slate-400 hover:text-rose-500 cursor-pointer shrink-0"
+                                        title={hasActiveFilter ? 'Limpar filtro e fechar' : 'Fechar busca'}
+                                      >
+                                        <X size={12} />
+                                      </button>
                                     </div>
-                                  </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSort(col.key)}
+                                        className={`flex items-center gap-1.5 min-w-0 flex-1 text-left truncate select-none transition-colors cursor-pointer ${
+                                          hasActiveFilter 
+                                            ? 'text-[#007AFF] dark:text-[#64D2FF]' 
+                                            : 'text-slate-700 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#64D2FF] group-hover/th:text-[#007AFF]'
+                                        }`}
+                                        title={`${col.label} (Clique para ordenar; arraste a borda para redimensionar)`}
+                                      >
+                                        <span className="truncate font-black">{col.label}</span>
+                                        <span className="shrink-0">
+                                          {isSorted ? (
+                                            sortConfig?.direction === 'asc' ? (
+                                              <ArrowUp size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                            ) : (
+                                              <ArrowDown size={13} className="text-[#007AFF] dark:text-[#64D2FF]" />
+                                            )
+                                          ) : (
+                                            <ArrowUpDown size={11} className="text-slate-400 opacity-0 group-hover/th:opacity-80 transition-opacity" />
+                                          )}
+                                        </span>
+                                      </button>
+
+                                      {/* Ícone de Lupa para Filtro Inline na Coluna */}
+                                      <button
+                                        ref={el => { filterTriggerRefs.current[col.key] = el; }}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveFilterColKey(col.key);
+                                        }}
+                                        className={`${isMobile ? 'min-w-[36px] min-h-[36px] w-9 h-9 -mr-1.5' : 'w-7 h-7'} rounded-xl flex items-center justify-center cursor-pointer active:scale-90 transition-all shrink-0 ${
+                                          hasActiveFilter
+                                            ? 'text-[#007AFF] bg-[#007AFF]/15 dark:bg-[#007AFF]/25 font-bold'
+                                            : 'text-slate-400 dark:text-slate-500 hover:text-[#007AFF] dark:hover:text-[#64D2FF] hover:bg-black/5 dark:hover:bg-white/10'
+                                        }`}
+                                        title={hasActiveFilter ? `Filtro ativo em ${col.label} (clique para editar)` : `Filtrar por ${col.label}`}
+                                        aria-label={`Filtrar por ${col.label}`}
+                                      >
+                                        <div className="relative flex items-center justify-center">
+                                          <Search size={14} className={hasActiveFilter ? 'fill-[#007AFF] stroke-[2.5]' : 'stroke-[2]'} />
+                                          {hasActiveFilter && (
+                                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#007AFF] ring-1 ring-white dark:ring-[#2c2c2e]" />
+                                          )}
+                                        </div>
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                                 
                                 {/* Alça de redimensionamento estilo Excel */}
