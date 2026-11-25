@@ -2258,6 +2258,7 @@ const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
         {activeTab === 'export' && (
           <ExportDashboard
             selectedFeatures={selectedFeatures}
+            activeLayers={activeLayers}
             showToast={showToast}
             onBackToDetails={hasFeature ? () => setActiveTab('details') : undefined}
             preferences={exportPrefs}

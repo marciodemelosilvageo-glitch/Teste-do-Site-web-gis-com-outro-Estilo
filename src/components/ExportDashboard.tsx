@@ -33,6 +33,7 @@ import { useFeatureAccess } from '../context/FeatureAccessContext';
 
 interface ExportDashboardProps {
   selectedFeatures: SelectedFeature[];
+  activeLayers?: string[];
   showToast: (msg: string) => void;
   onBackToDetails?: () => void;
   onClose?: () => void;
@@ -102,6 +103,7 @@ const ALL_FORMAT_CONFIGS: FormatCardConfig[] = [
 
 export const ExportDashboard: React.FC<ExportDashboardProps> = ({
   selectedFeatures,
+  activeLayers,
   onBackToDetails,
   preferences,
   onUpdatePreferences
@@ -121,10 +123,10 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
     count > 0 ? 'filtered' : 'full_layer'
   );
 
-  // Lista de camadas disponíveis para download completo
+  // Lista de camadas disponíveis para download completo (apenas permitidas e visíveis no mapa)
   const availableLayers = useMemo(() => {
     return dataSources
-      .filter(ds => canViewLayer(ds.name))
+      .filter(ds => canViewLayer(ds.name) && (!activeLayers || activeLayers.includes(ds.name)))
       .map(ds => ({
         name: ds.name,
         url: ds.url,
@@ -133,11 +135,11 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
                       ds.name === 'Favelas e Comunidades' ? 'Favelas e Comunidades Urbanas' :
                       ds.name
       }));
-  }, [canViewLayer]);
+  }, [canViewLayer, activeLayers]);
 
   // Camada selecionada para exportação completa
   const [selectedLayerName, setSelectedLayerName] = useState<string>(
-    availableLayers[0]?.name || dataSources[0]?.name || 'Municipios'
+    availableLayers[0]?.name || ''
   );
 
   // Estado de carregamento e erro inline (sem toasts)
@@ -151,7 +153,7 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
 
   // Detecção do tipo de geometria da camada completa selecionada
   const fullLayerGeometryKind = useMemo(() => {
-    return LAYER_GEOMETRY_KINDS[currentLayer.name] || 'polygon';
+    return currentLayer ? (LAYER_GEOMETRY_KINDS[currentLayer.name] || 'polygon') : 'polygon';
   }, [currentLayer]);
 
   // Formatos visíveis para a seleção filtrada (CSV apenas se for ponto)
@@ -597,39 +599,47 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
             </div>
 
             {/* Seletor de Camada */}
-            <div className="space-y-1">
-              <label htmlFor="layer-select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                Escolha a Camada para Download
-              </label>
-              <div className="relative">
-                <select
-                  id="layer-select"
-                  value={selectedLayerName}
-                  onChange={(e) => setSelectedLayerName(e.target.value)}
-                  className="w-full py-2.5 pl-3 pr-8 rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none"
-                >
-                  {availableLayers.map(l => (
-                    <option key={l.name} value={l.name}>
-                      {l.friendlyName}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  ▼
+            {availableLayers.length === 0 ? (
+              <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2">
+                Nenhuma camada visível no mapa no momento. Ative uma camada para exportar.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                <label htmlFor="layer-select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                  Escolha a Camada para Download
+                </label>
+                <div className="relative">
+                  <select
+                    id="layer-select"
+                    value={currentLayer?.name || ''}
+                    onChange={(e) => setSelectedLayerName(e.target.value)}
+                    className="w-full py-2.5 pl-3 pr-8 rounded-xl bg-white dark:bg-[#2c2c2e] border border-black/10 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none"
+                  >
+                    {availableLayers.map(l => (
+                      <option key={l.name} value={l.name}>
+                        {l.friendlyName}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    ▼
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Título da Seção */}
-          <div className="px-1 pt-1 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Formatos de Download da Camada
-            </span>
-            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
-              {currentLayer.friendlyName}
-            </span>
-          </div>
+          {currentLayer && (
+            <>
+              {/* Título da Seção */}
+              <div className="px-1 pt-1 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Formatos de Download da Camada
+                </span>
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                  {currentLayer.friendlyName}
+                </span>
+              </div>
 
           {/* Grade Vertical de Formatos da Camada Completa */}
           <div className="space-y-2">
@@ -678,6 +688,8 @@ export const ExportDashboard: React.FC<ExportDashboardProps> = ({
               );
             })}
           </div>
+            </>
+          )}
 
           {/* Dica de Filtro */}
           <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 flex items-start gap-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
