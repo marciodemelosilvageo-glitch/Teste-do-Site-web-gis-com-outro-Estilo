@@ -93,8 +93,10 @@ export async function getDuckDB(): Promise<duckdb.AsyncDuckDB> {
         `);
       } catch (viewErr) {
         console.error("Erro ao criar view enderecos:", viewErr);
+        await db.terminate().catch(() => {});
+        throw viewErr;
       } finally {
-        await conn.close();
+        await conn.close().catch(() => {});
       }
 
       dbInstance = db;

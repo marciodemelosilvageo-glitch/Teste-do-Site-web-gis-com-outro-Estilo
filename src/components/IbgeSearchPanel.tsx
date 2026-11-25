@@ -770,6 +770,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       }
     } catch (err) {
       console.error("Erro ao carregar municípios do DuckDB:", err);
+      setHasRequestedMunicipios(false);
+      setErrorMsg("Erro ao conectar com a base de endereços. Tente novamente.");
     } finally {
       setIsLoadingMunicipios(false);
     }
