@@ -3230,7 +3230,7 @@ export const saveRoleCapability = async (
   role: BaseRoleKey,
   capKey: string,
   setting: RoleCapabilityEntry,
-  options?: { canManageRoles?: boolean }
+  options?: { canManageRoles?: boolean; isMaster?: boolean }
 ): Promise<{ success: boolean; error?: string }> => {
   if (typeof window === 'undefined') return { success: true };
   if (isAdminCapability(capKey) && role !== 'manager') {
@@ -3245,25 +3245,27 @@ export const saveRoleCapability = async (
     if (authData?.session?.user) {
       const cleanRoleId = role.replace(/^role:/, '');
 
-      // 1.1 Garante defensivamente a existência da chave em auth_capabilities para nunca violar FK
-      try {
-        await supabase.from('auth_capabilities').upsert({
-          key: capKey,
-          category: capKey.startsWith('layer:') ? 'camadas' : capKey.startsWith('data:') ? 'dados' : capKey.startsWith('account:') ? 'conta' : 'ferramentas',
-          name: capKey,
-          description: 'Capacidade cadastrada pelo sistema',
-          risk_level: 'low'
-        }, { onConflict: 'key' });
-      } catch { }
+      // Apenas o Master tem permissão de escrita em auth_capabilities e base_roles;
+      // para Gerentes, pular esses upserts evita 403 Forbidden no console.
+      if (options?.isMaster) {
+        try {
+          await supabase.from('auth_capabilities').upsert({
+            key: capKey,
+            category: capKey.startsWith('layer:') ? 'camadas' : capKey.startsWith('data:') ? 'dados' : capKey.startsWith('account:') ? 'conta' : 'ferramentas',
+            name: capKey,
+            description: 'Capacidade cadastrada pelo sistema',
+            risk_level: 'low'
+          }, { onConflict: 'key' });
+        } catch { }
 
-      // 1.2 Garante defensivamente a existência do perfil base em base_roles para nunca violar FK
-      try {
-        await supabase.from('base_roles').upsert({
-          id: cleanRoleId,
-          name: cleanRoleId === 'visitor' ? 'Visitante Anônimo' : cleanRoleId === 'site_account' ? 'Conta do Site' : cleanRoleId === 'user' ? 'Usuário Credenciado' : cleanRoleId === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente de Equipe',
-          is_system: true
-        }, { onConflict: 'id' });
-      } catch { }
+        try {
+          await supabase.from('base_roles').upsert({
+            id: cleanRoleId,
+            name: cleanRoleId === 'visitor' ? 'Visitante Anônimo' : cleanRoleId === 'site_account' ? 'Conta do Site' : cleanRoleId === 'user' ? 'Usuário Credenciado' : cleanRoleId === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente de Equipe',
+            is_system: true
+          }, { onConflict: 'id' });
+        } catch { }
+      }
 
       // 1.3 Upsert pontual da capacidade do perfil base
       const { error } = await supabase.from('role_capabilities').upsert({

@@ -200,7 +200,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     };
 
     setMatrix(nextMatrix);
-    const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles: canEditTargetRole });
+    const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles: canEditTargetRole, isMaster });
     if (!saveRes.success) {
       setMatrix(matrix);
       showToast?.(`⚠️ ${saveRes.error || 'Não foi possível salvar a alteração no servidor.'}`);
