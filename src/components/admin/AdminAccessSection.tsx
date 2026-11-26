@@ -10,7 +10,7 @@ import {
   Briefcase,
   Globe,
   History,
-  Lock,
+  Info,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -35,7 +35,6 @@ import {
   StatusDot,
   Toggle,
   SearchField,
-  Banner,
   SegmentedControl
 } from './ui';
 
@@ -81,6 +80,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   // Estados de Filtro e Busca
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<CapabilityGroup | 'TODOS'>('TODOS');
+  const [showProfileGuide, setShowProfileGuide] = useState(true);
 
   // Grupos expandidos/recolhidos
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -219,24 +219,63 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               <span>Trilha de Alterações</span>
             </button>
           )}
-
-          {isMaster && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.08] text-slate-900 dark:text-slate-100 text-xs font-medium shadow-xs">
-              <Lock className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
-              <span>Master: Total & Intocável</span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Banner Neutro de Blindagem do Master (Apenas para Master) */}
-      {isMaster && (
-        <Banner
-          icon={Lock}
-          title="Blindagem do Administrador Master"
-          message="O Master possui acesso irrestrito a todas as camadas, ferramentas e configurações. Por regra estrita no banco de dados e gatilhos SQL, nenhuma conta pode alterar, bloquear ou rebaixar o Master."
-        />
-      )}
+      {/* Guia Rápido Recolhível dos Perfis */}
+      <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowProfileGuide(prev => !prev)}
+          className="w-full px-4 py-3 flex items-center justify-between gap-2 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Info className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF] shrink-0" strokeWidth={1.6} />
+            <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+              Como funcionam os perfis e permissões
+            </span>
+          </div>
+          {showProfileGuide ? (
+            <ChevronDown className="w-4 h-4 text-[#8E8E93] shrink-0" strokeWidth={1.6} />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-[#8E8E93] shrink-0" strokeWidth={1.6} />
+          )}
+        </button>
+
+        {showProfileGuide && (
+          <div className="px-4 pb-3.5 pt-1 border-t border-black/[0.05] dark:border-white/[0.06] space-y-2.5 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1.5">
+              <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Visitante</div>
+                <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
+                  Entra sem senha nem conta, apenas navega e usa o site.
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Conta do Site</div>
+                <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
+                  Pessoa que criou a própria conta pelo formulário público do site.
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Usuário</div>
+                <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
+                  Login criado pela gestão diretamente no painel administrativo.
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Gerente</div>
+                <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
+                  Gestor de equipe. <strong>Uso</strong> = pode usar o poder; <strong>Repasse</strong> = pode passar esse poder adiante.
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D]">
+              Estes são os poderes padrão de cada perfil. Você pode ajustar exceções individuais a qualquer momento abrindo a ficha de cada usuário.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Busca em Cápsula e Categorias */}
       <div className="space-y-3">
@@ -284,29 +323,33 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
         </div>
       </div>
 
-      {/* MATRIZ DE PODERES: Tabela Responsiva Apple */}
-      <div className="overflow-x-auto rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs">
+      {/* MATRIZ DE PODERES: Tabela Responsiva Apple com Cabeçalho Congelado */}
+      <div className="overflow-x-auto md:overflow-x-visible rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs">
         <table className="w-full text-left border-collapse min-w-[760px]">
-          {/* Cabeçalho da Matriz */}
+          {/* Cabeçalho da Matriz (Sticky no topo durante rolagem vertical) */}
           <thead>
-            <tr className="border-b border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02]">
-              <th className="p-4 text-xs font-medium text-[#6C6C70] dark:text-[#98989D] uppercase tracking-wider w-[280px]">
-                Poder / Capacidade
+            <tr>
+              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] md:rounded-tl-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-xs font-medium text-[#6C6C70] dark:text-[#98989D] uppercase tracking-wider w-[280px] align-bottom">
+                <div>Poder / Capacidade</div>
+                <div className="text-[11px] normal-case tracking-normal font-normal text-[#8E8E93] mt-0.5">
+                  Padrão aplicado por perfil
+                </div>
               </th>
 
               {/* Coluna 1: Visitante */}
-              <th className="p-4 text-center w-[120px]">
-                <div className="space-y-1.5 flex flex-col items-center">
+              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
+                <div className="space-y-1 flex flex-col items-center">
                   <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                     <Globe className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Visitante</span>
                   </div>
+                  <span className="text-[10px] font-normal text-[#8E8E93]">Sem login</span>
                   {onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('visitor')}
                       className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                      title="Simular visualização como Visitante anônimo"
+                      title="Simular visualização como Visitante"
                     >
                       <Eye className="w-3 h-3" strokeWidth={1.6} />
                       <span>Ver como</span>
@@ -316,12 +359,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 2: Conta do Site */}
-              <th className="p-4 text-center w-[130px]">
-                <div className="space-y-1.5 flex flex-col items-center">
+              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[135px] align-bottom">
+                <div className="space-y-1 flex flex-col items-center">
                   <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                     <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Conta Site</span>
                   </div>
+                  <span className="text-[10px] font-normal text-[#8E8E93]">Autocadastro</span>
                   {onSimulateRole && (
                     <button
                       type="button"
@@ -337,18 +381,19 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 3: Usuário */}
-              <th className="p-4 text-center w-[120px]">
-                <div className="space-y-1.5 flex flex-col items-center">
+              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
+                <div className="space-y-1 flex flex-col items-center">
                   <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                     <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Usuário</span>
                   </div>
+                  <span className="text-[10px] font-normal text-[#8E8E93]">Criado no painel</span>
                   {onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('user')}
                       className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                      title="Simular visualização como Usuário comum"
+                      title="Simular visualização como Usuário"
                     >
                       <Eye className="w-3 h-3" strokeWidth={1.6} />
                       <span>Ver como</span>
@@ -358,12 +403,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 4: Gerente */}
-              <th className="p-4 text-center w-[170px] bg-black/[0.015] dark:bg-white/[0.02]">
-                <div className="space-y-1.5 flex flex-col items-center">
+              <th className="sticky top-0 z-20 bg-[#F4F4F6] dark:bg-[#2A2A2D] md:rounded-tr-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[170px] align-bottom">
+                <div className="space-y-1 flex flex-col items-center">
                   <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                     <Briefcase className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
                     <span>Gerente</span>
                   </div>
+                  <span className="text-[10px] font-normal text-[#8E8E93]">Gestor de equipe</span>
                   <div className="flex items-center gap-2">
                     {onSimulateRole && (
                       <button
@@ -388,9 +434,9 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                     )}
                   </div>
                   <div className="text-xs text-[#8E8E93] flex items-center gap-2 font-medium">
-                    <span>Uso</span>
+                    <span title="Pode usar este poder">Uso</span>
                     <span>•</span>
-                    <span>Repasse</span>
+                    <span title="Pode repassar este poder">Repasse</span>
                   </div>
                 </div>
               </th>
