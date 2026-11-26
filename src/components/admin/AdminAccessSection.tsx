@@ -66,15 +66,16 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   showToast
 }) => {
   const { can, canGrant } = useAccess();
-  const canEditVisitor = isMaster || can('admin:roles:manage_visitor') || can('admin:roles:manage');
-  const canEditSiteAccount = isMaster || can('admin:roles:manage_site_account') || can('admin:roles:manage');
-  const canEditUser = isMaster || can('admin:roles:manage_user') || can('admin:roles:manage');
-  const canManageRoles = isMaster || canEditVisitor || canEditSiteAccount || canEditUser;
+  const canEditVisitor = isMaster || can('admin:roles:manage_visitor');
+  const canEditSiteAccount = isMaster || can('admin:roles:manage_site_account');
+  const canEditUser = isMaster || can('admin:roles:manage_user');
+  const canEditManagerUser = isMaster || can('admin:users:create') || canEditUser;
+  const canManageRoles = isMaster || canEditVisitor || canEditSiteAccount || canEditUser || canEditManagerUser;
   const canPromoteManager = isMaster || can('admin:users:promote_manager');
   const canSimulateProfile = isMaster || can('admin:simulate:profile');
   const totalColumns = isMaster
     ? 6
-    : 1 + (canEditVisitor ? 1 : 0) + (canEditSiteAccount ? 1 : 0) + (canEditUser ? 2 : 0) + (canPromoteManager ? 1 : 0);
+    : 1 + (canEditVisitor ? 1 : 0) + (canEditSiteAccount ? 1 : 0) + (canEditUser ? 1 : 0) + (canEditManagerUser ? 1 : 0) + (canPromoteManager ? 1 : 0);
 
   // Catálogo completo de capacidades
   const catalog = useMemo(() => {
@@ -160,7 +161,8 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
       isMaster ||
       (role === 'visitor' && canEditVisitor) ||
       (role === 'site_account' && canEditSiteAccount) ||
-      ((role === 'user' || role === 'manager_user') && canEditUser);
+      (role === 'user' && canEditUser) ||
+      (role === 'manager_user' && canEditManagerUser);
 
     if (!isMaster) {
       if (!canEditTargetRole) {
@@ -219,7 +221,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     });
 
     showToast?.(`Perfil ${role.toUpperCase()}: ${field === 'can_use' ? 'Uso' : 'Repasse'} ${nextVal ? 'ativado' : 'desativado'}.`);
-  }, [matrix, isMaster, canEditVisitor, canEditSiteAccount, canEditUser, canGrant, showToast]);
+  }, [matrix, isMaster, canEditVisitor, canEditSiteAccount, canEditUser, canEditManagerUser, canGrant, showToast]);
 
   // Handler para alterar o escopo padrão de gerentes
   const handleToggleScope = useCallback(async (newScope: 'team_only' | 'all_users') => {
@@ -444,7 +446,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               )}
 
               {/* Coluna 4: Login gerado por Gerente */}
-              {(isMaster || canEditUser) && (
+              {(isMaster || canEditManagerUser) && (
                 <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[155px] align-bottom">
                   <div className="space-y-1 flex flex-col items-center">
                     <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100 leading-tight">
@@ -635,7 +637,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                             )}
 
                             {/* Coluna Login gerado por Gerente */}
-                            {(isMaster || canEditUser) && (
+                            {(isMaster || canEditManagerUser) && (
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (

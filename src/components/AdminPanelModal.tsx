@@ -138,7 +138,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const canSimulateProfile = isMaster || can('admin:simulate:profile');
   const canManageRoles =
     isMaster ||
-    can('admin:roles:manage') ||
     can('admin:roles:manage_visitor') ||
     can('admin:roles:manage_site_account') ||
     can('admin:roles:manage_user');
