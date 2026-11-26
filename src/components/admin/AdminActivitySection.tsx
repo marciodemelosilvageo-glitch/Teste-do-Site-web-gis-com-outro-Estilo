@@ -19,10 +19,12 @@ import {
 import {
   ActivityLog,
   UserSessionConfig,
+  RegisteredUser,
   CapabilityAuditLog,
   CapabilityAuditAction,
   exportCapabilityAuditLogsToCSV
 } from '../../services/adminService';
+import { filterVisibleActivityLogs } from './AdminOverviewSection';
 import {
   SegmentedControl,
   SearchField,
@@ -32,12 +34,84 @@ import {
 interface AdminActivitySectionProps {
   logs: ActivityLog[];
   capabilityAuditLogs?: CapabilityAuditLog[];
+  registeredUsers?: RegisteredUser[];
   userSessions: Record<string, UserSessionConfig>;
   isMaster: boolean;
   onExportCSV: (logsToExport: ActivityLog[]) => void;
   onExportCapabilityAuditCSV?: (logsToExport: CapabilityAuditLog[]) => void;
   onClearLogs?: () => void;
 }
+
+export const filterVisibleCapabilityAuditLogs = (
+  entries: CapabilityAuditLog[],
+  isMaster: boolean,
+  registeredUsers: RegisteredUser[] = [],
+  userSessions: Record<string, UserSessionConfig> = {}
+): CapabilityAuditLog[] => {
+  if (isMaster) return entries;
+
+  const masterIds = new Set<string>();
+  const masterUsernames = new Set<string>();
+  const teamUsernames = new Set<string>();
+  const teamIds = new Set<string>();
+
+  registeredUsers.forEach((u) => {
+    const r = (u.role || '').toLowerCase();
+    if (r === 'master' || r === 'admin') {
+      if (u.id) masterIds.add(u.id);
+      if (u.username) masterUsernames.add(u.username.toLowerCase());
+    } else {
+      if (u.id) teamIds.add(u.id);
+      if (u.username) teamUsernames.add(u.username.toLowerCase());
+    }
+  });
+
+  Object.values(userSessions).forEach((s) => {
+    const r = ((s.role as string) || '').toLowerCase();
+    if (r === 'master' || r === 'admin') {
+      if (s.authUid) masterIds.add(s.authUid);
+    }
+  });
+
+  return entries
+    .filter((entry) => {
+      const tId = (entry.targetId || '').toLowerCase();
+      if (
+        tId === 'master' ||
+        tId === 'role:master' ||
+        tId === 'admin' ||
+        tId === 'role:admin' ||
+        masterIds.has(entry.targetId) ||
+        masterUsernames.has(tId)
+      ) {
+        return false;
+      }
+
+      const performedByMaster =
+        (entry.performedBy ? masterIds.has(entry.performedBy) : false) ||
+        (entry.performedByName || '').toLowerCase().includes('master');
+
+      if (performedByMaster) {
+        if (entry.targetType !== 'user') return false;
+        if (registeredUsers.length > 0 && !teamIds.has(entry.targetId) && !teamUsernames.has(tId)) {
+          return false;
+        }
+      }
+
+      return true;
+    })
+    .map((entry) => {
+      const performedByMaster =
+        (entry.performedBy ? masterIds.has(entry.performedBy) : false) ||
+        (entry.performedByName || '').toLowerCase().includes('master');
+      if (!performedByMaster) return entry;
+      return {
+        ...entry,
+        performedBy: undefined,
+        performedByName: 'Alteração de permissão'
+      };
+    });
+};
 
 const CAPABILITY_LABELS: Record<string, string> = {
   'tool:cnefe_search': 'Busca CNEFE de Endereços',
@@ -78,6 +152,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
 export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
   logs,
   capabilityAuditLogs = [],
+  registeredUsers = [],
   userSessions,
   isMaster,
   onExportCSV,
@@ -99,41 +174,33 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
   const [auditActionFilter, setAuditActionFilter] = useState<string>('TODOS');
   const [auditPeriodFilter, setAuditPeriodFilter] = useState<'TODOS' | 'HOJE' | '7DIAS' | '30DIAS'>('TODOS');
 
+  const baseVisibleLogs = useMemo(
+    () => filterVisibleActivityLogs(logs, isMaster, registeredUsers, userSessions),
+    [logs, isMaster, registeredUsers, userSessions]
+  );
+
+  const baseVisibleAuditLogs = useMemo(
+    () => filterVisibleCapabilityAuditLogs(capabilityAuditLogs, isMaster, registeredUsers, userSessions),
+    [capabilityAuditLogs, isMaster, registeredUsers, userSessions]
+  );
+
   // Filtragem dos logs de atividade geral
   const filteredLogs = useMemo(() => {
     const now = Date.now();
     const oneDay = 24 * 60 * 60 * 1000;
 
-    return logs.filter(log => {
-      // 1. Ocultar dados do master para gerentes (master é 100% anônimo para gerentes)
-      if (!isMaster) {
-        const lRole = (log.userRole || '').toLowerCase();
-        const lSid = (log.sessionId || '').toLowerCase();
-        const lDet = (log.details || '').toLowerCase();
-        const lAct = (log.action || '').toLowerCase();
-        if (
-          lRole === 'master' ||
-          lRole === 'admin' ||
-          lSid.includes('master') ||
-          lSid.includes('admin') ||
-          lAct.includes('master') ||
-          lDet.includes('master')
-        ) {
-          return false;
-        }
-      }
-
-      // 2. Filtro de Categoria
+    return baseVisibleLogs.filter(log => {
+      // 1. Filtro de Categoria
       if (categoryFilter !== 'TODOS' && log.category !== categoryFilter) {
         return false;
       }
 
-      // 3. Filtro de Usuário
+      // 2. Filtro de Usuário
       if (userFilter !== 'TODOS' && log.sessionId !== userFilter) {
         return false;
       }
 
-      // 4. Filtro de Período
+      // 3. Filtro de Período
       if (periodFilter !== 'TODOS') {
         const logTime = new Date(log.timestamp).getTime();
         if (isNaN(logTime)) return true;
@@ -143,7 +210,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
         if (periodFilter === '30DIAS' && diff > 30 * oneDay) return false;
       }
 
-      // 5. Filtro de Busca
+      // 4. Filtro de Busca
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
         const matchAct = (log.action || '').toLowerCase().includes(term);
@@ -154,35 +221,25 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
 
       return true;
     });
-  }, [logs, isMaster, categoryFilter, userFilter, periodFilter, searchTerm]);
+  }, [baseVisibleLogs, categoryFilter, userFilter, periodFilter, searchTerm]);
 
   // Filtragem da Trilha de Mudança de Poderes
   const filteredCapabilityAudit = useMemo(() => {
     const now = Date.now();
     const oneDay = 24 * 60 * 60 * 1000;
 
-    return capabilityAuditLogs.filter(entry => {
-      // 1. Ocultar registros do Master para gerentes (Master é imutável e anônimo para terceiros)
-      if (!isMaster) {
-        const performed = (entry.performedByName || '').toLowerCase();
-        const tId = (entry.targetId || '').toLowerCase();
-        if (performed.includes('master') && !performed.includes('gerente')) {
-          // Permite ver se o alvo for o próprio gerente ou equipe dele, mas oculta se o alvo for outro master
-          if (tId === 'master' || tId === 'role:master') return false;
-        }
-      }
-
-      // 2. Filtro por tipo de alvo
+    return baseVisibleAuditLogs.filter(entry => {
+      // 1. Filtro por tipo de alvo
       if (auditTargetFilter !== 'TODOS' && entry.targetType !== auditTargetFilter) {
         return false;
       }
 
-      // 3. Filtro por ação
+      // 2. Filtro por ação
       if (auditActionFilter !== 'TODOS' && entry.action !== auditActionFilter) {
         return false;
       }
 
-      // 4. Filtro de Período
+      // 3. Filtro de Período
       if (auditPeriodFilter !== 'TODOS') {
         const entryTime = new Date(entry.timestamp).getTime();
         if (isNaN(entryTime)) return true;
@@ -192,7 +249,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
         if (auditPeriodFilter === '30DIAS' && diff > 30 * oneDay) return false;
       }
 
-      // 5. Filtro de Busca
+      // 4. Filtro de Busca
       if (auditSearchTerm.trim()) {
         const term = auditSearchTerm.toLowerCase();
         const capLabel = (CAPABILITY_LABELS[entry.capabilityKey] || '').toLowerCase();
@@ -213,7 +270,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
 
       return true;
     });
-  }, [capabilityAuditLogs, isMaster, auditTargetFilter, auditActionFilter, auditPeriodFilter, auditSearchTerm]);
+  }, [baseVisibleAuditLogs, auditTargetFilter, auditActionFilter, auditPeriodFilter, auditSearchTerm]);
 
   const renderCategoryBadge = (cat: string) => {
     return <Badge>{cat}</Badge>;
@@ -300,13 +357,13 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
             {
               id: 'activity',
               label: 'Atividades Gerais',
-              count: logs.length,
+              count: baseVisibleLogs.length,
               icon: Activity
             },
             {
               id: 'capability_audit',
               label: 'Trilha de Poderes',
-              count: capabilityAuditLogs.length,
+              count: baseVisibleAuditLogs.length,
               icon: ShieldCheck
             }
           ]}
@@ -319,7 +376,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-black/[0.08] dark:border-white/[0.08]">
             <div>
               <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white">
-                Registros de Atividade ({filteredLogs.length} de {logs.length})
+                Registros de Atividade ({filteredLogs.length} de {baseVisibleLogs.length})
               </h2>
               <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
                 Histórico completo de acessos, eventos espaciais e operações no WebGIS.
@@ -432,7 +489,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
                         {renderCategoryBadge(log.category)}
                         {log.actorId && (
                           <Badge variant="neutral">
-                            {userConf?.isAnonymous ? 'Visitante' : log.userRole === 'master' ? 'Master' : log.userRole === 'manager' ? 'Gerente' : 'Conta'}
+                            {userConf?.isAnonymous ? 'Visitante' : isMaster && log.userRole === 'master' ? 'Master' : log.userRole === 'manager' ? 'Gerente' : 'Conta'}
                           </Badge>
                         )}
                       </div>
@@ -461,7 +518,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
               <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Auditoria de Mudança de Poderes</span>
                 <span className="text-xs font-normal text-[#6C6C70] dark:text-[#98989D]">
-                  ({filteredCapabilityAudit.length} de {capabilityAuditLogs.length})
+                  ({filteredCapabilityAudit.length} de {baseVisibleAuditLogs.length})
                 </span>
               </h2>
               <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
@@ -620,7 +677,16 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
                           </span>
                         </div>
                         <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">
-                          Operação executada por: <strong className="text-slate-900 dark:text-white font-semibold">{entry.performedByName || 'Sistema'}</strong>
+                          {entry.performedByName && entry.performedByName !== 'Alteração de permissão' ? (
+                            <>
+                              Operação executada por:{' '}
+                              <strong className="text-slate-900 dark:text-white font-semibold">
+                                {entry.performedByName}
+                              </strong>
+                            </>
+                          ) : (
+                            <span>Alteração de permissão</span>
+                          )}
                         </div>
                       </div>
 

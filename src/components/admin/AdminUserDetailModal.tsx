@@ -131,7 +131,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   const handleSetOverride = useCallback(async (capKey: string, overrideType: OverrideSetting) => {
     if (!user) return;
     if (!isMaster && !canGrant(capKey)) {
-      showToast?.('⚠️ Você não possui permissão delegada pelo Master para alterar este poder.');
+      showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
     }
 
@@ -168,7 +168,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   const handleToggleCanGrant = useCallback(async (capKey: string) => {
     if (!user) return;
     if (!isMaster) {
-      showToast?.('⚠️ Apenas o Administrador Master pode autorizar repasse de poderes para gerentes.');
+      showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
     }
 
@@ -207,7 +207,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   const handleScopeChange = useCallback(async (scopeType: 'team_only' | 'all_users') => {
     if (!user) return;
     if (!isMaster) {
-      showToast?.('⚠️ Apenas o Administrador Master pode alterar o alcance de gerentes.');
+      showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
     }
 
@@ -250,7 +250,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                 <h3 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate">
                   {user.name}
                 </h3>
-                {isUserMaster ? (
+                {isUserMaster && isMaster ? (
                   <Badge icon={Crown} variant="neutral">
                     Master (Intocável)
                   </Badge>
@@ -302,8 +302,8 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs flex-1">
           {activeTab === 'general' ? (
             <>
-              {/* Se for Master: Banner Neutro com Cadeado */}
-              {isUserMaster && (
+              {/* Se for Master: Banner Neutro com Cadeado (Apenas para Master) */}
+              {isUserMaster && isMaster && (
                 <Banner
                   icon={Lock}
                   title="Conta Blindada pelo Banco de Dados"
@@ -435,7 +435,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
           ) : (
             <>
               {/* ABA DE PODERES & EXCEÇÕES INDIVIDUAIS */}
-              {isUserMaster ? (
+              {isUserMaster && isMaster ? (
                 <div className="p-8 text-center space-y-2 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08]">
                   <Crown className="w-10 h-10 text-[#007AFF] dark:text-[#0A84FF] mx-auto" strokeWidth={1.6} />
                   <div className="font-semibold text-slate-900 dark:text-slate-100 text-[15px]">
@@ -513,7 +513,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                             {!isEditableByRequester && !isMaster && (
                               <div className="text-xs text-[#FF9500] dark:text-[#FF9F0A] font-medium flex items-center gap-1 mt-0.5">
                                 <StatusDot status="warning" />
-                                <span>Poder não delegado pelo Master</span>
+                                <span>Poder não liberado para sua conta</span>
                               </div>
                             )}
                           </div>

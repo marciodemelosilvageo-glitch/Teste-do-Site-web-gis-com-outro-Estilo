@@ -131,12 +131,12 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     if (!isMaster) {
       const canManageThis = canGrant(capKey);
       if (!canManageThis) {
-        showToast?.('⚠️ Você não possui permissão concedida pelo Master para repassar ou alterar este poder.');
+        showToast?.('⚠️ Você não tem permissão para esta ação.');
         return;
       }
       // Gerente nunca pode editar o papel de Gerente nem conceder novos poderes administrativos
       if (role === 'manager' && !isMaster) {
-        showToast?.('⚠️ Apenas o Administrador Master pode editar a matriz do papel de Gerente.');
+        showToast?.('⚠️ Você não tem permissão para esta ação.');
         return;
       }
     }
@@ -182,7 +182,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   // Handler para alterar o escopo padrão de gerentes
   const handleToggleScope = useCallback(async (newScope: 'team_only' | 'all_users') => {
     if (!isMaster) {
-      showToast?.('⚠️ Apenas o Administrador Master pode alterar o alcance de gerentes.');
+      showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
     }
     const updated = { ...managerScope, scope_type: newScope };
@@ -229,12 +229,14 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
         </div>
       </div>
 
-      {/* Banner Neutro de Blindagem do Master (Sem gradientes índigo/roxo) */}
-      <Banner
-        icon={Lock}
-        title="Blindagem do Administrador Master"
-        message="O Master possui acesso irrestrito a todas as camadas, ferramentas e configurações. Por regra estrita no banco de dados e gatilhos SQL, nenhuma conta pode alterar, bloquear ou rebaixar o Master."
-      />
+      {/* Banner Neutro de Blindagem do Master (Apenas para Master) */}
+      {isMaster && (
+        <Banner
+          icon={Lock}
+          title="Blindagem do Administrador Master"
+          message="O Master possui acesso irrestrito a todas as camadas, ferramentas e configurações. Por regra estrita no banco de dados e gatilhos SQL, nenhuma conta pode alterar, bloquear ou rebaixar o Master."
+        />
+      )}
 
       {/* Busca em Cápsula e Categorias */}
       <div className="space-y-3">
@@ -465,7 +467,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               </div>
                               {!isEditableByRequester && !isMaster && (
                                 <span className="inline-block text-xs font-medium text-[#FF9500] dark:text-[#FF9F0A] mt-0.5">
-                                  ⚠️ Repasse não delegado pelo Master
+                                  ⚠️ Repasse não liberado
                                 </span>
                               )}
                             </td>

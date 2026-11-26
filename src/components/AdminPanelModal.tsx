@@ -46,11 +46,11 @@ import { useAccess } from '../context/FeatureAccessContext';
 import { AdminSection } from './admin/types';
 import { AdminSidebar } from './admin/AdminSidebar';
 import { AdminMobileNavigation } from './admin/AdminMobileNavigation';
-import { AdminOverviewSection } from './admin/AdminOverviewSection';
+import { AdminOverviewSection, filterVisibleActivityLogs } from './admin/AdminOverviewSection';
 import { AdminSystemSection } from './admin/AdminSystemSection';
 import { AdminUsersSection } from './admin/AdminUsersSection';
 import { AdminAccessSection } from './admin/AdminAccessSection';
-import { AdminActivitySection } from './admin/AdminActivitySection';
+import { AdminActivitySection, filterVisibleCapabilityAuditLogs } from './admin/AdminActivitySection';
 import { AdminUserFormModal } from './admin/AdminUserFormModal';
 import { AdminUserDetailModal } from './admin/AdminUserDetailModal';
 import { AdminResetPasswordModal, AdminDeleteUserModal } from './admin/AdminUserConfirmModals';
@@ -152,12 +152,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [resetPassUser, setResetPassUser] = useState<RegisteredUser | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<RegisteredUser | null>(null);
 
+  const visibleLogs = useMemo(
+    () => filterVisibleActivityLogs(logs, isMaster, registeredUsers, userSessions),
+    [logs, isMaster, registeredUsers, userSessions]
+  );
+
+  const visibleCapabilityAuditLogs = useMemo(
+    () => filterVisibleCapabilityAuditLogs(capabilityAuditLogs, isMaster, registeredUsers, userSessions),
+    [capabilityAuditLogs, isMaster, registeredUsers, userSessions]
+  );
+
   // Contagem de alertas pendentes (usuários bloqueados ou com troca de senha obrigatória pendente)
   const pendingAlertsCount = useMemo(() => {
-    const blocked = registeredUsers.filter(u => u.isActive === false).length;
-    const pwdPending = registeredUsers.filter(u => u.mustChangePassword === true).length;
+    const visibleUsers = isMaster
+      ? registeredUsers
+      : registeredUsers.filter(u => u.role !== 'master' && (u.role as string) !== 'admin');
+    const blocked = visibleUsers.filter(u => u.isActive === false).length;
+    const pwdPending = visibleUsers.filter(u => u.mustChangePassword === true).length;
     return blocked + pwdPending;
-  }, [registeredUsers]);
+  }, [registeredUsers, isMaster]);
 
   // Sincronização e travamento do scroll ao abrir o modal
   const wasOpenRef = useRef(false);
@@ -222,7 +235,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Handlers de Criação / Edição de Usuário
   const handleOpenCreateUser = useCallback(() => {
     if (!canManagerGenerateLogins) {
-      showToast('⚠️ Apenas o Administrador Master ou gerentes autorizados podem criar novos usuários.');
+      showToast(
+        isMaster
+          ? '⚠️ Apenas o Administrador Master ou gerentes autorizados podem criar novos usuários.'
+          : '⚠️ Você não tem permissão para esta ação.'
+      );
       return;
     }
     setEditingUserId(null);
@@ -246,7 +263,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const handleOpenEditUser = useCallback((user: RegisteredUser) => {
     if (!isMaster) {
-      showToast('⚠️ Apenas o Administrador Master pode editar permissões e cargos de usuários.');
+      showToast('⚠️ Você não tem permissão para esta ação.');
       return;
     }
     setEditingUserId(user.id);
@@ -326,7 +343,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const handleToggleRegisteredUserStatus = async (userId: string) => {
     if (!isMaster) {
-      showToast('⚠️ Apenas o Administrador Master pode ativar ou desativar contas.');
+      showToast('⚠️ Você não tem permissão para esta ação.');
       return;
     }
     const targetUser = registeredUsers.find(u => u.id === userId);
@@ -629,7 +646,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <AdminOverviewSection
             registeredUsers={registeredUsers}
             userSessions={userSessions}
-            logs={logs}
+            logs={visibleLogs}
             isMaster={isMaster}
             isManager={isManager}
             canManagerGenerateLogins={canManagerGenerateLogins}
@@ -639,8 +656,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             }}
             onOpenCreateUser={handleOpenCreateUser}
             onExportLogsCSV={() => {
-              const visible = isMaster ? logs : logs.filter(l => (l.userRole || '').toLowerCase() !== 'master');
-              exportActivityLogsToCSV(visible);
+              exportActivityLogsToCSV(visibleLogs);
             }}
           />
         );
@@ -711,12 +727,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       case 'activity':
         return (
           <AdminActivitySection
-            logs={logs}
-            capabilityAuditLogs={capabilityAuditLogs}
+            logs={visibleLogs}
+            capabilityAuditLogs={visibleCapabilityAuditLogs}
+            registeredUsers={registeredUsers}
             userSessions={userSessions}
             isMaster={isMaster}
-            onExportCSV={(logsToExport) => exportActivityLogsToCSV(logsToExport)}
-            onExportCapabilityAuditCSV={(al) => exportCapabilityAuditLogsToCSV(al)}
+            onExportCSV={(logsToExport) =>
+              exportActivityLogsToCSV(
+                filterVisibleActivityLogs(logsToExport, isMaster, registeredUsers, userSessions)
+              )
+            }
+            onExportCapabilityAuditCSV={(al) =>
+              exportCapabilityAuditLogsToCSV(
+                filterVisibleCapabilityAuditLogs(al, isMaster, registeredUsers, userSessions)
+              )
+            }
             onClearLogs={handleClearLogs}
           />
         );

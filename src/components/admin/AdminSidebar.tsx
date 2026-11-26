@@ -90,7 +90,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             {!isCollapsed && (
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate tracking-tight">
-                  Painel Master
+                  {isMaster ? 'Painel Master' : 'Painel do Gerente'}
                 </h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {isMaster ? (

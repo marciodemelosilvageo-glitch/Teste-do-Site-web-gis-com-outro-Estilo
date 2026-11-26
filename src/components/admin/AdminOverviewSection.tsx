@@ -26,42 +26,109 @@ interface AdminOverviewSectionProps {
   onExportLogsCSV?: () => void;
 }
 
+export const filterVisibleActivityLogs = (
+  logs: ActivityLog[],
+  isMaster: boolean,
+  registeredUsers: RegisteredUser[] = [],
+  userSessions: Record<string, UserSessionConfig> = {}
+): ActivityLog[] => {
+  if (isMaster) return logs;
+
+  const masterIds = new Set<string>();
+  const masterUsernames = new Set<string>();
+
+  registeredUsers.forEach((u) => {
+    const r = (u.role || '').toLowerCase();
+    if (r === 'master' || r === 'admin') {
+      if (u.id) masterIds.add(u.id);
+      if (u.username) masterUsernames.add(u.username.toLowerCase());
+    }
+  });
+
+  Object.values(userSessions).forEach((s) => {
+    const r = ((s.role as string) || '').toLowerCase();
+    if (r === 'master' || r === 'admin') {
+      if (s.authUid) masterIds.add(s.authUid);
+      if (s.sessionId) masterIds.add(s.sessionId);
+    }
+  });
+
+  return logs.filter((log) => {
+    const role = (log.userRole || '').toLowerCase();
+    if (role === 'master' || role === 'admin') return false;
+    if (log.actorId && masterIds.has(log.actorId)) return false;
+    if (log.sessionId && (masterIds.has(log.sessionId) || masterUsernames.has(log.sessionId.toLowerCase()))) return false;
+    return true;
+  });
+};
+
 export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
   registeredUsers,
   userSessions,
   logs,
+  isMaster,
   canManagerGenerateLogins,
   onNavigateToSection,
   onOpenCreateUser,
   onExportLogsCSV
 }) => {
+  const visibleUsers = useMemo(() => {
+    if (isMaster) return registeredUsers;
+    return registeredUsers.filter((u) => {
+      const r = (u.role || '').toLowerCase();
+      return r !== 'master' && r !== 'admin';
+    });
+  }, [registeredUsers, isMaster]);
+
+  const visibleSessionsList = useMemo(() => {
+    const all = Object.values(userSessions);
+    if (isMaster) return all;
+    const masterIds = new Set(
+      registeredUsers
+        .filter((u) => {
+          const r = (u.role || '').toLowerCase();
+          return r === 'master' || r === 'admin';
+        })
+        .map((u) => u.id)
+    );
+    return all.filter((s) => {
+      const r = ((s.role as string) || '').toLowerCase();
+      if (r === 'master' || r === 'admin') return false;
+      if (s.authUid && masterIds.has(s.authUid)) return false;
+      return true;
+    });
+  }, [userSessions, registeredUsers, isMaster]);
+
+  const visibleLogs = useMemo(() => {
+    return filterVisibleActivityLogs(logs, isMaster, registeredUsers, userSessions);
+  }, [logs, isMaster, registeredUsers, userSessions]);
+
   // 1. Usuários ativos agora (telemetria confiável do servidor: isOnline === true ou sinal nos últimos 3 min)
   const activeNowCount = useMemo(() => {
     const threeMinAgo = Date.now() - 3 * 60 * 1000;
-    const activeSessions = Object.values(userSessions).filter(s => {
+    const activeSessions = visibleSessionsList.filter(s => {
       if (s.isOnline !== undefined) return s.isOnline;
       const ts = new Date(s.lastSeen).getTime();
       return !isNaN(ts) && ts >= threeMinAgo;
     });
     return Math.max(1, activeSessions.length);
-  }, [userSessions]);
+  }, [visibleSessionsList]);
 
   // 2. Total de visitas / acessos acumulados
   const totalVisitsCount = useMemo(() => {
-    const sessionList = Object.values(userSessions);
-    const sum = sessionList.reduce((acc, s) => acc + (s.loginCount || 1), 0);
-    return Math.max(sum, sessionList.length, registeredUsers.length);
-  }, [userSessions, registeredUsers]);
+    const sum = visibleSessionsList.reduce((acc, s) => acc + (s.loginCount || 1), 0);
+    return Math.max(sum, visibleSessionsList.length, visibleUsers.length);
+  }, [visibleSessionsList, visibleUsers]);
 
   // 3. Usuários bloqueados
   const blockedUsers = useMemo(() => {
-    return registeredUsers.filter(u => u.isActive === false);
-  }, [registeredUsers]);
+    return visibleUsers.filter(u => u.isActive === false);
+  }, [visibleUsers]);
 
   // 4. Usuários com troca obrigatória de senha pendente
   const pendingPasswordUsers = useMemo(() => {
-    return registeredUsers.filter(u => u.mustChangePassword === true);
-  }, [registeredUsers]);
+    return visibleUsers.filter(u => u.mustChangePassword === true);
+  }, [visibleUsers]);
 
   // 5. Total de alertas
   const totalAlerts = blockedUsers.length + pendingPasswordUsers.length;
@@ -71,29 +138,29 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
     let masters = 0;
     let managers = 0;
     let users = 0;
-    registeredUsers.forEach(u => {
+    visibleUsers.forEach(u => {
       if (u.role === 'master' || (u.role as any) === 'admin') masters++;
       else if (u.role === 'manager') managers++;
       else users++;
     });
     return { masters, managers, users };
-  }, [registeredUsers]);
+  }, [visibleUsers]);
 
   // 7. Últimas 5 atividades
   const recentLogs = useMemo(() => {
-    return logs.slice(0, 5);
-  }, [logs]);
+    return visibleLogs.slice(0, 5);
+  }, [visibleLogs]);
 
   // 8. Lista de sessões com telemetria do servidor (ativas e recentes)
   const telemetrySessions = useMemo(() => {
-    return Object.values(userSessions)
+    return [...visibleSessionsList]
       .sort((a, b) => {
         if (a.isOnline && !b.isOnline) return -1;
         if (!a.isOnline && b.isOnline) return 1;
         return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
       })
       .slice(0, 6);
-  }, [userSessions]);
+  }, [visibleSessionsList]);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -163,7 +230,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
           </div>
           <div className="text-xs text-[#8E8E93] dark:text-[#8E8E93] mt-2 flex items-center gap-1.5 select-none">
             <Smartphone className="w-3.5 h-3.5" strokeWidth={1.6} />
-            <span>{Object.keys(userSessions).length} dispositivos</span>
+            <span>{visibleSessionsList.length} dispositivos</span>
           </div>
         </AdminCard>
 
@@ -174,7 +241,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
             <Activity className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} />
           </div>
           <div className="text-[28px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-none">
-            {logs.length}
+            {visibleLogs.length}
           </div>
           <div className="text-xs text-[#8E8E93] dark:text-[#8E8E93] mt-2 select-none">
             Eventos auditados
@@ -247,13 +314,15 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl text-center border border-black/[0.03] dark:border-white/[0.04]">
-              <div className="text-xs text-[#6C6C70] dark:text-[#98989D] font-medium">Master</div>
-              <div className="text-xl font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                {profileCounts.masters}
+          <div className={`grid ${isMaster ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5`}>
+            {isMaster && (
+              <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl text-center border border-black/[0.03] dark:border-white/[0.04]">
+                <div className="text-xs text-[#6C6C70] dark:text-[#98989D] font-medium">Master</div>
+                <div className="text-xl font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                  {profileCounts.masters}
+                </div>
               </div>
-            </div>
+            )}
             <div className="p-3 bg-black/[0.03] dark:bg-white/[0.04] rounded-xl text-center border border-black/[0.03] dark:border-white/[0.04]">
               <div className="text-xs text-[#6C6C70] dark:text-[#98989D] font-medium">Gerentes</div>
               <div className="text-xl font-semibold text-slate-900 dark:text-slate-100 mt-1">
@@ -270,7 +339,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
 
           <div className="text-xs text-[#6C6C70] dark:text-[#98989D] pt-2 flex items-center justify-between border-t border-black/[0.05] dark:border-white/[0.06] select-none">
             <span>Total de contas cadastradas:</span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100">{registeredUsers.length}</span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">{visibleUsers.length}</span>
           </div>
         </AdminCard>
 
