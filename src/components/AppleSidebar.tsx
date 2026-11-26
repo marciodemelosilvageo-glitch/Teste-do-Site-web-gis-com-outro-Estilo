@@ -2474,10 +2474,12 @@ const AppleSidebarInner: React.FC<AppleSidebarProps> = ({
               isDarkMode={isDarkMode}
               variant="sidebar"
               onDoubleClick={() => {
-                if (can('admin:panel:access') || isMaster) {
+                if (isMaster || (isManager && can('admin:panel:access'))) {
                   onOpenAdminPanel();
                 } else {
-                  guardAction('admin:panel:access', 'abrir o painel administrativo', onOpenAdminPanel);
+                  guardAction('admin:panel:access', 'abrir o painel administrativo', () => {
+                    if (isMaster || isManager) onOpenAdminPanel();
+                  });
                 }
               }}
               title="WebGis SSP-PI • Clique duplo para painel de controle"

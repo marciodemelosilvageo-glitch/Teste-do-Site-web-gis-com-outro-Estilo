@@ -169,6 +169,17 @@ export interface ManagerPermissions {
   canCreateManagerRole?: boolean;      // Se true: pode criar Gerentes além de Usuários Comuns (padrão: false)
   allowChangePasswords?: boolean;      // Permitir trocar senhas de usuários (padrão: false)
   allowViewAllVisitors?: boolean;      // Permitir visualizar monitoramento de todos os visitantes do site (padrão: false)
+  allowBlockUsers?: boolean;
+  allowDeleteUsers?: boolean;
+  allowManageVisitors?: boolean;
+  allowManageSiteAccounts?: boolean;
+  allowManageRolesVisitor?: boolean;
+  allowManageRolesSiteAccount?: boolean;
+  allowManageRolesUser?: boolean;
+  allowViewLogs?: boolean;
+  allowExportLogs?: boolean;
+  allowSimulateProfile?: boolean;
+  scopeType?: 'team_only' | 'all_users';
 }
 
 export interface RegisteredUser {
@@ -3020,6 +3031,8 @@ export interface ManagerScopeConfig {
   can_manage_visitors: boolean;
 }
 
+export const isAdminCapability = (capKey: string): boolean => capKey.startsWith('admin:');
+
 export const getAllCapabilitiesCatalog = (layersList?: string[]): CapabilityItem[] => {
   const dynamicLayers = layersList || ['Municipios', 'Bairros', 'Favelas e Comunidades'];
   const layerItems: CapabilityItem[] = dynamicLayers.map(l => ({
@@ -3075,6 +3088,9 @@ export const getAllCapabilitiesCatalog = (layersList?: string[]): CapabilityItem
     { key: 'admin:users:delete', name: 'Excluir Usuários', group: 'administracao', description: 'Remoção definitiva de contas subordinadas', riskLevel: 'critical' },
     { key: 'admin:users:promote_manager', name: 'Promover a Gerente', group: 'administracao', description: 'Delegação de prerrogativas de gerência de equipe', riskLevel: 'critical' },
     { key: 'admin:roles:manage', name: 'Gerenciar Catálogo e Perfis Base', group: 'administracao', description: 'Edição da matriz de permissões dos papéis base', riskLevel: 'critical' },
+    { key: 'admin:roles:manage_visitor', name: 'Editar Permissões Padrão: Visitante', group: 'administracao', description: 'Permite editar a coluna Visitante na matriz de perfis', riskLevel: 'high' },
+    { key: 'admin:roles:manage_site_account', name: 'Editar Permissões Padrão: Conta do Site', group: 'administracao', description: 'Permite editar a coluna Conta do Site na matriz de perfis', riskLevel: 'high' },
+    { key: 'admin:roles:manage_user', name: 'Editar Permissões Padrão: Usuário', group: 'administracao', description: 'Permite editar as colunas Usuário e Login gerado por Gerente', riskLevel: 'high' },
     { key: 'admin:logs:view', name: 'Visualizar Auditoria', group: 'administracao', description: 'Consulta à trilha de atividades e mudanças de poderes', riskLevel: 'medium' },
     { key: 'admin:logs:export', name: 'Exportar Auditoria (CSV)', group: 'administracao', description: 'Download dos registros históricos do sistema', riskLevel: 'medium' },
     { key: 'admin:simulate:profile', name: 'Simular Visão de Perfil', group: 'administracao', description: 'Testar a aplicação instantaneamente como outro papel', riskLevel: 'low' },
@@ -3163,9 +3179,7 @@ export const buildDefaultRolesMatrix = (layersList?: string[]): RoleCapabilities
 
     const isManagerGrant =
       item.group === 'ferramentas' ||
-      item.group === 'camadas' ||
-      item.key === 'admin:users:create' ||
-      item.key === 'admin:users:reset_password';
+      item.group === 'camadas';
 
     matrix.manager[item.key] = {
       can_use: isManagerUse,
@@ -3219,6 +3233,9 @@ export const saveRoleCapability = async (
   options?: { canManageRoles?: boolean }
 ): Promise<{ success: boolean; error?: string }> => {
   if (typeof window === 'undefined') return { success: true };
+  if (isAdminCapability(capKey) && role !== 'manager') {
+    return { success: false, error: 'Poderes administrativos são exclusivos de Gerentes e Master.' };
+  }
   if (options?.canManageRoles === false) {
     return { success: false, error: 'Você não tem permissão para editar os perfis padrão.' };
   }
@@ -3297,21 +3314,31 @@ export const saveUserOverride = async (
   userId: string,
   capKey: string,
   override: OverrideSetting,
-  canGrant = false
-): Promise<{ success: boolean }> => {
+  canGrant = false,
+  options?: { targetRole?: string }
+): Promise<{ success: boolean; error?: string }> => {
   if (typeof window === 'undefined' || !userId) return { success: true };
+  if (
+    isAdminCapability(capKey) &&
+    override !== 'inherit' &&
+    options?.targetRole &&
+    !['manager', 'master', 'admin'].includes(options.targetRole.toLowerCase())
+  ) {
+    return { success: false, error: 'Poderes administrativos são exclusivos de Gerentes e Master.' };
+  }
   try {
     const current = getUserOverrides(userId);
     try {
       if (override === 'inherit') {
         delete current[capKey];
-        await supabase.from('user_capabilities').delete().match({ user_id: userId, capability_key: capKey });
+        const { error } = await supabase.from('user_capabilities').delete().match({ user_id: userId, capability_key: capKey });
+        if (error) return { success: false, error: error.message };
       } else {
         current[capKey] = {
           override_type: override,
           can_grant: canGrant
         };
-        await supabase.from('user_capabilities').upsert({
+        const { error } = await supabase.from('user_capabilities').upsert({
           user_id: userId,
           capability_key: capKey,
           can_use: override === 'allow',
@@ -3319,27 +3346,28 @@ export const saveUserOverride = async (
           effect: override,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,capability_key' });
+        if (error) return { success: false, error: error.message };
       }
-    } catch {
-      // Ignora silenciosamente antes da aplicação dos scripts SQL no Supabase
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Erro ao sincronizar poder no servidor.' };
     }
     localStorage.setItem(`${STORAGE_KEYS.USER_CAPABILITIES_OVERRIDES}_${userId}`, JSON.stringify(current));
     notifyPermissionsUpdated();
     return { success: true };
-  } catch (err) {
-    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao salvar exceção individual.' };
   }
 };
 
 export const getManagerScope = (managerId: string): ManagerScopeConfig => {
   if (typeof window === 'undefined' || !managerId) {
-    return { scope_type: 'team_only', can_manage_site_accounts: true, can_manage_visitors: false };
+    return { scope_type: 'team_only', can_manage_site_accounts: false, can_manage_visitors: false };
   }
   try {
     const raw = localStorage.getItem(`${STORAGE_KEYS.USER_DELEGATION_SCOPES}_${managerId}`);
     if (raw) return JSON.parse(raw);
   } catch (e) { }
-  return { scope_type: 'team_only', can_manage_site_accounts: true, can_manage_visitors: false };
+  return { scope_type: 'team_only', can_manage_site_accounts: false, can_manage_visitors: false };
 };
 
 export const saveManagerScope = async (

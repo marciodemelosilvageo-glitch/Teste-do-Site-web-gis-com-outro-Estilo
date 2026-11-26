@@ -241,8 +241,8 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             </button>
           )}
 
-          {/* Painel Administrativo (conforme poder admin:panel:access) */}
-          {(can('admin:panel:access') || isMaster) && onOpenAdminPanel && (
+          {/* Painel Administrativo (exclusivo Master ou Gerente com admin:panel:access) */}
+          {(isMaster || (isManager && can('admin:panel:access'))) && onOpenAdminPanel && (
             <button
               type="button"
               onClick={() => {

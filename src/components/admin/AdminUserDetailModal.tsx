@@ -29,7 +29,9 @@ import {
   getManagerScope,
   saveManagerScope,
   ManagerScopeConfig,
-  logCapabilityAudit
+  logCapabilityAudit,
+  isAdminCapability,
+  getBaseRolesMatrix
 } from '../../services/adminService';
 import { useAccess } from '../../context/FeatureAccessContext';
 import { dataSources } from '../../data';
@@ -39,7 +41,8 @@ import {
   SegmentedControl,
   SearchField,
   Banner,
-  AdminCard
+  AdminCard,
+  Toggle
 } from './ui';
 
 interface AdminUserDetailModalProps {
@@ -67,7 +70,8 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   onNavigateToAudit,
   showToast
 }) => {
-  const { canGrant } = useAccess();
+  const { can, canGrant } = useAccess();
+  const canPromoteManager = isMaster || can('admin:users:promote_manager');
 
   const managerScopeConfig = useMemo<ManagerScopeConfig>(() => {
     if (!currentActiveUser?.id) {
@@ -136,9 +140,13 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
     return logs.filter(l => (l.details || '').toLowerCase().includes(myName) || (l.action || '').toLowerCase().includes(myName)).slice(0, 8);
   }, [user, logs]);
 
-  // Capacidades filtradas
+  // Capacidades filtradas (admin:* apenas para contas manager; para Gerente exige promote_manager e canGrant)
   const filteredCapabilities = useMemo(() => {
     return catalog.filter(c => {
+      if (isAdminCapability(c.key)) {
+        if (!isUserManager) return false;
+        if (!isMaster && !canPromoteManager) return false;
+      }
       if (!isMaster && !canGrant(c.key)) return false;
       if (selectedGroup !== 'TODOS' && c.group !== selectedGroup) return false;
       if (permSearch.trim()) {
@@ -147,11 +155,15 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
       }
       return true;
     });
-  }, [catalog, isMaster, canGrant, selectedGroup, permSearch]);
+  }, [catalog, isUserManager, isMaster, canPromoteManager, canGrant, selectedGroup, permSearch]);
 
   // Handler para definir exceção individual (Herdar / Permitir / Negar)
   const handleSetOverride = useCallback(async (capKey: string, overrideType: OverrideSetting) => {
     if (!user) return;
+    if (isAdminCapability(capKey) && !isUserManager && !isUserMaster) {
+      showToast?.('⚠️ Poderes administrativos são exclusivos de Gerentes e Master.');
+      return;
+    }
     if (!isMaster && (!isTargetInScope || !canGrant(capKey))) {
       showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
@@ -160,7 +172,11 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
     const currentEntry = overrides[capKey];
     const canGrantVal = currentEntry?.can_grant === true;
 
-    await saveUserOverride(user.id, capKey, overrideType, canGrantVal);
+    const saveRes = await saveUserOverride(user.id, capKey, overrideType, canGrantVal, { targetRole: user.role });
+    if (!saveRes.success) {
+      showToast?.(`⚠️ ${saveRes.error || 'Não foi possível salvar a alteração.'}`);
+      return;
+    }
 
     const updated = {
       ...overrides,
@@ -184,7 +200,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
     });
 
     showToast?.(`Poder "${capKey}" atualizado para: ${overrideType === 'inherit' ? 'Herdar perfil' : overrideType === 'allow' ? 'Permitido' : 'Negado'}.`);
-  }, [user, isMaster, isTargetInScope, canGrant, overrides, showToast]);
+  }, [user, isUserManager, isUserMaster, isMaster, isTargetInScope, canGrant, overrides, showToast]);
 
   // Handler para alternar permissão de repasse do gerente ("pode repassar")
   const handleToggleCanGrant = useCallback(async (capKey: string) => {
@@ -400,6 +416,85 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                     Alcance atual: <strong className="text-slate-900 dark:text-slate-100 font-semibold">{userScope.scope_type === 'team_only' ? 'Equipe Própria (usuários criados por este gerente)' : 'Global (todos os usuários comuns)'}</strong>.
                   </div>
 
+                  {/* Cartão Poderes do Gerente (exclusivo Master) */}
+                  {isMaster && (() => {
+                    const baseMgrMatrix = getBaseRolesMatrix(dataSources.map(ds => ds.name)).manager || {};
+                    const isMgrCapEnabled = (key: string) => {
+                      const ov = overrides[key];
+                      if (ov && ov.override_type === 'allow') return true;
+                      if (ov && ov.override_type === 'deny') return false;
+                      return baseMgrMatrix[key]?.can_use === true;
+                    };
+                    const toggleMgrCap = (key: string, label: string) => {
+                      const next = !isMgrCapEnabled(key);
+                      handleSetOverride(key, next ? 'allow' : 'deny');
+                      showToast?.(`${label}: ${next ? 'liberado' : 'bloqueado'} para @${user.username}.`);
+                    };
+                    const toggleScopeFlag = async (field: 'can_manage_visitors' | 'can_manage_site_accounts', label: string) => {
+                      const nextVal = !userScope[field];
+                      const updated = { ...userScope, [field]: nextVal };
+                      setUserScope(updated);
+                      await saveManagerScope(user.id, updated);
+                      await logCapabilityAudit({
+                        performedByName: 'Administrador Master',
+                        targetType: 'user',
+                        targetId: user.username,
+                        targetName: user.name,
+                        capabilityKey: field === 'can_manage_visitors' ? 'admin:scope:visitors' : 'admin:scope:site_accounts',
+                        action: nextVal ? 'grant_use' : 'revoke_use',
+                        beforeState: { [field]: userScope[field] },
+                        afterState: { [field]: nextVal },
+                        reason: `${label} ${nextVal ? 'liberado' : 'removido'} para @${user.username}`
+                      });
+                      showToast?.(`${label}: ${nextVal ? 'liberado' : 'removido'}.`);
+                    };
+
+                    return (
+                      <div className="p-4 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] space-y-3">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                          Poderes do Gerente
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Equipe e Contas</div>
+                          <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06] bg-white dark:bg-[#1C1C1E] rounded-xl px-3 border border-black/[0.05] dark:border-white/[0.06]">
+                            <div className="py-2"><Toggle label="Gerar logins" checked={isMgrCapEnabled('admin:users:create')} onChange={() => toggleMgrCap('admin:users:create', 'Gerar logins')} /></div>
+                            <div className="py-2"><Toggle label="Redefinir senhas" checked={isMgrCapEnabled('admin:users:reset_password')} onChange={() => toggleMgrCap('admin:users:reset_password', 'Redefinir senhas')} /></div>
+                            <div className="py-2"><Toggle label="Bloquear contas" checked={isMgrCapEnabled('admin:users:block')} onChange={() => toggleMgrCap('admin:users:block', 'Bloquear contas')} /></div>
+                            <div className="py-2"><Toggle label="Excluir contas" checked={isMgrCapEnabled('admin:users:delete')} onChange={() => toggleMgrCap('admin:users:delete', 'Excluir contas')} /></div>
+                            <div className="py-2"><Toggle label="Promover a gerente" checked={isMgrCapEnabled('admin:users:promote_manager')} onChange={() => toggleMgrCap('admin:users:promote_manager', 'Promover a gerente')} /></div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Alcance de Contas</div>
+                          <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06] bg-white dark:bg-[#1C1C1E] rounded-xl px-3 border border-black/[0.05] dark:border-white/[0.06]">
+                            <div className="py-2"><Toggle label="Gerenciar visitantes" checked={userScope.can_manage_visitors === true} onChange={() => toggleScopeFlag('can_manage_visitors', 'Gerenciar visitantes')} /></div>
+                            <div className="py-2"><Toggle label="Gerenciar contas do site" checked={userScope.can_manage_site_accounts === true} onChange={() => toggleScopeFlag('can_manage_site_accounts', 'Gerenciar contas do site')} /></div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Permissões Padrão</div>
+                          <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06] bg-white dark:bg-[#1C1C1E] rounded-xl px-3 border border-black/[0.05] dark:border-white/[0.06]">
+                            <div className="py-2"><Toggle label="Editar permissões padrão de Visitantes" checked={isMgrCapEnabled('admin:roles:manage_visitor')} onChange={() => toggleMgrCap('admin:roles:manage_visitor', 'Editar padrão de Visitantes')} /></div>
+                            <div className="py-2"><Toggle label="Editar permissões padrão de Contas do Site" checked={isMgrCapEnabled('admin:roles:manage_site_account')} onChange={() => toggleMgrCap('admin:roles:manage_site_account', 'Editar padrão de Contas do Site')} /></div>
+                            <div className="py-2"><Toggle label="Editar permissões padrão de Usuários" checked={isMgrCapEnabled('admin:roles:manage_user')} onChange={() => toggleMgrCap('admin:roles:manage_user', 'Editar padrão de Usuários')} /></div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Auditoria e Simulação</div>
+                          <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06] bg-white dark:bg-[#1C1C1E] rounded-xl px-3 border border-black/[0.05] dark:border-white/[0.06]">
+                            <div className="py-2"><Toggle label="Ver auditoria" checked={isMgrCapEnabled('admin:logs:view')} onChange={() => toggleMgrCap('admin:logs:view', 'Ver auditoria')} /></div>
+                            <div className="py-2"><Toggle label="Exportar auditoria" checked={isMgrCapEnabled('admin:logs:export')} onChange={() => toggleMgrCap('admin:logs:export', 'Exportar auditoria')} /></div>
+                            <div className="py-2"><Toggle label="Simular visão" checked={isMgrCapEnabled('admin:simulate:profile')} onChange={() => toggleMgrCap('admin:simulate:profile', 'Simular visão')} /></div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Lista de Membros da Equipe */}
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
@@ -488,7 +583,13 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                     />
 
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                      {(['TODOS', 'camadas', 'ferramentas', 'dados', 'conta', 'administracao'] as const).map(grp => (
+                      {(['TODOS', 'camadas', 'ferramentas', 'dados', 'conta', 'administracao'] as const)
+                        .filter(grp => {
+                          if (grp !== 'administracao') return true;
+                          if (!isUserManager) return false;
+                          return isMaster || canPromoteManager;
+                        })
+                        .map(grp => (
                         <button
                           key={grp}
                           type="button"

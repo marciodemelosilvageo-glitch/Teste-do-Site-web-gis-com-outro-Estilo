@@ -26,7 +26,8 @@ import {
   logCapabilityAudit,
   getManagerScope,
   saveManagerScope,
-  ManagerScopeConfig
+  ManagerScopeConfig,
+  isAdminCapability
 } from '../../services/adminService';
 import { useAccess } from '../../context/FeatureAccessContext';
 import { dataSources } from '../../data';
@@ -61,8 +62,15 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   showToast
 }) => {
   const { can, canGrant } = useAccess();
-  const canManageRoles = isMaster || can('admin:roles:manage');
+  const canEditVisitor = isMaster || can('admin:roles:manage_visitor') || can('admin:roles:manage');
+  const canEditSiteAccount = isMaster || can('admin:roles:manage_site_account') || can('admin:roles:manage');
+  const canEditUser = isMaster || can('admin:roles:manage_user') || can('admin:roles:manage');
+  const canManageRoles = isMaster || canEditVisitor || canEditSiteAccount || canEditUser;
+  const canPromoteManager = isMaster || can('admin:users:promote_manager');
   const canSimulateProfile = isMaster || can('admin:simulate:profile');
+  const totalColumns = isMaster
+    ? 6
+    : 1 + (canEditVisitor ? 1 : 0) + (canEditSiteAccount ? 1 : 0) + (canEditUser ? 2 : 0) + (canPromoteManager ? 1 : 0);
 
   // Catálogo completo de capacidades
   const catalog = useMemo(() => {
@@ -91,11 +99,14 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
 
-  // Catálogo visível para o papel atual (Gerente vê apenas poderes que pode repassar)
+  // Catálogo visível para o papel atual (Gerente vê apenas poderes que pode repassar; admin:* exige promote_manager)
   const visibleCatalog = useMemo(() => {
     if (isMaster) return catalog;
-    return catalog.filter(item => canGrant(item.key));
-  }, [catalog, isMaster, canGrant]);
+    return catalog.filter(item => {
+      if (isAdminCapability(item.key) && !canPromoteManager) return false;
+      return canGrant(item.key);
+    });
+  }, [catalog, isMaster, canPromoteManager, canGrant]);
 
   // Filtragem dos itens do catálogo
   const filteredCatalog = useMemo(() => {
@@ -135,10 +146,21 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     capKey: string,
     field: 'can_use' | 'can_grant'
   ) => {
-    // Validação estrita para Gerentes: precisa de admin:roles:manage e can_grant na capacidade
+    // Validação estrita: admin:* exclusivo de Gerente/Master; coluna exige permissão correspondente
+    if (isAdminCapability(capKey) && role !== 'manager') {
+      showToast?.('⚠️ Poderes administrativos são exclusivos de Gerentes e Master.');
+      return;
+    }
+
+    const canEditTargetRole =
+      isMaster ||
+      (role === 'visitor' && canEditVisitor) ||
+      (role === 'site_account' && canEditSiteAccount) ||
+      ((role === 'user' || role === 'manager_user') && canEditUser);
+
     if (!isMaster) {
-      if (!canManageRoles) {
-        showToast?.('⚠️ Você não tem permissão para editar os perfis padrão.');
+      if (!canEditTargetRole) {
+        showToast?.('⚠️ Você não tem permissão para editar este perfil padrão.');
         return;
       }
       const canManageThis = canGrant(capKey);
@@ -172,7 +194,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     };
 
     setMatrix(nextMatrix);
-    const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles });
+    const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles: canEditTargetRole });
     if (!saveRes.success) {
       setMatrix(matrix);
       showToast?.(`⚠️ ${saveRes.error || 'Não foi possível salvar a alteração no servidor.'}`);
@@ -193,7 +215,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     });
 
     showToast?.(`Perfil ${role.toUpperCase()}: ${field === 'can_use' ? 'Uso' : 'Repasse'} ${nextVal ? 'ativado' : 'desativado'}.`);
-  }, [matrix, isMaster, canManageRoles, canGrant, showToast]);
+  }, [matrix, isMaster, canEditVisitor, canEditSiteAccount, canEditUser, canGrant, showToast]);
 
   // Handler para alterar o escopo padrão de gerentes
   const handleToggleScope = useCallback(async (newScope: 'team_only' | 'all_users') => {
@@ -346,95 +368,104 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </th>
 
               {/* Coluna 1: Visitante */}
-              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
-                <div className="space-y-1 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    <Globe className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
-                    <span>Visitante</span>
+              {(isMaster || canEditVisitor) && (
+                <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
+                  <div className="space-y-1 flex flex-col items-center">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      <Globe className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
+                      <span>Visitante</span>
+                    </div>
+                    <span className="text-[10px] font-normal text-[#8E8E93]">Sem login</span>
+                    {canSimulateProfile && onSimulateRole && (
+                      <button
+                        type="button"
+                        onClick={() => onSimulateRole('visitor')}
+                        className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                        title="Simular visualização como Visitante"
+                      >
+                        <Eye className="w-3 h-3" strokeWidth={1.6} />
+                        <span>Ver como</span>
+                      </button>
+                    )}
                   </div>
-                  <span className="text-[10px] font-normal text-[#8E8E93]">Sem login</span>
-                  {canSimulateProfile && onSimulateRole && (
-                    <button
-                      type="button"
-                      onClick={() => onSimulateRole('visitor')}
-                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                      title="Simular visualização como Visitante"
-                    >
-                      <Eye className="w-3 h-3" strokeWidth={1.6} />
-                      <span>Ver como</span>
-                    </button>
-                  )}
-                </div>
-              </th>
+                </th>
+              )}
 
               {/* Coluna 2: Conta do Site */}
-              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[135px] align-bottom">
-                <div className="space-y-1 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
-                    <span>Conta Site</span>
+              {(isMaster || canEditSiteAccount) && (
+                <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[135px] align-bottom">
+                  <div className="space-y-1 flex flex-col items-center">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
+                      <span>Conta Site</span>
+                    </div>
+                    <span className="text-[10px] font-normal text-[#8E8E93]">Autocadastro</span>
+                    {canSimulateProfile && onSimulateRole && (
+                      <button
+                        type="button"
+                        onClick={() => onSimulateRole('site_account')}
+                        className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                        title="Simular visualização como Conta do Site"
+                      >
+                        <Eye className="w-3 h-3" strokeWidth={1.6} />
+                        <span>Ver como</span>
+                      </button>
+                    )}
                   </div>
-                  <span className="text-[10px] font-normal text-[#8E8E93]">Autocadastro</span>
-                  {canSimulateProfile && onSimulateRole && (
-                    <button
-                      type="button"
-                      onClick={() => onSimulateRole('site_account')}
-                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                      title="Simular visualização como Conta do Site"
-                    >
-                      <Eye className="w-3 h-3" strokeWidth={1.6} />
-                      <span>Ver como</span>
-                    </button>
-                  )}
-                </div>
-              </th>
+                </th>
+              )}
 
               {/* Coluna 3: Usuário */}
-              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
-                <div className="space-y-1 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
-                    <span>Usuário</span>
+              {(isMaster || canEditUser) && (
+                <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
+                  <div className="space-y-1 flex flex-col items-center">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
+                      <span>Usuário</span>
+                    </div>
+                    <span className="text-[10px] font-normal text-[#8E8E93]">Criado no painel</span>
+                    {canSimulateProfile && onSimulateRole && (
+                      <button
+                        type="button"
+                        onClick={() => onSimulateRole('user')}
+                        className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                        title="Simular visualização como Usuário"
+                      >
+                        <Eye className="w-3 h-3" strokeWidth={1.6} />
+                        <span>Ver como</span>
+                      </button>
+                    )}
                   </div>
-                  <span className="text-[10px] font-normal text-[#8E8E93]">Criado no painel</span>
-                  {canSimulateProfile && onSimulateRole && (
-                    <button
-                      type="button"
-                      onClick={() => onSimulateRole('user')}
-                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                      title="Simular visualização como Usuário"
-                    >
-                      <Eye className="w-3 h-3" strokeWidth={1.6} />
-                      <span>Ver como</span>
-                    </button>
-                  )}
-                </div>
-              </th>
+                </th>
+              )}
 
               {/* Coluna 4: Login gerado por Gerente */}
-              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[155px] align-bottom">
-                <div className="space-y-1 flex flex-col items-center">
-                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100 leading-tight">
-                    <User className="w-3.5 h-3.5 text-[#8E8E93] shrink-0" strokeWidth={1.6} />
-                    <span>Login gerado por Gerente</span>
+              {(isMaster || canEditUser) && (
+                <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[155px] align-bottom">
+                  <div className="space-y-1 flex flex-col items-center">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100 leading-tight">
+                      <User className="w-3.5 h-3.5 text-[#8E8E93] shrink-0" strokeWidth={1.6} />
+                      <span>Login gerado por Gerente</span>
+                    </div>
+                    <span className="text-[10px] font-normal text-[#8E8E93]">Logins que um gerente cria</span>
+                    {canSimulateProfile && onSimulateRole && (
+                      <button
+                        type="button"
+                        onClick={() => onSimulateRole('manager_user')}
+                        className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                        title="Simular visualização como Login gerado por Gerente"
+                      >
+                        <Eye className="w-3 h-3" strokeWidth={1.6} />
+                        <span>Ver como</span>
+                      </button>
+                    )}
                   </div>
-                  <span className="text-[10px] font-normal text-[#8E8E93]">Logins que um gerente cria</span>
-                  {canSimulateProfile && onSimulateRole && (
-                    <button
-                      type="button"
-                      onClick={() => onSimulateRole('manager_user')}
-                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                      title="Simular visualização como Login gerado por Gerente"
-                    >
-                      <Eye className="w-3 h-3" strokeWidth={1.6} />
-                      <span>Ver como</span>
-                    </button>
-                  )}
-                </div>
-              </th>
+                </th>
+              )}
 
-              {/* Coluna 4: Gerente */}
-              <th className="sticky top-0 z-20 bg-[#F4F4F6] dark:bg-[#2A2A2D] md:rounded-tr-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[170px] align-bottom">
+              {/* Coluna 5: Gerente */}
+              {(isMaster || canPromoteManager) && (
+                <th className="sticky top-0 z-20 bg-[#F4F4F6] dark:bg-[#2A2A2D] md:rounded-tr-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[170px] align-bottom">
                 <div className="space-y-1 flex flex-col items-center">
                   <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                     <Briefcase className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
@@ -471,6 +502,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                   </div>
                 </div>
               </th>
+              )}
             </tr>
           </thead>
 
@@ -478,8 +510,10 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.06] text-xs">
             {Object.keys(groupedCatalog).length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-[#8E8E93]">
-                  Nenhum poder encontrado com o termo "{searchTerm}".
+                <td colSpan={totalColumns} className="p-8 text-center text-[#8E8E93]">
+                  {!isMaster && !canManageRoles
+                    ? 'Nenhuma coluna de perfil padrão liberada para edição. Ajuste permissões individuais na ficha de cada usuário.'
+                    : `Nenhum poder encontrado com o termo "${searchTerm}".`}
                 </td>
               </tr>
             ) : (
@@ -496,7 +530,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                       onClick={() => toggleGroupCollapse(groupKey)}
                       className="bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] cursor-pointer transition-colors"
                     >
-                      <td colSpan={6} className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">
+                      <td colSpan={totalColumns} className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {isCollapsed ? <ChevronRight className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} /> : <ChevronDown className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} />}
@@ -546,101 +580,103 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                             </td>
 
                             {/* Coluna Visitante */}
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center">
-                                {canManageRoles ? (
-                                  <Toggle
-                                    checked={visitorEntry.can_use}
-                                    onChange={() => handleToggleCapability('visitor', item.key, 'can_use')}
-                                    disabled={!isEditableByRequester}
-                                  />
-                                ) : (
-                                  <span className={`text-[11px] font-medium ${visitorEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
-                                    {visitorEntry.can_use ? 'Sim' : 'Não'}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+                            {(isMaster || canEditVisitor) && (
+                              <td className="p-4 text-center">
+                                <div className="flex items-center justify-center">
+                                  {isAdminCapability(item.key) ? (
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                  ) : (
+                                    <Toggle
+                                      checked={visitorEntry.can_use}
+                                      onChange={() => handleToggleCapability('visitor', item.key, 'can_use')}
+                                      disabled={!isEditableByRequester}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                            )}
 
                             {/* Coluna Conta do Site */}
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center">
-                                {canManageRoles ? (
-                                  <Toggle
-                                    checked={siteEntry.can_use}
-                                    onChange={() => handleToggleCapability('site_account', item.key, 'can_use')}
-                                    disabled={!isEditableByRequester}
-                                  />
-                                ) : (
-                                  <span className={`text-[11px] font-medium ${siteEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
-                                    {siteEntry.can_use ? 'Sim' : 'Não'}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+                            {(isMaster || canEditSiteAccount) && (
+                              <td className="p-4 text-center">
+                                <div className="flex items-center justify-center">
+                                  {isAdminCapability(item.key) ? (
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                  ) : (
+                                    <Toggle
+                                      checked={siteEntry.can_use}
+                                      onChange={() => handleToggleCapability('site_account', item.key, 'can_use')}
+                                      disabled={!isEditableByRequester}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                            )}
 
                             {/* Coluna Usuário Comum */}
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center">
-                                {canManageRoles ? (
-                                  <Toggle
-                                    checked={userEntry.can_use}
-                                    onChange={() => handleToggleCapability('user', item.key, 'can_use')}
-                                    disabled={!isEditableByRequester}
-                                  />
-                                ) : (
-                                  <span className={`text-[11px] font-medium ${userEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
-                                    {userEntry.can_use ? 'Sim' : 'Não'}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+                            {(isMaster || canEditUser) && (
+                              <td className="p-4 text-center">
+                                <div className="flex items-center justify-center">
+                                  {isAdminCapability(item.key) ? (
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                  ) : (
+                                    <Toggle
+                                      checked={userEntry.can_use}
+                                      onChange={() => handleToggleCapability('user', item.key, 'can_use')}
+                                      disabled={!isEditableByRequester}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                            )}
 
                             {/* Coluna Login gerado por Gerente */}
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center">
-                                {canManageRoles ? (
-                                  <Toggle
-                                    checked={managerUserEntry.can_use}
-                                    onChange={() => handleToggleCapability('manager_user', item.key, 'can_use')}
-                                    disabled={!isEditableByRequester}
-                                  />
-                                ) : (
-                                  <span className={`text-[11px] font-medium ${managerUserEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
-                                    {managerUserEntry.can_use ? 'Sim' : 'Não'}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+                            {(isMaster || canEditUser) && (
+                              <td className="p-4 text-center">
+                                <div className="flex items-center justify-center">
+                                  {isAdminCapability(item.key) ? (
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                  ) : (
+                                    <Toggle
+                                      checked={managerUserEntry.can_use}
+                                      onChange={() => handleToggleCapability('manager_user', item.key, 'can_use')}
+                                      disabled={!isEditableByRequester}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                            )}
 
                             {/* Coluna Gerente: DUAS MARCAS (Pode Usar e Pode Repassar) */}
-                            <td className="p-4 text-center bg-black/[0.015] dark:bg-white/[0.02]">
-                              {isMaster ? (
-                                <div className="flex items-center justify-center gap-3">
-                                  <Toggle
-                                    checked={managerEntry.can_use}
-                                    onChange={() => handleToggleCapability('manager', item.key, 'can_use')}
-                                    disabled={!isMaster}
-                                  />
-                                  <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.08]" />
-                                  <Toggle
-                                    checked={managerEntry.can_grant}
-                                    onChange={() => handleToggleCapability('manager', item.key, 'can_grant')}
-                                    disabled={!isMaster || !managerEntry.can_use}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center gap-3 text-[11px] font-medium">
-                                  <span className={managerEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
-                                    {managerEntry.can_use ? 'Sim' : 'Não'}
-                                  </span>
-                                  <span className="text-[#8E8E93]">•</span>
-                                  <span className={managerEntry.can_grant ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
-                                    {managerEntry.can_grant ? 'Sim' : 'Não'}
-                                  </span>
-                                </div>
-                              )}
-                            </td>
+                            {(isMaster || canPromoteManager) && (
+                              <td className="p-4 text-center bg-black/[0.015] dark:bg-white/[0.02]">
+                                {isMaster ? (
+                                  <div className="flex items-center justify-center gap-3">
+                                    <Toggle
+                                      checked={managerEntry.can_use}
+                                      onChange={() => handleToggleCapability('manager', item.key, 'can_use')}
+                                      disabled={!isMaster}
+                                    />
+                                    <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.08]" />
+                                    <Toggle
+                                      checked={managerEntry.can_grant}
+                                      onChange={() => handleToggleCapability('manager', item.key, 'can_grant')}
+                                      disabled={!isMaster || !managerEntry.can_use}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-3 text-[11px] font-medium">
+                                    <span className={managerEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
+                                      {managerEntry.can_use ? 'Sim' : 'Não'}
+                                    </span>
+                                    <span className="text-[#8E8E93]">•</span>
+                                    <span className={managerEntry.can_grant ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
+                                      {managerEntry.can_grant ? 'Sim' : 'Não'}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

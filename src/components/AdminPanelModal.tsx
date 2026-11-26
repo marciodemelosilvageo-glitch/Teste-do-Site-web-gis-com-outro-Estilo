@@ -40,7 +40,9 @@ import {
   getCapabilityAuditLogsAsync,
   logCapabilityAudit,
   exportCapabilityAuditLogsToCSV,
-  getAllCapabilitiesCatalog
+  getAllCapabilitiesCatalog,
+  saveUserOverride,
+  saveManagerScope
 } from '../services/adminService';
 import { dataSources } from '../data';
 import { useAccess } from '../context/FeatureAccessContext';
@@ -133,7 +135,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const canViewLogs = isMaster || can('admin:logs:view');
   const canExportLogs = isMaster || can('admin:logs:export');
   const canSimulateProfile = isMaster || can('admin:simulate:profile');
-  const canManageRoles = isMaster || can('admin:roles:manage');
+  const canManageRoles =
+    isMaster ||
+    can('admin:roles:manage') ||
+    can('admin:roles:manage_visitor') ||
+    can('admin:roles:manage_site_account') ||
+    can('admin:roles:manage_user');
   const hasAnyGrantCap = useMemo(
     () => getAllCapabilitiesCatalog(dataSources.map(ds => ds.name)).some(c => canGrant(c.key)),
     [canGrant]
@@ -342,6 +349,36 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
       if (result.success) {
         setRegisteredUsers(result.users);
+        if (isMaster && effectiveRole === 'manager') {
+          const savedMgr = result.users.find(
+            u => (editingUserId && u.id === editingUserId) || u.username.toLowerCase() === userFormUsername.trim().toLowerCase()
+          );
+          if (savedMgr?.id) {
+            const capPairs: Array<[string, boolean]> = [
+              ['admin:users:create', userFormManagerPerms.allowGenerateLogins !== false],
+              ['admin:users:reset_password', userFormManagerPerms.allowChangePasswords === true],
+              ['admin:users:block', userFormManagerPerms.allowBlockUsers === true],
+              ['admin:users:delete', userFormManagerPerms.allowDeleteUsers === true],
+              ['admin:users:promote_manager', userFormManagerPerms.canCreateManagerRole === true],
+              ['admin:roles:manage_visitor', userFormManagerPerms.allowManageRolesVisitor === true],
+              ['admin:roles:manage_site_account', userFormManagerPerms.allowManageRolesSiteAccount === true],
+              ['admin:roles:manage_user', userFormManagerPerms.allowManageRolesUser === true],
+              ['admin:logs:view', userFormManagerPerms.allowViewLogs !== false],
+              ['admin:logs:export', userFormManagerPerms.allowExportLogs !== false],
+              ['admin:simulate:profile', userFormManagerPerms.allowSimulateProfile !== false],
+            ];
+            await Promise.all([
+              ...capPairs.map(([key, enabled]) =>
+                saveUserOverride(savedMgr.id, key, enabled ? 'allow' : 'deny', false, { targetRole: 'manager' })
+              ),
+              saveManagerScope(savedMgr.id, {
+                scope_type: userFormManagerPerms.scopeType || 'team_only',
+                can_manage_visitors: userFormManagerPerms.allowManageVisitors === true,
+                can_manage_site_accounts: userFormManagerPerms.allowManageSiteAccounts === true
+              })
+            ]);
+          }
+        }
         logActivity(
           'ADMIN',
           editingUserId

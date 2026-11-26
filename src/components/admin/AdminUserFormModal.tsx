@@ -255,50 +255,155 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
             </div>
           </div>
 
-          {/* Permissões Específicas do Gerente */}
+          {/* Permissões Específicas do Gerente (Poderes do Gerente) */}
           {userFormRole === 'manager' && (
             <div className="p-4 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] space-y-3">
-              <span className="text-xs font-medium uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
-                Permissões Atribuídas ao Gerente
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+                Poderes do Gerente
               </span>
 
-              <div className="space-y-3 divide-y divide-black/[0.04] dark:divide-white/[0.06]">
-                <div className="pt-2">
-                  <Toggle
-                    label="Gerar novos logins de usuários"
-                    checked={userFormManagerPerms.allowGenerateLogins !== false}
-                    onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowGenerateLogins: checked }))}
-                  />
+              <div className="space-y-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Equipe e Contas</div>
+                <div className="space-y-2 divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                  <div className="pt-1.5">
+                    <Toggle
+                      label="Gerar logins"
+                      checked={userFormManagerPerms.allowGenerateLogins !== false}
+                      onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowGenerateLogins: checked }))}
+                    />
+                  </div>
+
+                  {isMaster && (
+                    <>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Redefinir senhas"
+                          checked={userFormManagerPerms.allowChangePasswords === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowChangePasswords: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Bloquear contas"
+                          checked={userFormManagerPerms.allowBlockUsers === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowBlockUsers: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Excluir contas"
+                          checked={userFormManagerPerms.allowDeleteUsers === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowDeleteUsers: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Promover a gerente"
+                          checked={userFormManagerPerms.canCreateManagerRole === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, canCreateManagerRole: checked }))}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
-
-                {isMaster && (
-                  <>
-                    <div className="pt-2">
-                      <Toggle
-                        label="Criar outros Gerentes"
-                        checked={userFormManagerPerms.canCreateManagerRole === true}
-                        onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, canCreateManagerRole: checked }))}
-                      />
-                    </div>
-
-                    <div className="pt-2">
-                      <Toggle
-                        label="Redefinir senhas dos usuários de sua equipe"
-                        checked={userFormManagerPerms.allowChangePasswords === true}
-                        onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowChangePasswords: checked }))}
-                      />
-                    </div>
-
-                    <div className="pt-2">
-                      <Toggle
-                        label="Monitorar todos os visitantes anônimos"
-                        checked={userFormManagerPerms.allowViewAllVisitors === true}
-                        onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowViewAllVisitors: checked }))}
-                      />
-                    </div>
-                  </>
-                )}
               </div>
+
+              {isMaster && (
+                <>
+                  <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Alcance de Contas</div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">Alcance na equipe</span>
+                      <div className="flex items-center gap-1 bg-black/[0.04] dark:bg-white/[0.06] p-0.5 rounded-xl">
+                        {(['team_only', 'all_users'] as const).map(sc => (
+                          <button
+                            key={sc}
+                            type="button"
+                            onClick={() => setUserFormManagerPerms(prev => ({ ...prev, scopeType: sc }))}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium cursor-pointer transition-colors ${
+                              (userFormManagerPerms.scopeType || 'team_only') === sc
+                                ? 'bg-white dark:bg-[#2C2C2E] text-slate-900 dark:text-white shadow-xs'
+                                : 'text-[#6C6C70] dark:text-[#98989D]'
+                            }`}
+                          >
+                            {sc === 'team_only' ? 'Somente equipe' : 'Todos'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2 divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                      <div className="pt-1.5">
+                        <Toggle
+                          label="Gerenciar visitantes"
+                          checked={userFormManagerPerms.allowManageVisitors === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowManageVisitors: checked, allowViewAllVisitors: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Gerenciar contas do site"
+                          checked={userFormManagerPerms.allowManageSiteAccounts === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowManageSiteAccounts: checked }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Permissões Padrão</div>
+                    <div className="space-y-2 divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                      <div className="pt-1.5">
+                        <Toggle
+                          label="Editar permissões padrão de Visitantes"
+                          checked={userFormManagerPerms.allowManageRolesVisitor === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowManageRolesVisitor: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Editar permissões padrão de Contas do Site"
+                          checked={userFormManagerPerms.allowManageRolesSiteAccount === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowManageRolesSiteAccount: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Editar permissões padrão de Usuários"
+                          checked={userFormManagerPerms.allowManageRolesUser === true}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowManageRolesUser: checked }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.06]">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">Auditoria e Simulação</div>
+                    <div className="space-y-2 divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                      <div className="pt-1.5">
+                        <Toggle
+                          label="Ver auditoria"
+                          checked={userFormManagerPerms.allowViewLogs !== false}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowViewLogs: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Exportar auditoria"
+                          checked={userFormManagerPerms.allowExportLogs !== false}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowExportLogs: checked }))}
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <Toggle
+                          label="Simular visão"
+                          checked={userFormManagerPerms.allowSimulateProfile !== false}
+                          onChange={(checked) => setUserFormManagerPerms(prev => ({ ...prev, allowSimulateProfile: checked }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
