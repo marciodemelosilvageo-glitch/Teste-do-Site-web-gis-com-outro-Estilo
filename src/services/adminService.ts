@@ -924,43 +924,63 @@ export const saveRegisteredUser = async (
 
       createdUserId = authDataResult.data.user.id;
 
-      // Grava / atualiza o perfil em public.profiles usando a sessão autenticada do Master atual
-      const profilePayload = {
-        id: createdUserId,
-        username: usernameClean,
-        name: nameClean,
-        role: assignedRole,
-        department: userData.department?.trim() || '',
-        is_active: true,
-        must_change_password: true,
-        manager_permissions: assignedRole === 'manager' ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false }) : null,
-        custom_layer_permissions: userData.customLayerPermissions || null,
-        custom_feature_permissions: userData.customFeaturePermissions || null,
-        custom_address_columns_permissions: userData.customAddressColumnsPermissions || null,
-        custom_feature_properties_permissions: userData.customFeaturePropertiesPermissions || null,
-        has_custom_permissions: !!userData.hasCustomPermissions,
-        created_by: isManager ? `Gerente @${requesterName}` : 'Master',
-        updated_at: new Date().toISOString()
-      };
+      // Grava / atualiza o perfil em public.profiles via RPC segura (evita conflito 403 com handle_new_user)
+      const safeManagerPerms = assignedRole === 'manager'
+        ? (userData.managerPermissions || { allowGenerateLogins: true, canCreateManagerRole: false, allowChangePasswords: false })
+        : null;
 
-      const { error: upsertErr } = await supabase
-        .from('profiles')
-        .upsert(profilePayload);
+      const { error: rpcErr } = await supabase.rpc('admin_finalize_created_profile', {
+        p_user_id: createdUserId,
+        p_username: usernameClean,
+        p_name: nameClean,
+        p_role: assignedRole,
+        p_department: userData.department?.trim() || '',
+        p_manager_permissions: safeManagerPerms,
+        p_has_custom_permissions: !!userData.hasCustomPermissions,
+        p_custom_layer_permissions: userData.customLayerPermissions || null,
+        p_custom_feature_permissions: userData.customFeaturePermissions || null,
+        p_custom_address_columns_permissions: userData.customAddressColumnsPermissions || null,
+        p_custom_feature_properties_permissions: userData.customFeaturePropertiesPermissions || null
+      });
 
-      if (upsertErr) {
-        // Tenta UPDATE caso a linha já tenha sido criada pelo trigger on_auth_user_created
-        const { error: updErr } = await supabase
+      if (rpcErr) {
+        // Fallback direto caso a RPC ainda não tenha sido aplicada no banco
+        const profilePayload = {
+          id: createdUserId,
+          username: usernameClean,
+          name: nameClean,
+          role: assignedRole,
+          department: userData.department?.trim() || '',
+          is_active: true,
+          must_change_password: true,
+          manager_permissions: safeManagerPerms,
+          custom_layer_permissions: userData.customLayerPermissions || null,
+          custom_feature_permissions: userData.customFeaturePermissions || null,
+          custom_address_columns_permissions: userData.customAddressColumnsPermissions || null,
+          custom_feature_properties_permissions: userData.customFeaturePropertiesPermissions || null,
+          has_custom_permissions: !!userData.hasCustomPermissions,
+          created_by: isManager ? requesterName : 'Master',
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: upsertErr } = await supabase
           .from('profiles')
-          .update(profilePayload)
-          .eq('id', createdUserId);
+          .upsert(profilePayload);
 
-        if (updErr) {
-          console.error('Erro ao salvar perfil do usuário criado via fallback:', updErr);
-          return {
-            success: false,
-            users: currentUsers,
-            error: 'Credenciais criadas, mas falha ao configurar perfil e permissões: ' + updErr.message
-          };
+        if (upsertErr) {
+          const { error: updErr } = await supabase
+            .from('profiles')
+            .update(profilePayload)
+            .eq('id', createdUserId);
+
+          if (updErr) {
+            console.error('Erro ao salvar perfil do usuário criado via fallback:', updErr);
+            return {
+              success: false,
+              users: currentUsers,
+              error: 'Credenciais criadas, mas falha ao configurar perfil e permissões: ' + (rpcErr.message || updErr.message)
+            };
+          }
         }
       }
     }
