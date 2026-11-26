@@ -60,7 +60,9 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   onNavigateToAudit,
   showToast
 }) => {
-  const { canGrant } = useAccess();
+  const { can, canGrant } = useAccess();
+  const canManageRoles = isMaster || can('admin:roles:manage');
+  const canSimulateProfile = isMaster || can('admin:simulate:profile');
 
   // Catálogo completo de capacidades
   const catalog = useMemo(() => {
@@ -89,9 +91,15 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
 
+  // Catálogo visível para o papel atual (Gerente vê apenas poderes que pode repassar)
+  const visibleCatalog = useMemo(() => {
+    if (isMaster) return catalog;
+    return catalog.filter(item => canGrant(item.key));
+  }, [catalog, isMaster, canGrant]);
+
   // Filtragem dos itens do catálogo
   const filteredCatalog = useMemo(() => {
-    return catalog.filter(item => {
+    return visibleCatalog.filter(item => {
       if (selectedGroup !== 'TODOS' && item.group !== selectedGroup) {
         return false;
       }
@@ -104,7 +112,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
       }
       return true;
     });
-  }, [catalog, selectedGroup, searchTerm]);
+  }, [visibleCatalog, selectedGroup, searchTerm]);
 
   // Agrupamento dos itens filtrados
   const groupedCatalog = useMemo(() => {
@@ -127,15 +135,18 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     capKey: string,
     field: 'can_use' | 'can_grant'
   ) => {
-    // Validação estrita para Gerentes: o gerente só altera o que o master lhe concedeu can_grant
+    // Validação estrita para Gerentes: precisa de admin:roles:manage e can_grant na capacidade
     if (!isMaster) {
+      if (!canManageRoles) {
+        showToast?.('⚠️ Você não tem permissão para editar os perfis padrão.');
+        return;
+      }
       const canManageThis = canGrant(capKey);
       if (!canManageThis) {
         showToast?.('⚠️ Você não tem permissão para esta ação.');
         return;
       }
-      // Gerente nunca pode editar o papel de Gerente nem conceder novos poderes administrativos
-      if (role === 'manager' && !isMaster) {
+      if (role === 'manager') {
         showToast?.('⚠️ Você não tem permissão para esta ação.');
         return;
       }
@@ -161,7 +172,12 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     };
 
     setMatrix(nextMatrix);
-    await saveRoleCapability(role, capKey, updatedRolePerms[capKey]);
+    const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles });
+    if (!saveRes.success) {
+      setMatrix(matrix);
+      showToast?.(`⚠️ ${saveRes.error || 'Não foi possível salvar a alteração no servidor.'}`);
+      return;
+    }
 
     // Auditoria da Mudança de Poder no Perfil Base
     await logCapabilityAudit({
@@ -177,7 +193,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     });
 
     showToast?.(`Perfil ${role.toUpperCase()}: ${field === 'can_use' ? 'Uso' : 'Repasse'} ${nextVal ? 'ativado' : 'desativado'}.`);
-  }, [matrix, isMaster, canGrant, showToast]);
+  }, [matrix, isMaster, canManageRoles, canGrant, showToast]);
 
   // Handler para alterar o escopo padrão de gerentes
   const handleToggleScope = useCallback(async (newScope: 'team_only' | 'all_users') => {
@@ -302,13 +318,14 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 : 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            Todos ({catalog.length})
+            Todos ({visibleCatalog.length})
           </button>
 
           {(['camadas', 'ferramentas', 'dados', 'conta', 'administracao'] as CapabilityGroup[]).map(grp => {
             const cfg = GROUP_CONFIG[grp];
             const Icon = cfg.icon;
-            const count = catalog.filter(c => c.group === grp).length;
+            const count = visibleCatalog.filter(c => c.group === grp).length;
+            if (!isMaster && count === 0) return null;
 
             return (
               <button
@@ -350,7 +367,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                     <span>Visitante</span>
                   </div>
                   <span className="text-[10px] font-normal text-[#8E8E93]">Sem login</span>
-                  {onSimulateRole && (
+                  {canSimulateProfile && onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('visitor')}
@@ -372,7 +389,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                     <span>Conta Site</span>
                   </div>
                   <span className="text-[10px] font-normal text-[#8E8E93]">Autocadastro</span>
-                  {onSimulateRole && (
+                  {canSimulateProfile && onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('site_account')}
@@ -394,7 +411,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                     <span>Usuário</span>
                   </div>
                   <span className="text-[10px] font-normal text-[#8E8E93]">Criado no painel</span>
-                  {onSimulateRole && (
+                  {canSimulateProfile && onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('user')}
@@ -416,7 +433,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                     <span>Login gerado por Gerente</span>
                   </div>
                   <span className="text-[10px] font-normal text-[#8E8E93]">Logins que um gerente cria</span>
-                  {onSimulateRole && (
+                  {canSimulateProfile && onSimulateRole && (
                     <button
                       type="button"
                       onClick={() => onSimulateRole('manager_user')}
@@ -439,7 +456,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                   </div>
                   <span className="text-[10px] font-normal text-[#8E8E93]">Gestor de equipe</span>
                   <div className="flex items-center gap-2">
-                    {onSimulateRole && (
+                    {canSimulateProfile && onSimulateRole && (
                       <button
                         type="button"
                         onClick={() => onSimulateRole('manager')}
@@ -540,76 +557,103 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
                                 {item.description}
                               </div>
-                              {!isEditableByRequester && !isMaster && (
-                                <span className="inline-block text-xs font-medium text-[#FF9500] dark:text-[#FF9F0A] mt-0.5">
-                                  ⚠️ Repasse não liberado
-                                </span>
-                              )}
                             </td>
 
                             {/* Coluna Visitante */}
                             <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <Toggle
-                                  checked={visitorEntry.can_use}
-                                  onChange={() => handleToggleCapability('visitor', item.key, 'can_use')}
-                                  disabled={!isEditableByRequester}
-                                />
+                                {canManageRoles ? (
+                                  <Toggle
+                                    checked={visitorEntry.can_use}
+                                    onChange={() => handleToggleCapability('visitor', item.key, 'can_use')}
+                                    disabled={!isEditableByRequester}
+                                  />
+                                ) : (
+                                  <span className={`text-[11px] font-medium ${visitorEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
+                                    {visitorEntry.can_use ? 'Sim' : 'Não'}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
                             {/* Coluna Conta do Site */}
                             <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <Toggle
-                                  checked={siteEntry.can_use}
-                                  onChange={() => handleToggleCapability('site_account', item.key, 'can_use')}
-                                  disabled={!isEditableByRequester}
-                                />
+                                {canManageRoles ? (
+                                  <Toggle
+                                    checked={siteEntry.can_use}
+                                    onChange={() => handleToggleCapability('site_account', item.key, 'can_use')}
+                                    disabled={!isEditableByRequester}
+                                  />
+                                ) : (
+                                  <span className={`text-[11px] font-medium ${siteEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
+                                    {siteEntry.can_use ? 'Sim' : 'Não'}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
                             {/* Coluna Usuário Comum */}
                             <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <Toggle
-                                  checked={userEntry.can_use}
-                                  onChange={() => handleToggleCapability('user', item.key, 'can_use')}
-                                  disabled={!isEditableByRequester}
-                                />
+                                {canManageRoles ? (
+                                  <Toggle
+                                    checked={userEntry.can_use}
+                                    onChange={() => handleToggleCapability('user', item.key, 'can_use')}
+                                    disabled={!isEditableByRequester}
+                                  />
+                                ) : (
+                                  <span className={`text-[11px] font-medium ${userEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
+                                    {userEntry.can_use ? 'Sim' : 'Não'}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
                             {/* Coluna Login gerado por Gerente */}
                             <td className="p-4 text-center">
                               <div className="flex items-center justify-center">
-                                <Toggle
-                                  checked={managerUserEntry.can_use}
-                                  onChange={() => handleToggleCapability('manager_user', item.key, 'can_use')}
-                                  disabled={!isEditableByRequester}
-                                />
+                                {canManageRoles ? (
+                                  <Toggle
+                                    checked={managerUserEntry.can_use}
+                                    onChange={() => handleToggleCapability('manager_user', item.key, 'can_use')}
+                                    disabled={!isEditableByRequester}
+                                  />
+                                ) : (
+                                  <span className={`text-[11px] font-medium ${managerUserEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}`}>
+                                    {managerUserEntry.can_use ? 'Sim' : 'Não'}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
                             {/* Coluna Gerente: DUAS MARCAS (Pode Usar e Pode Repassar) */}
                             <td className="p-4 text-center bg-black/[0.015] dark:bg-white/[0.02]">
-                              <div className="flex items-center justify-center gap-3">
-                                {/* Marca 1: Pode Usar */}
-                                <Toggle
-                                  checked={managerEntry.can_use}
-                                  onChange={() => handleToggleCapability('manager', item.key, 'can_use')}
-                                  disabled={!isMaster}
-                                />
-
-                                <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.08]" />
-
-                                {/* Marca 2: Pode Repassar */}
-                                <Toggle
-                                  checked={managerEntry.can_grant}
-                                  onChange={() => handleToggleCapability('manager', item.key, 'can_grant')}
-                                  disabled={!isMaster || !managerEntry.can_use}
-                                />
-                              </div>
+                              {isMaster ? (
+                                <div className="flex items-center justify-center gap-3">
+                                  <Toggle
+                                    checked={managerEntry.can_use}
+                                    onChange={() => handleToggleCapability('manager', item.key, 'can_use')}
+                                    disabled={!isMaster}
+                                  />
+                                  <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.08]" />
+                                  <Toggle
+                                    checked={managerEntry.can_grant}
+                                    onChange={() => handleToggleCapability('manager', item.key, 'can_grant')}
+                                    disabled={!isMaster || !managerEntry.can_use}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-3 text-[11px] font-medium">
+                                  <span className={managerEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
+                                    {managerEntry.can_use ? 'Sim' : 'Não'}
+                                  </span>
+                                  <span className="text-[#8E8E93]">•</span>
+                                  <span className={managerEntry.can_grant ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
+                                    {managerEntry.can_grant ? 'Sim' : 'Não'}
+                                  </span>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );

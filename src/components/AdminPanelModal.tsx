@@ -39,7 +39,8 @@ import {
   getCapabilityAuditLogs,
   getCapabilityAuditLogsAsync,
   logCapabilityAudit,
-  exportCapabilityAuditLogsToCSV
+  exportCapabilityAuditLogsToCSV,
+  getAllCapabilitiesCatalog
 } from '../services/adminService';
 import { dataSources } from '../data';
 import { useAccess } from '../context/FeatureAccessContext';
@@ -121,11 +122,41 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   }, [registeredUsers, currentActiveUser]);
 
   // Privilégios efetivos do Gerente via provedor universal de capacidades
-  const { can } = useAccess();
-  const canManagerGenerateLogins = can('admin:users:create');
-  const canManagerCreateManagerRole = can('admin:users:promote_manager');
-  const canManagerChangePasswords = can('admin:users:reset_password');
-  const canManagerViewAllVisitors = can('admin:users:view');
+  const { can, canGrant } = useAccess();
+  const canManagerGenerateLogins = isMaster || can('admin:users:create');
+  const canManagerCreateManagerRole = isMaster || can('admin:users:promote_manager');
+  const canManagerChangePasswords = isMaster || can('admin:users:reset_password');
+  const canManagerViewAllVisitors = isMaster || can('admin:users:view');
+  const canViewUsers = isMaster || can('admin:users:view');
+  const canBlockUsers = isMaster || can('admin:users:block');
+  const canDeleteUsers = isMaster || can('admin:users:delete');
+  const canViewLogs = isMaster || can('admin:logs:view');
+  const canExportLogs = isMaster || can('admin:logs:export');
+  const canSimulateProfile = isMaster || can('admin:simulate:profile');
+  const canManageRoles = isMaster || can('admin:roles:manage');
+  const hasAnyGrantCap = useMemo(
+    () => getAllCapabilitiesCatalog(dataSources.map(ds => ds.name)).some(c => canGrant(c.key)),
+    [canGrant]
+  );
+  const canViewAccess = isMaster || canManageRoles || hasAnyGrantCap;
+
+  const visibleSections = useMemo<AdminSection[]>(() => {
+    const list: AdminSection[] = ['overview'];
+    if (canViewUsers) list.push('users');
+    if (canViewAccess) list.push('access');
+    if (canViewLogs) list.push('activity');
+    if (isMaster) list.push('system');
+    return list;
+  }, [canViewUsers, canViewAccess, canViewLogs, isMaster]);
+
+  useEffect(() => {
+    if (!visibleSections.includes(currentSection)) {
+      setCurrentSection(visibleSections[0] || 'overview');
+    }
+    if (mobileSection && !visibleSections.includes(mobileSection)) {
+      setMobileSection(visibleSections[0] || null);
+    }
+  }, [visibleSections, currentSection, mobileSection]);
 
   // Estados do Modal de Criação / Edição de Usuário
   const [isUserModalOpen, setIsUserModalOpen] = useState<boolean>(false);
@@ -342,7 +373,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handleToggleRegisteredUserStatus = async (userId: string) => {
-    if (!isMaster) {
+    if (!canBlockUsers) {
       showToast('⚠️ Você não tem permissão para esta ação.');
       return;
     }
@@ -371,6 +402,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handlePromoteToManager = async (userId: string) => {
+    if (!canManagerCreateManagerRole) {
+      showToast('⚠️ Você não tem permissão para esta ação.');
+      return;
+    }
     if (window.confirm('Deseja promover este usuário ao cargo de GERENTE? Ele poderá gerenciar os membros da sua equipe.')) {
       const result = await promoteUserToManager(userId, currentActiveUser || 'master');
       if (result.success) {
@@ -394,6 +429,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handleDemoteToUser = async (userId: string) => {
+    if (!canManagerCreateManagerRole) {
+      showToast('⚠️ Você não tem permissão para esta ação.');
+      return;
+    }
     if (window.confirm('Deseja rebaixar este Gerente para USUÁRIO COMUM? Ele perderá o acesso ao painel administrativo.')) {
       const result = await demoteManagerToUser(userId, currentActiveUser || 'master');
       if (result.success) {
@@ -417,7 +456,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handleToggleSessionBlocked = (sessionId: string, currentBlocked: boolean) => {
-    if (!isMaster) return;
+    if (!canBlockUsers) return;
     saveUserSessionConfig(sessionId, {
       isBlocked: !currentBlocked
     });
@@ -655,9 +694,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               setMobileSection(s);
             }}
             onOpenCreateUser={handleOpenCreateUser}
-            onExportLogsCSV={() => {
+            onExportLogsCSV={canExportLogs ? () => {
               exportActivityLogsToCSV(visibleLogs);
-            }}
+            } : undefined}
           />
         );
 
@@ -690,6 +729,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             canManagerGenerateLogins={canManagerGenerateLogins}
             canManagerChangePasswords={canManagerChangePasswords}
             canManagerViewAllVisitors={canManagerViewAllVisitors}
+            canBlockUsers={canBlockUsers}
+            canDeleteUsers={canDeleteUsers}
+            canSimulateUsers={canSimulateProfile}
             currentActiveUser={activeManagerUser}
             onOpenCreateUser={handleOpenCreateUser}
             onOpenEditUser={handleOpenEditUser}
@@ -716,10 +758,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               if (typeof onClose === 'function') onClose();
               if (onSimulateUser) onSimulateUser(null, role === 'visitor' ? 'user' : (role as any));
             }}
-            onNavigateToAudit={() => {
+            onNavigateToAudit={canViewLogs ? () => {
               setCurrentSection('activity');
               setMobileSection('activity');
-            }}
+            } : undefined}
             showToast={showToast}
           />
         );
@@ -732,6 +774,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             registeredUsers={registeredUsers}
             userSessions={userSessions}
             isMaster={isMaster}
+            canExportLogs={canExportLogs}
             onExportCSV={(logsToExport) =>
               exportActivityLogsToCSV(
                 filterVisibleActivityLogs(logsToExport, isMaster, registeredUsers, userSessions)
@@ -776,6 +819,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           onClose={onClose}
           pendingAlertsCount={pendingAlertsCount}
           totalUsersCount={registeredUsers.length}
+          visibleSections={visibleSections}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F2F2F7] dark:bg-[#000000]">
@@ -792,7 +836,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {isMaster && onOpenSimulationChoice && (
+              {(isMaster || canSimulateProfile) && onOpenSimulationChoice && (
                 <button
                   type="button"
                   onClick={() => {
@@ -846,6 +890,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           onClose={onClose}
           pendingAlertsCount={pendingAlertsCount}
           totalUsersCount={registeredUsers.length}
+          visibleSections={visibleSections}
         >
           {mobileSection && renderSectionContent(mobileSection)}
         </AdminMobileNavigation>
@@ -930,16 +975,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           logs={logs}
           isMaster={isMaster}
           isManager={isManager}
-          onSimulateUser={(u) => {
+          currentActiveUser={activeManagerUser}
+          onSimulateUser={canSimulateProfile ? (u) => {
             setSelectedUserDetail(null);
             if (typeof onClose === 'function') onClose();
             if (onSimulateUser) onSimulateUser(u.id, u.role);
-          }}
-          onNavigateToAudit={() => {
+          } : undefined}
+          onNavigateToAudit={canViewLogs ? () => {
             setSelectedUserDetail(null);
             setCurrentSection('activity');
             setMobileSection('activity');
-          }}
+          } : undefined}
           showToast={showToast}
         />
       )}

@@ -25,6 +25,7 @@ interface AdminMobileNavigationProps {
   onClose: () => void;
   pendingAlertsCount?: number;
   totalUsersCount?: number;
+  visibleSections?: AdminSection[];
   children?: React.ReactNode;
 }
 
@@ -32,14 +33,14 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
   currentSection,
   onSelectSection,
   isMaster,
-  isManager,
   currentActiveUser,
   onClose,
   pendingAlertsCount = 0,
   totalUsersCount = 0,
+  visibleSections,
   children
 }) => {
-  const sections: Array<{
+  const allSections: Array<{
     id: AdminSection;
     label: string;
     description: string;
@@ -76,13 +77,17 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
   ];
 
   if (isMaster) {
-    sections.push({
+    allSections.push({
       id: 'system',
       label: 'Sistema',
       description: 'Configurações de ambiente e manutenção',
       icon: Settings
     });
   }
+
+  const sections = visibleSections
+    ? allSections.filter(s => visibleSections.includes(s.id))
+    : allSections;
 
   // Título amigável da seção ativa
   const currentSectionMeta = sections.find(s => s.id === currentSection);

@@ -37,6 +37,7 @@ interface AdminActivitySectionProps {
   registeredUsers?: RegisteredUser[];
   userSessions: Record<string, UserSessionConfig>;
   isMaster: boolean;
+  canExportLogs?: boolean;
   onExportCSV: (logsToExport: ActivityLog[]) => void;
   onExportCapabilityAuditCSV?: (logsToExport: CapabilityAuditLog[]) => void;
   onClearLogs?: () => void;
@@ -155,6 +156,7 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
   registeredUsers = [],
   userSessions,
   isMaster,
+  canExportLogs = true,
   onExportCSV,
   onExportCapabilityAuditCSV,
   onClearLogs
@@ -384,16 +386,18 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onExportCSV(filteredLogs)}
-                disabled={filteredLogs.length === 0}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
-                title="Exportar logs filtrados em arquivo CSV"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Exportar CSV</span>
-              </button>
+              {(isMaster || canExportLogs) && (
+                <button
+                  type="button"
+                  onClick={() => onExportCSV(filteredLogs)}
+                  disabled={filteredLogs.length === 0}
+                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                  title="Exportar logs filtrados em arquivo CSV"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Exportar CSV</span>
+                </button>
+              )}
 
               {isMaster && onClearLogs && (
                 <button
@@ -527,22 +531,24 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onExportCapabilityAuditCSV) {
-                    onExportCapabilityAuditCSV(filteredCapabilityAudit);
-                  } else {
-                    exportCapabilityAuditLogsToCSV(filteredCapabilityAudit);
-                  }
-                }}
-                disabled={filteredCapabilityAudit.length === 0}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
-                title="Exportar trilha de mudança de poderes em arquivo CSV"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Exportar CSV</span>
-              </button>
+              {(isMaster || canExportLogs) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onExportCapabilityAuditCSV) {
+                      onExportCapabilityAuditCSV(filteredCapabilityAudit);
+                    } else {
+                      exportCapabilityAuditLogsToCSV(filteredCapabilityAudit);
+                    }
+                  }}
+                  disabled={filteredCapabilityAudit.length === 0}
+                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                  title="Exportar trilha de mudança de poderes em arquivo CSV"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Exportar CSV</span>
+                </button>
+              )}
             </div>
           </div>
 

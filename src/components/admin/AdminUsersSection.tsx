@@ -32,6 +32,9 @@ interface AdminUsersSectionProps {
   canManagerGenerateLogins: boolean;
   canManagerChangePasswords: boolean;
   canManagerViewAllVisitors: boolean;
+  canBlockUsers?: boolean;
+  canDeleteUsers?: boolean;
+  canSimulateUsers?: boolean;
   currentActiveUser: RegisteredUser | null;
   onOpenCreateUser: () => void;
   onOpenEditUser: (user: RegisteredUser) => void;
@@ -54,6 +57,9 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
   canManagerGenerateLogins,
   canManagerChangePasswords,
   canManagerViewAllVisitors,
+  canBlockUsers = false,
+  canDeleteUsers = false,
+  canSimulateUsers = false,
   currentActiveUser,
   onOpenCreateUser,
   onOpenEditUser,
@@ -274,8 +280,11 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
               const isUserMaster = user.role === 'master' || (user.role as any) === 'admin';
               const isUserManager = user.role === 'manager';
               const isSelf = user.id === currentActiveUser?.id || (user.username && currentActiveUser?.username && user.username.toLowerCase() === currentActiveUser.username.toLowerCase());
-              const isMyCreation = user.createdBy && currentActiveUser?.username && user.createdBy.toLowerCase() === currentActiveUser.username.toLowerCase();
+              const isMyCreation = Boolean(user.createdBy && currentActiveUser?.username && user.createdBy.toLowerCase() === currentActiveUser.username.toLowerCase());
+              const canManageThisUser = isMaster || (isManager && !isUserMaster && !isSelf && isMyCreation);
               const canResetPass = isMaster || (isManager && canManagerChangePasswords && isMyCreation && user.role === 'user');
+              const canBlockThisUser = isMaster ? (!isUserMaster && !isSelf) : (canBlockUsers && canManageThisUser);
+              const canDeleteThisUser = isMaster ? (!isUserMaster && !isSelf) : (canDeleteUsers && canManageThisUser);
 
               return (
                 <div
@@ -361,7 +370,7 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                       </button>
 
                       {/* 2. Simular Usuário */}
-                      {onSimulateUser && !isUserMaster && (
+                      {(isMaster || canSimulateUsers) && onSimulateUser && !isUserMaster && (
                         <button
                           type="button"
                           onClick={() => onSimulateUser(user)}
@@ -399,8 +408,8 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                         </button>
                       )}
 
-                      {/* 5. Bloquear / Desbloquear (Master) */}
-                      {isMaster && !isUserMaster && !isSelf && (
+                      {/* 5. Bloquear / Desbloquear */}
+                      {canBlockThisUser && (
                         <button
                           type="button"
                           onClick={() => onToggleUserStatus(user)}
@@ -420,8 +429,8 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                         </button>
                       )}
 
-                      {/* 6. Excluir Conta (Master) */}
-                      {isMaster && !isUserMaster && !isSelf && (
+                      {/* 6. Excluir Conta */}
+                      {canDeleteThisUser && (
                         <button
                           type="button"
                           onClick={() => onDeleteUser(user)}
@@ -494,7 +503,7 @@ export const AdminUsersSection: React.FC<AdminUsersSectionProps> = ({
                     </div>
                   </div>
 
-                  {isMaster && onToggleSessionBlocked && (
+                  {(isMaster || canBlockUsers) && onToggleSessionBlocked && (
                     <button
                       type="button"
                       onClick={() => onToggleSessionBlocked(session.sessionId, isBlocked)}

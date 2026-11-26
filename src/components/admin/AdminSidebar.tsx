@@ -25,19 +25,20 @@ interface AdminSidebarProps {
   onClose: () => void;
   pendingAlertsCount?: number;
   totalUsersCount?: number;
+  visibleSections?: AdminSection[];
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   currentSection,
   onSelectSection,
   isMaster,
-  isManager,
   currentActiveUser,
   onClose,
   pendingAlertsCount = 0,
-  totalUsersCount = 0
+  totalUsersCount = 0,
+  visibleSections
 }) => {
-  const navItems: Array<{
+  const allNavItems: Array<{
     id: AdminSection;
     label: string;
     icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -69,12 +70,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   ];
 
   if (isMaster) {
-    navItems.push({
+    allNavItems.push({
       id: 'system',
       label: 'Sistema',
       icon: Settings
     });
   }
+
+  const navItems = visibleSections
+    ? allNavItems.filter(item => visibleSections.includes(item.id))
+    : allNavItems;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 

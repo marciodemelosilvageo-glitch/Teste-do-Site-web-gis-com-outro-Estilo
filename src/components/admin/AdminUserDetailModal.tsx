@@ -49,6 +49,7 @@ interface AdminUserDetailModalProps {
   logs: ActivityLog[];
   isMaster: boolean;
   isManager?: boolean;
+  currentActiveUser?: RegisteredUser | null;
   onSimulateUser?: (user: RegisteredUser) => void;
   onNavigateToAudit?: () => void;
   showToast?: (msg: string) => void;
@@ -61,11 +62,31 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   logs,
   isMaster,
   isManager = false,
+  currentActiveUser = null,
   onSimulateUser,
   onNavigateToAudit,
   showToast
 }) => {
   const { canGrant } = useAccess();
+
+  const managerScopeConfig = useMemo<ManagerScopeConfig>(() => {
+    if (!currentActiveUser?.id) {
+      return { scope_type: 'team_only', can_manage_site_accounts: false, can_manage_visitors: false };
+    }
+    return getManagerScope(currentActiveUser.id);
+  }, [currentActiveUser?.id]);
+
+  const isTargetInScope = useMemo(() => {
+    if (isMaster) return true;
+    if (!user || !isManager) return false;
+    const targetRole = (user.role || '').toLowerCase();
+    if (targetRole === 'master' || targetRole === 'admin') return false;
+    const myUsername = (currentActiveUser?.username || '').toLowerCase();
+    if (targetRole === 'site_account') return managerScopeConfig.can_manage_site_accounts === true;
+    if (targetRole === 'visitor') return managerScopeConfig.can_manage_visitors === true;
+    if (managerScopeConfig.scope_type === 'all_users') return true;
+    return Boolean(user.createdBy && myUsername && user.createdBy.toLowerCase() === myUsername);
+  }, [isMaster, isManager, user, currentActiveUser?.username, managerScopeConfig]);
 
   // Aba ativa na ficha: 'general' (dados e atividade) ou 'permissions' (exceções e poderes)
   const [activeTab, setActiveTab] = useState<'general' | 'permissions'>('general');
@@ -118,6 +139,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
   // Capacidades filtradas
   const filteredCapabilities = useMemo(() => {
     return catalog.filter(c => {
+      if (!isMaster && !canGrant(c.key)) return false;
       if (selectedGroup !== 'TODOS' && c.group !== selectedGroup) return false;
       if (permSearch.trim()) {
         const term = permSearch.toLowerCase();
@@ -125,12 +147,12 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
       }
       return true;
     });
-  }, [catalog, selectedGroup, permSearch]);
+  }, [catalog, isMaster, canGrant, selectedGroup, permSearch]);
 
   // Handler para definir exceção individual (Herdar / Permitir / Negar)
   const handleSetOverride = useCallback(async (capKey: string, overrideType: OverrideSetting) => {
     if (!user) return;
-    if (!isMaster && !canGrant(capKey)) {
+    if (!isMaster && (!isTargetInScope || !canGrant(capKey))) {
       showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
     }
@@ -162,7 +184,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
     });
 
     showToast?.(`Poder "${capKey}" atualizado para: ${overrideType === 'inherit' ? 'Herdar perfil' : overrideType === 'allow' ? 'Permitido' : 'Negado'}.`);
-  }, [user, isMaster, canGrant, overrides, showToast]);
+  }, [user, isMaster, isTargetInScope, canGrant, overrides, showToast]);
 
   // Handler para alternar permissão de repasse do gerente ("pode repassar")
   const handleToggleCanGrant = useCallback(async (capKey: string) => {
@@ -445,6 +467,12 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                     A conta Master executa 100% dos poderes do sistema sem possibilidade de revogação ou bloqueio.
                   </p>
                 </div>
+              ) : !isTargetInScope ? (
+                <div className="p-8 text-center space-y-2 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl border border-black/[0.06] dark:border-white/[0.08]">
+                  <p className="text-xs font-medium text-[#6C6C70] dark:text-[#98989D]">
+                    Você não tem permissão para editar os poderes desta conta.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-3.5">
                   <Banner
@@ -509,13 +537,6 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({
                             <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
                               {cap.description}
                             </div>
-
-                            {!isEditableByRequester && !isMaster && (
-                              <div className="text-xs text-[#FF9500] dark:text-[#FF9F0A] font-medium flex items-center gap-1 mt-0.5">
-                                <StatusDot status="warning" />
-                                <span>Poder não liberado para sua conta</span>
-                              </div>
-                            )}
                           </div>
 
                           {/* Controles de 3 Estados: Herdar | Permitir | Negar */}
