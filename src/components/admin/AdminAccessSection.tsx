@@ -1,33 +1,37 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { motion } from 'motion/react';
 import {
   Layers,
   Wrench,
   TableProperties,
   User,
+  Users,
   ShieldCheck,
   Eye,
-  Crown,
   Briefcase,
   Globe,
   History,
   Info,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import {
   CapabilityItem,
   CapabilityGroup,
   BaseRoleKey,
   RoleCapabilitiesMatrix,
+  RegisteredUser,
   getAllCapabilitiesCatalog,
   getBaseRolesMatrix,
-  saveBaseRolesMatrix,
   saveRoleCapability,
   logCapabilityAudit,
   getManagerScope,
   saveManagerScope,
   ManagerScopeConfig,
-  isAdminCapability
+  isAdminCapability,
+  getUserOverrides,
+  saveUserOverride
 } from '../../services/adminService';
 import { useAccess } from '../../context/FeatureAccessContext';
 import { dataSources } from '../../data';
@@ -36,12 +40,16 @@ import {
   StatusDot,
   Toggle,
   SearchField,
-  SegmentedControl
+  SegmentedControl,
+  GroupedList,
+  GroupedListItem
 } from './ui';
 
 interface AdminAccessSectionProps {
   isMaster: boolean;
   isManager: boolean;
+  registeredUsers?: RegisteredUser[];
+  currentActiveUser?: RegisteredUser | null;
   onSimulateRole?: (role: 'user' | 'manager_user' | 'manager' | 'site_account' | 'visitor') => void;
   onNavigateToAudit?: () => void;
   showToast?: (msg: string) => void;
@@ -49,14 +57,17 @@ interface AdminAccessSectionProps {
 
 const GROUP_CONFIG: Record<CapabilityGroup, { label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; desc: string }> = {
   camadas: { label: 'Camadas Territoriais', icon: Layers, desc: 'Visibilidade e acesso espacial a camadas vetoriais no mapa' },
-  ferramentas: { label: 'Ferramentas de Análise', icon: Wrench, desc: 'Instrumentos de geocodificação, polígonos, medição e buffer' },
-  dados: { label: 'Dados e Exportações', icon: TableProperties, desc: 'Colunas censitárias, formatos de arquivos e cotas de download' },
-  conta: { label: 'Conta e Credenciais', icon: User, desc: 'Regras de autocadastro e gerenciamento da própria senha' },
-  administracao: { label: 'Administração do Sistema', icon: ShieldCheck, desc: 'Poderes de governança, auditoria e gestão de usuários' }
+  ferramentas: { label: 'Ferramentas de AnÃ¡lise', icon: Wrench, desc: 'Instrumentos de geocodificaÃ§Ã£o, polÃ­gonos, mediÃ§Ã£o e buffer' },
+  dados: { label: 'Dados e ExportaÃ§Ãµes', icon: TableProperties, desc: 'Colunas censitÃ¡rias, formatos de arquivos e cotas de download' },
+  conta: { label: 'Conta e Credenciais', icon: User, desc: 'Regras de autocadastro e gerenciamento da prÃ³pria senha' },
+  administracao: { label: 'AdministraÃ§Ã£o do Sistema', icon: ShieldCheck, desc: 'Poderes de governanÃ§a, auditoria e gestÃ£o de usuÃ¡rios' }
 };
 
 export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
   isMaster,
+  isManager,
+  registeredUsers = [],
+  currentActiveUser = null,
   onSimulateRole,
   onNavigateToAudit,
   showToast
@@ -72,7 +83,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     ? 6
     : 1 + (canEditVisitor ? 1 : 0) + (canEditSiteAccount ? 1 : 0) + (canEditUser ? 2 : 0) + (canPromoteManager ? 1 : 0);
 
-  // Catálogo completo de capacidades
+  // CatÃ¡logo completo de capacidades
   const catalog = useMemo(() => {
     const layerNames = dataSources.map(ds => ds.name);
     return getAllCapabilitiesCatalog(layerNames);
@@ -84,7 +95,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     return getBaseRolesMatrix(layerNames);
   });
 
-  // Escopo Padrão de Gerente
+  // Escopo PadrÃ£o de Gerente
   const [managerScope, setManagerScope] = useState<ManagerScopeConfig>(() => getManagerScope('default_manager'));
 
   // Estados de Filtro e Busca
@@ -99,7 +110,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
 
-  // Catálogo visível para o papel atual (Gerente vê apenas poderes que pode repassar; admin:* exige promote_manager)
+  // CatÃ¡logo visÃ­vel para o papel atual (Gerente vÃª apenas poderes que pode repassar; admin:* exige promote_manager)
   const visibleCatalog = useMemo(() => {
     if (isMaster) return catalog;
     return catalog.filter(item => {
@@ -108,7 +119,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     });
   }, [catalog, isMaster, canPromoteManager, canGrant]);
 
-  // Filtragem dos itens do catálogo
+  // Filtragem dos itens do catÃ¡logo
   const filteredCatalog = useMemo(() => {
     return visibleCatalog.filter(item => {
       if (selectedGroup !== 'TODOS' && item.group !== selectedGroup) {
@@ -146,9 +157,9 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     capKey: string,
     field: 'can_use' | 'can_grant'
   ) => {
-    // Validação estrita: admin:* exclusivo de Gerente/Master; coluna exige permissão correspondente
+    // ValidaÃ§Ã£o estrita: admin:* exclusivo de Gerente/Master; coluna exige permissÃ£o correspondente
     if (isAdminCapability(capKey) && role !== 'manager') {
-      showToast?.('⚠️ Poderes administrativos são exclusivos de Gerentes e Master.');
+      showToast?.('âš ï¸ Poderes administrativos sÃ£o exclusivos de Gerentes e Master.');
       return;
     }
 
@@ -160,16 +171,16 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
     if (!isMaster) {
       if (!canEditTargetRole) {
-        showToast?.('⚠️ Você não tem permissão para editar este perfil padrão.');
+        showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para editar este perfil padrÃ£o.');
         return;
       }
       const canManageThis = canGrant(capKey);
       if (!canManageThis) {
-        showToast?.('⚠️ Você não tem permissão para esta ação.');
+        showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o.');
         return;
       }
       if (role === 'manager') {
-        showToast?.('⚠️ Você não tem permissão para esta ação.');
+        showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o.');
         return;
       }
     }
@@ -197,56 +208,469 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles: canEditTargetRole });
     if (!saveRes.success) {
       setMatrix(matrix);
-      showToast?.(`⚠️ ${saveRes.error || 'Não foi possível salvar a alteração no servidor.'}`);
+      showToast?.(`âš ï¸ ${saveRes.error || 'NÃ£o foi possÃ­vel salvar a alteraÃ§Ã£o no servidor.'}`);
       return;
     }
 
-    // Auditoria da Mudança de Poder no Perfil Base
+    // Auditoria da MudanÃ§a de Poder no Perfil Base
     await logCapabilityAudit({
       performedByName: isMaster ? 'Administrador Master' : 'Gerente Autorizado',
       targetType: 'base_role',
       targetId: `role:${role}`,
-      targetName: role === 'visitor' ? 'Visitante' : role === 'site_account' ? 'Conta do Site' : role === 'user' ? 'Usuário Comum' : role === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente',
+      targetName: role === 'visitor' ? 'Visitante' : role === 'site_account' ? 'Conta do Site' : role === 'user' ? 'UsuÃ¡rio Comum' : role === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente',
       capabilityKey: capKey,
       action: field === 'can_use' ? (nextVal ? 'grant_use' : 'revoke_use') : (nextVal ? 'grant_delegate' : 'revoke_delegate'),
       beforeState: currentEntry,
       afterState: updatedRolePerms[capKey],
-      reason: `Alteração na matriz do perfil base ${role.toUpperCase()} (${field === 'can_use' ? 'Uso' : 'Repasse'})`
+      reason: `AlteraÃ§Ã£o na matriz do perfil base ${role.toUpperCase()} (${field === 'can_use' ? 'Uso' : 'Repasse'})`
     });
 
     showToast?.(`Perfil ${role.toUpperCase()}: ${field === 'can_use' ? 'Uso' : 'Repasse'} ${nextVal ? 'ativado' : 'desativado'}.`);
   }, [matrix, isMaster, canEditVisitor, canEditSiteAccount, canEditUser, canGrant, showToast]);
 
-  // Handler para alterar o escopo padrão de gerentes
+  // Handler para alterar o escopo padrÃ£o de gerentes
   const handleToggleScope = useCallback(async (newScope: 'team_only' | 'all_users') => {
     if (!isMaster) {
-      showToast?.('⚠️ Você não tem permissão para esta ação.');
+      showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o.');
       return;
     }
     const updated = { ...managerScope, scope_type: newScope };
     setManagerScope(updated);
     await saveManagerScope('default_manager', updated);
-    showToast?.(`Alcance padrão dos gerentes alterado para: ${newScope === 'team_only' ? 'Somente sua Equipe' : 'Todos os Usuários'}.`);
+    showToast?.(`Alcance padrÃ£o dos gerentes alterado para: ${newScope === 'team_only' ? 'Somente sua Equipe' : 'Todos os UsuÃ¡rios'}.`);
   }, [managerScope, isMaster, showToast]);
+
+  // Estados da visÃ£o iOS do Gerente (Meus logins + Perfis padrÃ£o liberados)
+  const [selectedManagerUser, setSelectedManagerUser] = useState<RegisteredUser | null>(null);
+  const [selectedPatternRole, setSelectedPatternRole] = useState<BaseRoleKey | null>(null);
+  const [userOverridesVersion, setUserOverridesVersion] = useState(0);
+
+  const myScope = useMemo<ManagerScopeConfig>(() => {
+    if (!currentActiveUser?.id) {
+      return { scope_type: 'team_only', can_manage_site_accounts: false, can_manage_visitors: false };
+    }
+    return getManagerScope(currentActiveUser.id);
+  }, [currentActiveUser?.id]);
+
+  const myManagedUsers = useMemo(() => {
+    if (isMaster || !isManager) return [];
+    const myUsername = (currentActiveUser?.username || '').toLowerCase();
+    return registeredUsers.filter((u) => {
+      const r = (u.role || '').toLowerCase();
+      if (r === 'master' || r === 'admin') return false;
+      if (u.id === currentActiveUser?.id || (u.username && u.username.toLowerCase() === myUsername)) return false;
+      if (r === 'site_account') return myScope.can_manage_site_accounts === true;
+      if (r === 'visitor') return myScope.can_manage_visitors === true;
+      if (myScope.scope_type === 'all_users') return true;
+      return Boolean(u.createdBy && myUsername && u.createdBy.toLowerCase() === myUsername);
+    });
+  }, [isMaster, isManager, registeredUsers, currentActiveUser, myScope]);
+
+  const GROUP_ICON_COLORS: Record<CapabilityGroup, string> = {
+    camadas: 'bg-[#007AFF] text-white',
+    ferramentas: 'bg-[#5856D6] text-white',
+    dados: 'bg-[#34C759] text-white',
+    conta: 'bg-[#FF9500] text-white',
+    administracao: 'bg-[#FF3B30] text-white'
+  };
+
+  if (!isMaster) {
+    // TELA EMPILHADA 1: Poderes individuais de um login da equipe
+    if (selectedManagerUser) {
+      const userOverrides = getUserOverrides(selectedManagerUser.id);
+      const isTargetMgr = selectedManagerUser.role === 'manager';
+      const baseRoleForTarget: BaseRoleKey = isTargetMgr ? 'manager' : selectedManagerUser.role === 'site_account' ? 'site_account' : selectedManagerUser.role === 'visitor' ? 'visitor' : 'manager_user';
+      const baseRoleEntries = matrix[baseRoleForTarget] || matrix.user || {};
+
+      const targetCaps = visibleCatalog.filter((item) => {
+        if (isAdminCapability(item.key) && (!isTargetMgr || !canPromoteManager)) return false;
+        if (searchTerm.trim()) {
+          const t = searchTerm.toLowerCase();
+          return item.name.toLowerCase().includes(t) || item.description.toLowerCase().includes(t);
+        }
+        return true;
+      });
+
+      const handleToggleUserCap = async (item: CapabilityItem, currentVal: boolean) => {
+        const nextOverride = !currentVal ? 'allow' : 'deny';
+        const res = await saveUserOverride(selectedManagerUser.id, item.key, nextOverride, false, {
+          targetRole: selectedManagerUser.role
+        });
+        if (!res.success) {
+          showToast?.(`âš ï¸ ${res.error || 'NÃ£o foi possÃ­vel salvar alteraÃ§Ã£o.'}`);
+          return;
+        }
+        await logCapabilityAudit({
+          performedByName: currentActiveUser?.name || 'Gerente',
+          targetType: 'user',
+          targetId: selectedManagerUser.username,
+          targetName: selectedManagerUser.name,
+          capabilityKey: item.key,
+          action: !currentVal ? 'grant_use' : 'set_deny',
+          beforeState: { can_use: currentVal },
+          afterState: { can_use: !currentVal },
+          reason: `Ajuste individual para @${selectedManagerUser.username}`
+        });
+        setUserOverridesVersion(v => v + 1);
+        showToast?.(`${item.name}: ${!currentVal ? 'liberado' : 'bloqueado'} para @${selectedManagerUser.username}.`);
+      };
+
+      void userOverridesVersion;
+
+      return (
+        <motion.div
+          initial={{ opacity: 0.4, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          className="space-y-4 pb-8 select-none"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedManagerUser(null);
+                setSearchTerm('');
+              }}
+              className="min-h-[44px] px-2 -ml-2 flex items-center gap-1 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-medium cursor-pointer active:opacity-60"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>Meus logins</span>
+            </button>
+
+            <div className="text-right min-w-0">
+              <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">
+                {selectedManagerUser.name}
+              </div>
+              <div className="text-xs text-[#8E8E93] font-mono truncate">
+                @{selectedManagerUser.username}
+              </div>
+            </div>
+          </div>
+
+          <SearchField
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar poder desta conta..."
+          />
+
+          {(['camadas', 'ferramentas', 'dados', 'conta', 'administracao'] as CapabilityGroup[]).map((grp) => {
+            const grpItems = targetCaps.filter(c => c.group === grp);
+            if (grpItems.length === 0) return null;
+            const cfg = GROUP_CONFIG[grp];
+            return (
+              <GroupedList
+                key={grp}
+                header={
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+                    Poderes desta conta â€¢ {cfg.label}
+                  </span>
+                }
+                footer={cfg.desc}
+              >
+                {grpItems.map((item) => {
+                  const ov = userOverrides[item.key];
+                  const effectiveUse =
+                    ov?.override_type === 'allow'
+                      ? true
+                      : ov?.override_type === 'deny'
+                      ? false
+                      : baseRoleEntries[item.key]?.can_use === true;
+                  return (
+                    <GroupedListItem
+                      key={item.key}
+                      icon={cfg.icon}
+                      iconBgClassName={GROUP_ICON_COLORS[grp]}
+                      title={item.name}
+                      subtitle={item.description}
+                      trailing={
+                        <Toggle
+                          checked={effectiveUse}
+                          onChange={() => handleToggleUserCap(item, effectiveUse)}
+                        />
+                      }
+                    />
+                  );
+                })}
+              </GroupedList>
+            );
+          })}
+        </motion.div>
+      );
+    }
+
+    // TELA EMPILHADA 2: EdiÃ§Ã£o de perfil padrÃ£o liberado pelo Master
+    if (selectedPatternRole) {
+      const patternLabels: Record<BaseRoleKey, string> = {
+        visitor: 'PadrÃ£o de Visitantes',
+        site_account: 'PadrÃ£o de Contas do Site',
+        user: 'PadrÃ£o de UsuÃ¡rios',
+        manager_user: 'PadrÃ£o de Logins do Gerente',
+        manager: 'Gerente'
+      };
+      const patternItems = visibleCatalog.filter((item) => {
+        if (isAdminCapability(item.key)) return false;
+        if (searchTerm.trim()) {
+          const t = searchTerm.toLowerCase();
+          return item.name.toLowerCase().includes(t) || item.description.toLowerCase().includes(t);
+        }
+        return true;
+      });
+
+      return (
+        <motion.div
+          initial={{ opacity: 0.4, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          className="space-y-4 pb-8 select-none"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPatternRole(null);
+                setSearchTerm('');
+              }}
+              className="min-h-[44px] px-2 -ml-2 flex items-center gap-1 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-medium cursor-pointer active:opacity-60"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>Voltar</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+                {patternLabels[selectedPatternRole]}
+              </span>
+              {canSimulateProfile && onSimulateRole && (
+                <button
+                  type="button"
+                  onClick={() => onSimulateRole(selectedPatternRole)}
+                  className="px-3 py-1.5 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white text-xs font-medium text-[#007AFF] dark:text-[#0A84FF] flex items-center gap-1 cursor-pointer min-h-[36px]"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Ver como</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <SearchField
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar poder neste perfil..."
+          />
+
+          {(['camadas', 'ferramentas', 'dados', 'conta'] as CapabilityGroup[]).map((grp) => {
+            const grpItems = patternItems.filter(c => c.group === grp);
+            if (grpItems.length === 0) return null;
+            const cfg = GROUP_CONFIG[grp];
+            return (
+              <GroupedList
+                key={grp}
+                header={
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+                    {cfg.label}
+                  </span>
+                }
+                footer={cfg.desc}
+              >
+                {grpItems.map((item) => {
+                  const entry = matrix[selectedPatternRole]?.[item.key] || { can_use: false, can_grant: false };
+                  return (
+                    <GroupedListItem
+                      key={item.key}
+                      icon={cfg.icon}
+                      iconBgClassName={GROUP_ICON_COLORS[grp]}
+                      title={item.name}
+                      subtitle={item.description}
+                      trailing={
+                        <Toggle
+                          checked={entry.can_use}
+                          onChange={() => handleToggleCapability(selectedPatternRole, item.key, 'can_use')}
+                        />
+                      }
+                    />
+                  );
+                })}
+              </GroupedList>
+            );
+          })}
+        </motion.div>
+      );
+    }
+
+    // TELA RAIZ DO GERENTE: Meus logins + Perfis PadrÃ£o Liberados
+    const filteredMyUsers = myManagedUsers.filter((u) => {
+      if (!searchTerm.trim()) return true;
+      const t = searchTerm.toLowerCase();
+      return (
+        u.name.toLowerCase().includes(t) ||
+        u.username.toLowerCase().includes(t) ||
+        (u.department || '').toLowerCase().includes(t)
+      );
+    });
+
+    return (
+      <div className="space-y-4 pb-8 select-none">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1">
+            <SearchField
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Buscar em Meus logins..."
+            />
+          </div>
+          {onNavigateToAudit && (
+            <button
+              type="button"
+              onClick={onNavigateToAudit}
+              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+            >
+              <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
+              <span className="hidden sm:inline">Trilha de AlteraÃ§Ãµes</span>
+            </button>
+          )}
+        </div>
+
+        <GroupedList
+          header={
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+              Meus logins ({filteredMyUsers.length})
+            </span>
+          }
+          footer="Toque em uma conta para ajustar individualmente apenas os poderes que vocÃª pode repassar."
+        >
+          {filteredMyUsers.length === 0 ? (
+            <div className="p-6 text-center text-xs text-[#8E8E93]">
+              Nenhuma conta disponÃ­vel no seu alcance.
+            </div>
+          ) : (
+            filteredMyUsers.map((u) => {
+              const initials = (u.name || u.username || '?')
+                .split(' ')
+                .slice(0, 2)
+                .map(p => p.charAt(0).toUpperCase())
+                .join('');
+              return (
+                <div
+                  key={u.id}
+                  onClick={() => {
+                    setSelectedManagerUser(u);
+                    setSearchTerm('');
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  className="min-h-[52px] px-4 py-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] active:bg-black/[0.05] dark:active:bg-white/[0.06] active:scale-[0.99] transition-all"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-xl bg-[#007AFF]/12 dark:bg-[#0A84FF]/20 text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center text-xs font-semibold shrink-0">
+                      {initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[15px] font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {u.name}
+                      </div>
+                      <div className="text-xs text-[#6C6C70] dark:text-[#98989D] truncate font-mono">
+                        @{u.username}{u.department ? ` â€¢ ${u.department}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant={u.isActive === false ? 'destructive' : 'neutral'}>
+                      {u.isActive === false ? 'Bloqueado' : 'Ativo'}
+                    </Badge>
+                    <ChevronRight className="w-4 h-4 text-[#8E8E93]" />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </GroupedList>
+
+        {(canEditVisitor || canEditSiteAccount || canEditUser) && (
+          <GroupedList
+            header={
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
+                Perfis PadrÃ£o Liberados
+              </span>
+            }
+            footer="As alteraÃ§Ãµes aqui afetam todas as contas deste perfil que nÃ£o tenham exceÃ§Ã£o individual."
+          >
+            {canEditVisitor && (
+              <GroupedListItem
+                icon={Globe}
+                iconBgClassName="bg-[#007AFF] text-white"
+                title="PadrÃ£o de Visitantes"
+                subtitle="Pessoas que acessam sem login"
+                showChevron
+                onClick={() => {
+                  setSelectedPatternRole('visitor');
+                  setSearchTerm('');
+                }}
+              />
+            )}
+            {canEditSiteAccount && (
+              <GroupedListItem
+                icon={User}
+                iconBgClassName="bg-[#34C759] text-white"
+                title="PadrÃ£o de Contas do Site"
+                subtitle="Pessoas que criam conta pelo formulÃ¡rio"
+                showChevron
+                onClick={() => {
+                  setSelectedPatternRole('site_account');
+                  setSearchTerm('');
+                }}
+              />
+            )}
+            {canEditUser && (
+              <>
+                <GroupedListItem
+                  icon={Users}
+                  iconBgClassName="bg-[#5856D6] text-white"
+                  title="PadrÃ£o de UsuÃ¡rios"
+                  subtitle="Logins criados diretamente no painel"
+                  showChevron
+                  onClick={() => {
+                    setSelectedPatternRole('user');
+                    setSearchTerm('');
+                  }}
+                />
+                <GroupedListItem
+                  icon={Briefcase}
+                  iconBgClassName="bg-[#FF9500] text-white"
+                  title="PadrÃ£o de Logins do Gerente"
+                  subtitle="Contas geradas por gerentes"
+                  showChevron
+                  onClick={() => {
+                    setSelectedPatternRole('manager_user');
+                    setSearchTerm('');
+                  }}
+                />
+              </>
+            )}
+          </GroupedList>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fadeIn pb-8 select-none">
-      {/* Ação rápida alinhada à direita no topo do conteúdo */}
+      {/* AÃ§Ã£o rÃ¡pida alinhada Ã  direita no topo do conteÃºdo */}
       {onNavigateToAudit && (
         <div className="flex items-center justify-end">
           <button
             type="button"
             onClick={onNavigateToAudit}
             className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Abrir trilha de auditoria de mudanças de poder"
+            title="Abrir trilha de auditoria de mudanÃ§as de poder"
           >
             <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
-            <span>Trilha de Alterações</span>
+            <span>Trilha de AlteraÃ§Ãµes</span>
           </button>
         </div>
       )}
 
-      {/* Guia Rápido Recolhível dos Perfis */}
+      {/* Guia RÃ¡pido RecolhÃ­vel dos Perfis */}
       <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs overflow-hidden">
         <button
           type="button"
@@ -256,7 +680,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           <div className="flex items-center gap-2 min-w-0">
             <Info className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF] shrink-0" strokeWidth={1.6} />
             <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-              Como funcionam os perfis e permissões
+              Como funcionam os perfis e permissÃµes
             </span>
           </div>
           {showProfileGuide ? (
@@ -278,13 +702,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
                 <div className="font-semibold text-slate-900 dark:text-slate-100">Conta do Site</div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
-                  Pessoa que criou a própria conta pelo formulário público do site.
+                  Pessoa que criou a prÃ³pria conta pelo formulÃ¡rio pÃºblico do site.
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
-                <div className="font-semibold text-slate-900 dark:text-slate-100">Usuário</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">UsuÃ¡rio</div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
-                  Login criado pela gestão diretamente no painel administrativo.
+                  Login criado pela gestÃ£o diretamente no painel administrativo.
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
@@ -301,13 +725,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </div>
             </div>
             <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D]">
-              Estes são os poderes padrão de cada perfil. Você pode ajustar exceções individuais a qualquer momento abrindo a ficha de cada usuário.
+              Estes sÃ£o os poderes padrÃ£o de cada perfil. VocÃª pode ajustar exceÃ§Ãµes individuais a qualquer momento abrindo a ficha de cada usuÃ¡rio.
             </p>
           </div>
         )}
       </div>
 
-      {/* Busca em Cápsula e Categorias */}
+      {/* Busca em CÃ¡psula e Categorias */}
       <div className="space-y-3">
         <SearchField
           value={searchTerm}
@@ -315,7 +739,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           placeholder="Buscar por poder, camada, ferramenta ou chave..."
         />
 
-        {/* Pílulas de Categoria */}
+        {/* PÃ­lulas de Categoria */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs">
           <button
             type="button"
@@ -354,16 +778,16 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
         </div>
       </div>
 
-      {/* MATRIZ DE PODERES: Tabela Responsiva Apple com Cabeçalho Congelado */}
+      {/* MATRIZ DE PODERES: Tabela Responsiva Apple com CabeÃ§alho Congelado */}
       <div className="overflow-x-auto md:overflow-x-visible rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs">
         <table className="w-full text-left border-collapse min-w-[760px]">
-          {/* Cabeçalho da Matriz (Sticky no topo durante rolagem vertical) */}
+          {/* CabeÃ§alho da Matriz (Sticky no topo durante rolagem vertical) */}
           <thead>
             <tr>
               <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] md:rounded-tl-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-xs font-medium text-[#6C6C70] dark:text-[#98989D] uppercase tracking-wider w-[280px] align-bottom">
                 <div>Poder / Capacidade</div>
                 <div className="text-[11px] normal-case tracking-normal font-normal text-[#8E8E93] mt-0.5">
-                  Padrão aplicado por perfil
+                  PadrÃ£o aplicado por perfil
                 </div>
               </th>
 
@@ -381,7 +805,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('visitor')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualização como Visitante"
+                        title="Simular visualizaÃ§Ã£o como Visitante"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -405,7 +829,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('site_account')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualização como Conta do Site"
+                        title="Simular visualizaÃ§Ã£o como Conta do Site"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -415,13 +839,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 </th>
               )}
 
-              {/* Coluna 3: Usuário */}
+              {/* Coluna 3: UsuÃ¡rio */}
               {(isMaster || canEditUser) && (
                 <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
                   <div className="space-y-1 flex flex-col items-center">
                     <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                       <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
-                      <span>Usuário</span>
+                      <span>UsuÃ¡rio</span>
                     </div>
                     <span className="text-[10px] font-normal text-[#8E8E93]">Criado no painel</span>
                     {canSimulateProfile && onSimulateRole && (
@@ -429,7 +853,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('user')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualização como Usuário"
+                        title="Simular visualizaÃ§Ã£o como UsuÃ¡rio"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -453,7 +877,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('manager_user')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualização como Login gerado por Gerente"
+                        title="Simular visualizaÃ§Ã£o como Login gerado por Gerente"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -478,7 +902,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('manager')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualização como Gerente"
+                        title="Simular visualizaÃ§Ã£o como Gerente"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -489,7 +913,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => handleToggleScope(managerScope.scope_type === 'team_only' ? 'all_users' : 'team_only')}
                         className="px-2.5 py-1 rounded-lg border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer min-h-[28px]"
-                        title="Alternar alcance padrão dos gerentes"
+                        title="Alternar alcance padrÃ£o dos gerentes"
                       >
                         {managerScope.scope_type === 'team_only' ? 'Equipe' : 'Todos'}
                       </button>
@@ -497,7 +921,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                   </div>
                   <div className="text-xs text-[#8E8E93] flex items-center gap-2 font-medium">
                     <span title="Pode usar este poder">Uso</span>
-                    <span>•</span>
+                    <span>â€¢</span>
                     <span title="Pode repassar este poder">Repasse</span>
                   </div>
                 </div>
@@ -512,7 +936,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               <tr>
                 <td colSpan={totalColumns} className="p-8 text-center text-[#8E8E93]">
                   {!isMaster && !canManageRoles
-                    ? 'Nenhuma coluna de perfil padrão liberada para edição. Ajuste permissões individuais na ficha de cada usuário.'
+                    ? 'Nenhuma coluna de perfil padrÃ£o liberada para ediÃ§Ã£o. Ajuste permissÃµes individuais na ficha de cada usuÃ¡rio.'
                     : `Nenhum poder encontrado com o termo "${searchTerm}".`}
                 </td>
               </tr>
@@ -525,7 +949,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
                 return (
                   <React.Fragment key={groupKey}>
-                    {/* Linha de Cabeçalho do Grupo */}
+                    {/* Linha de CabeÃ§alho do Grupo */}
                     <tr
                       onClick={() => toggleGroupCollapse(groupKey)}
                       className="bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] cursor-pointer transition-colors"
@@ -568,10 +992,10 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                                   {item.name}
                                 </span>
                                 {item.riskLevel === 'high' && (
-                                  <StatusDot status="warning" label="Atenção" />
+                                  <StatusDot status="warning" label="AtenÃ§Ã£o" />
                                 )}
                                 {item.riskLevel === 'critical' && (
-                                  <StatusDot status="destructive" label="Crítico" />
+                                  <StatusDot status="destructive" label="CrÃ­tico" />
                                 )}
                               </div>
                               <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
@@ -584,7 +1008,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={visitorEntry.can_use}
@@ -601,7 +1025,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={siteEntry.can_use}
@@ -613,12 +1037,12 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               </td>
                             )}
 
-                            {/* Coluna Usuário Comum */}
+                            {/* Coluna UsuÃ¡rio Comum */}
                             {(isMaster || canEditUser) && (
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={userEntry.can_use}
@@ -635,7 +1059,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={managerUserEntry.can_use}
@@ -667,11 +1091,11 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                                 ) : (
                                   <div className="flex items-center justify-center gap-3 text-[11px] font-medium">
                                     <span className={managerEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
-                                      {managerEntry.can_use ? 'Sim' : 'Não'}
+                                      {managerEntry.can_use ? 'Sim' : 'NÃ£o'}
                                     </span>
-                                    <span className="text-[#8E8E93]">•</span>
+                                    <span className="text-[#8E8E93]">â€¢</span>
                                     <span className={managerEntry.can_grant ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
-                                      {managerEntry.can_grant ? 'Sim' : 'Não'}
+                                      {managerEntry.can_grant ? 'Sim' : 'NÃ£o'}
                                     </span>
                                   </div>
                                 )}

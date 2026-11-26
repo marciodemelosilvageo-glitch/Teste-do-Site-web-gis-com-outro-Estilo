@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { MotionConfig } from 'motion/react';
 import { X, Eye } from 'lucide-react';
 import {
   FeaturePermissions,
@@ -799,6 +800,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <AdminAccessSection
             isMaster={isMaster}
             isManager={isManager}
+            registeredUsers={registeredUsers}
+            currentActiveUser={activeManagerUser}
             onSimulateRole={(role) => {
               if (typeof onClose === 'function') onClose();
               if (onSimulateUser) onSimulateUser(null, role === 'visitor' ? 'user' : (role as any));
@@ -842,6 +845,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
+    <MotionConfig reducedMotion="user">
     <div
       className="admin-panel fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] w-screen h-screen min-h-[100dvh] bg-[#F2F2F7] dark:bg-[#000000] flex overflow-hidden animate-fadeIn select-none p-0"
       onWheel={(e) => e.stopPropagation()}
@@ -1024,7 +1028,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           showToast={showToast}
         />
       )}
-    </div>,
+    </div>
+    </MotionConfig>,
     document.body
   );
 };

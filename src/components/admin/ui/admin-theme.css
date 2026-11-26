@@ -1,5 +1,6 @@
 /* Variáveis CSS escopadas exclusivamente ao container .admin-panel */
 .admin-panel {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
   --admin-bg-grouped: #F2F2F7;
   --admin-bg-card: #FFFFFF;
   --admin-bg-elevated: #FFFFFF;

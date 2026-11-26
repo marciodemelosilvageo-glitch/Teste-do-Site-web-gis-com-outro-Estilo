@@ -33,6 +33,7 @@ export interface GroupedListItemProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   icon?: React.ComponentType<{ className?: string }>;
+  iconBgClassName?: string;
   trailing?: React.ReactNode;
   showChevron?: boolean;
   onClick?: () => void;
@@ -45,6 +46,7 @@ export const GroupedListItem: React.FC<GroupedListItemProps> = ({
   title,
   subtitle,
   icon: Icon,
+  iconBgClassName,
   trailing,
   showChevron = false,
   onClick,
@@ -57,9 +59,9 @@ export const GroupedListItem: React.FC<GroupedListItemProps> = ({
   return (
     <div
       onClick={isClickable ? onClick : undefined}
-      className={`min-h-[44px] px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
+      className={`min-h-[44px] px-4 py-3 flex items-center justify-between gap-3 transition-all ${
         isClickable
-          ? 'cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] active:bg-black/[0.05] dark:active:bg-white/[0.06]'
+          ? 'cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03] active:bg-black/[0.05] dark:active:bg-white/[0.06] active:scale-[0.99]'
           : ''
       } ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
       role={isClickable ? 'button' : undefined}
@@ -67,7 +69,11 @@ export const GroupedListItem: React.FC<GroupedListItemProps> = ({
     >
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         {Icon && (
-          <div className="w-7 h-7 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] flex items-center justify-center shrink-0 text-[#6C6C70] dark:text-[#98989D]">
+          <div
+            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              iconBgClassName || 'bg-black/[0.04] dark:bg-white/[0.06] text-[#6C6C70] dark:text-[#98989D]'
+            }`}
+          >
             <Icon className="w-4 h-4" />
           </div>
         )}
