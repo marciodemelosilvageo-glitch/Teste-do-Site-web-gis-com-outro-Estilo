@@ -57,10 +57,10 @@ interface AdminAccessSectionProps {
 
 const GROUP_CONFIG: Record<CapabilityGroup, { label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; desc: string }> = {
   camadas: { label: 'Camadas Territoriais', icon: Layers, desc: 'Visibilidade e acesso espacial a camadas vetoriais no mapa' },
-  ferramentas: { label: 'Ferramentas de AnÃ¡lise', icon: Wrench, desc: 'Instrumentos de geocodificaÃ§Ã£o, polÃ­gonos, mediÃ§Ã£o e buffer' },
-  dados: { label: 'Dados e ExportaÃ§Ãµes', icon: TableProperties, desc: 'Colunas censitÃ¡rias, formatos de arquivos e cotas de download' },
-  conta: { label: 'Conta e Credenciais', icon: User, desc: 'Regras de autocadastro e gerenciamento da prÃ³pria senha' },
-  administracao: { label: 'AdministraÃ§Ã£o do Sistema', icon: ShieldCheck, desc: 'Poderes de governanÃ§a, auditoria e gestÃ£o de usuÃ¡rios' }
+  ferramentas: { label: 'Ferramentas de Análise', icon: Wrench, desc: 'Instrumentos de geocodificação, polígonos, medição e buffer' },
+  dados: { label: 'Dados e Exportações', icon: TableProperties, desc: 'Colunas censitárias, formatos de arquivos e cotas de download' },
+  conta: { label: 'Conta e Credenciais', icon: User, desc: 'Regras de autocadastro e gerenciamento da própria senha' },
+  administracao: { label: 'Administração do Sistema', icon: ShieldCheck, desc: 'Poderes de governança, auditoria e gestão de usuários' }
 };
 
 export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
@@ -83,7 +83,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     ? 6
     : 1 + (canEditVisitor ? 1 : 0) + (canEditSiteAccount ? 1 : 0) + (canEditUser ? 2 : 0) + (canPromoteManager ? 1 : 0);
 
-  // CatÃ¡logo completo de capacidades
+  // Catálogo completo de capacidades
   const catalog = useMemo(() => {
     const layerNames = dataSources.map(ds => ds.name);
     return getAllCapabilitiesCatalog(layerNames);
@@ -95,7 +95,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     return getBaseRolesMatrix(layerNames);
   });
 
-  // Escopo PadrÃ£o de Gerente
+  // Escopo Padrão de Gerente
   const [managerScope, setManagerScope] = useState<ManagerScopeConfig>(() => getManagerScope('default_manager'));
 
   // Estados de Filtro e Busca
@@ -110,7 +110,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
 
-  // CatÃ¡logo visÃ­vel para o papel atual (Gerente vÃª apenas poderes que pode repassar; admin:* exige promote_manager)
+  // Catálogo visível para o papel atual (Gerente vê apenas poderes que pode repassar; admin:* exige promote_manager)
   const visibleCatalog = useMemo(() => {
     if (isMaster) return catalog;
     return catalog.filter(item => {
@@ -119,7 +119,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     });
   }, [catalog, isMaster, canPromoteManager, canGrant]);
 
-  // Filtragem dos itens do catÃ¡logo
+  // Filtragem dos itens do catálogo
   const filteredCatalog = useMemo(() => {
     return visibleCatalog.filter(item => {
       if (selectedGroup !== 'TODOS' && item.group !== selectedGroup) {
@@ -157,9 +157,9 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     capKey: string,
     field: 'can_use' | 'can_grant'
   ) => {
-    // ValidaÃ§Ã£o estrita: admin:* exclusivo de Gerente/Master; coluna exige permissÃ£o correspondente
+    // Validação estrita: admin:* exclusivo de Gerente/Master; coluna exige permissão correspondente
     if (isAdminCapability(capKey) && role !== 'manager') {
-      showToast?.('âš ï¸ Poderes administrativos sÃ£o exclusivos de Gerentes e Master.');
+      showToast?.('⚠️ Poderes administrativos são exclusivos de Gerentes e Master.');
       return;
     }
 
@@ -171,16 +171,16 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
     if (!isMaster) {
       if (!canEditTargetRole) {
-        showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para editar este perfil padrÃ£o.');
+        showToast?.('⚠️ Você não tem permissão para editar este perfil padrão.');
         return;
       }
       const canManageThis = canGrant(capKey);
       if (!canManageThis) {
-        showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o.');
+        showToast?.('⚠️ Você não tem permissão para esta ação.');
         return;
       }
       if (role === 'manager') {
-        showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o.');
+        showToast?.('⚠️ Você não tem permissão para esta ação.');
         return;
       }
     }
@@ -208,39 +208,39 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
     const saveRes = await saveRoleCapability(role, capKey, updatedRolePerms[capKey], { canManageRoles: canEditTargetRole });
     if (!saveRes.success) {
       setMatrix(matrix);
-      showToast?.(`âš ï¸ ${saveRes.error || 'NÃ£o foi possÃ­vel salvar a alteraÃ§Ã£o no servidor.'}`);
+      showToast?.(`⚠️ ${saveRes.error || 'Não foi possível salvar a alteração no servidor.'}`);
       return;
     }
 
-    // Auditoria da MudanÃ§a de Poder no Perfil Base
+    // Auditoria da Mudança de Poder no Perfil Base
     await logCapabilityAudit({
       performedByName: isMaster ? 'Administrador Master' : 'Gerente Autorizado',
       targetType: 'base_role',
       targetId: `role:${role}`,
-      targetName: role === 'visitor' ? 'Visitante' : role === 'site_account' ? 'Conta do Site' : role === 'user' ? 'UsuÃ¡rio Comum' : role === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente',
+      targetName: role === 'visitor' ? 'Visitante' : role === 'site_account' ? 'Conta do Site' : role === 'user' ? 'Usuário Comum' : role === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente',
       capabilityKey: capKey,
       action: field === 'can_use' ? (nextVal ? 'grant_use' : 'revoke_use') : (nextVal ? 'grant_delegate' : 'revoke_delegate'),
       beforeState: currentEntry,
       afterState: updatedRolePerms[capKey],
-      reason: `AlteraÃ§Ã£o na matriz do perfil base ${role.toUpperCase()} (${field === 'can_use' ? 'Uso' : 'Repasse'})`
+      reason: `Alteração na matriz do perfil base ${role.toUpperCase()} (${field === 'can_use' ? 'Uso' : 'Repasse'})`
     });
 
     showToast?.(`Perfil ${role.toUpperCase()}: ${field === 'can_use' ? 'Uso' : 'Repasse'} ${nextVal ? 'ativado' : 'desativado'}.`);
   }, [matrix, isMaster, canEditVisitor, canEditSiteAccount, canEditUser, canGrant, showToast]);
 
-  // Handler para alterar o escopo padrÃ£o de gerentes
+  // Handler para alterar o escopo padrão de gerentes
   const handleToggleScope = useCallback(async (newScope: 'team_only' | 'all_users') => {
     if (!isMaster) {
-      showToast?.('âš ï¸ VocÃª nÃ£o tem permissÃ£o para esta aÃ§Ã£o.');
+      showToast?.('⚠️ Você não tem permissão para esta ação.');
       return;
     }
     const updated = { ...managerScope, scope_type: newScope };
     setManagerScope(updated);
     await saveManagerScope('default_manager', updated);
-    showToast?.(`Alcance padrÃ£o dos gerentes alterado para: ${newScope === 'team_only' ? 'Somente sua Equipe' : 'Todos os UsuÃ¡rios'}.`);
+    showToast?.(`Alcance padrão dos gerentes alterado para: ${newScope === 'team_only' ? 'Somente sua Equipe' : 'Todos os Usuários'}.`);
   }, [managerScope, isMaster, showToast]);
 
-  // Estados da visÃ£o iOS do Gerente (Meus logins + Perfis padrÃ£o liberados)
+  // Estados da visão iOS do Gerente (Meus logins + Perfis padrão liberados)
   const [selectedManagerUser, setSelectedManagerUser] = useState<RegisteredUser | null>(null);
   const [selectedPatternRole, setSelectedPatternRole] = useState<BaseRoleKey | null>(null);
   const [userOverridesVersion, setUserOverridesVersion] = useState(0);
@@ -297,7 +297,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           targetRole: selectedManagerUser.role
         });
         if (!res.success) {
-          showToast?.(`âš ï¸ ${res.error || 'NÃ£o foi possÃ­vel salvar alteraÃ§Ã£o.'}`);
+          showToast?.(`⚠️ ${res.error || 'Não foi possível salvar alteração.'}`);
           return;
         }
         await logCapabilityAudit({
@@ -362,7 +362,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 key={grp}
                 header={
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
-                    Poderes desta conta â€¢ {cfg.label}
+                    Poderes desta conta • {cfg.label}
                   </span>
                 }
                 footer={cfg.desc}
@@ -398,13 +398,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
       );
     }
 
-    // TELA EMPILHADA 2: EdiÃ§Ã£o de perfil padrÃ£o liberado pelo Master
+    // TELA EMPILHADA 2: Edição de perfil padrão liberado pelo Master
     if (selectedPatternRole) {
       const patternLabels: Record<BaseRoleKey, string> = {
-        visitor: 'PadrÃ£o de Visitantes',
-        site_account: 'PadrÃ£o de Contas do Site',
-        user: 'PadrÃ£o de UsuÃ¡rios',
-        manager_user: 'PadrÃ£o de Logins do Gerente',
+        visitor: 'Padrão de Visitantes',
+        site_account: 'Padrão de Contas do Site',
+        user: 'Padrão de Usuários',
+        manager_user: 'Padrão de Logins do Gerente',
         manager: 'Gerente'
       };
       const patternItems = visibleCatalog.filter((item) => {
@@ -498,7 +498,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
       );
     }
 
-    // TELA RAIZ DO GERENTE: Meus logins + Perfis PadrÃ£o Liberados
+    // TELA RAIZ DO GERENTE: Meus logins + Perfis Padrão Liberados
     const filteredMyUsers = myManagedUsers.filter((u) => {
       if (!searchTerm.trim()) return true;
       const t = searchTerm.toLowerCase();
@@ -526,7 +526,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
             >
               <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
-              <span className="hidden sm:inline">Trilha de AlteraÃ§Ãµes</span>
+              <span className="hidden sm:inline">Trilha de Alterações</span>
             </button>
           )}
         </div>
@@ -537,11 +537,11 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               Meus logins ({filteredMyUsers.length})
             </span>
           }
-          footer="Toque em uma conta para ajustar individualmente apenas os poderes que vocÃª pode repassar."
+          footer="Toque em uma conta para ajustar individualmente apenas os poderes que você pode repassar."
         >
           {filteredMyUsers.length === 0 ? (
             <div className="p-6 text-center text-xs text-[#8E8E93]">
-              Nenhuma conta disponÃ­vel no seu alcance.
+              Nenhuma conta disponível no seu alcance.
             </div>
           ) : (
             filteredMyUsers.map((u) => {
@@ -570,7 +570,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         {u.name}
                       </div>
                       <div className="text-xs text-[#6C6C70] dark:text-[#98989D] truncate font-mono">
-                        @{u.username}{u.department ? ` â€¢ ${u.department}` : ''}
+                        @{u.username}{u.department ? ` • ${u.department}` : ''}
                       </div>
                     </div>
                   </div>
@@ -590,16 +590,16 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           <GroupedList
             header={
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6C6C70] dark:text-[#98989D]">
-                Perfis PadrÃ£o Liberados
+                Perfis Padrão Liberados
               </span>
             }
-            footer="As alteraÃ§Ãµes aqui afetam todas as contas deste perfil que nÃ£o tenham exceÃ§Ã£o individual."
+            footer="As alterações aqui afetam todas as contas deste perfil que não tenham exceção individual."
           >
             {canEditVisitor && (
               <GroupedListItem
                 icon={Globe}
                 iconBgClassName="bg-[#007AFF] text-white"
-                title="PadrÃ£o de Visitantes"
+                title="Padrão de Visitantes"
                 subtitle="Pessoas que acessam sem login"
                 showChevron
                 onClick={() => {
@@ -612,8 +612,8 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               <GroupedListItem
                 icon={User}
                 iconBgClassName="bg-[#34C759] text-white"
-                title="PadrÃ£o de Contas do Site"
-                subtitle="Pessoas que criam conta pelo formulÃ¡rio"
+                title="Padrão de Contas do Site"
+                subtitle="Pessoas que criam conta pelo formulário"
                 showChevron
                 onClick={() => {
                   setSelectedPatternRole('site_account');
@@ -626,7 +626,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 <GroupedListItem
                   icon={Users}
                   iconBgClassName="bg-[#5856D6] text-white"
-                  title="PadrÃ£o de UsuÃ¡rios"
+                  title="Padrão de Usuários"
                   subtitle="Logins criados diretamente no painel"
                   showChevron
                   onClick={() => {
@@ -637,7 +637,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 <GroupedListItem
                   icon={Briefcase}
                   iconBgClassName="bg-[#FF9500] text-white"
-                  title="PadrÃ£o de Logins do Gerente"
+                  title="Padrão de Logins do Gerente"
                   subtitle="Contas geradas por gerentes"
                   showChevron
                   onClick={() => {
@@ -655,22 +655,22 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
   return (
     <div className="space-y-5 animate-fadeIn pb-8 select-none">
-      {/* AÃ§Ã£o rÃ¡pida alinhada Ã  direita no topo do conteÃºdo */}
+      {/* Ação rápida alinhada à direita no topo do conteúdo */}
       {onNavigateToAudit && (
         <div className="flex items-center justify-end">
           <button
             type="button"
             onClick={onNavigateToAudit}
             className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Abrir trilha de auditoria de mudanÃ§as de poder"
+            title="Abrir trilha de auditoria de mudanças de poder"
           >
             <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
-            <span>Trilha de AlteraÃ§Ãµes</span>
+            <span>Trilha de Alterações</span>
           </button>
         </div>
       )}
 
-      {/* Guia RÃ¡pido RecolhÃ­vel dos Perfis */}
+      {/* Guia Rápido Recolhível dos Perfis */}
       <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs overflow-hidden">
         <button
           type="button"
@@ -680,7 +680,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           <div className="flex items-center gap-2 min-w-0">
             <Info className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF] shrink-0" strokeWidth={1.6} />
             <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-              Como funcionam os perfis e permissÃµes
+              Como funcionam os perfis e permissões
             </span>
           </div>
           {showProfileGuide ? (
@@ -702,13 +702,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
                 <div className="font-semibold text-slate-900 dark:text-slate-100">Conta do Site</div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
-                  Pessoa que criou a prÃ³pria conta pelo formulÃ¡rio pÃºblico do site.
+                  Pessoa que criou a própria conta pelo formulário público do site.
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
-                <div className="font-semibold text-slate-900 dark:text-slate-100">UsuÃ¡rio</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Usuário</div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
-                  Login criado pela gestÃ£o diretamente no painel administrativo.
+                  Login criado pela gestão diretamente no painel administrativo.
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
@@ -725,13 +725,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               </div>
             </div>
             <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D]">
-              Estes sÃ£o os poderes padrÃ£o de cada perfil. VocÃª pode ajustar exceÃ§Ãµes individuais a qualquer momento abrindo a ficha de cada usuÃ¡rio.
+              Estes são os poderes padrão de cada perfil. Você pode ajustar exceções individuais a qualquer momento abrindo a ficha de cada usuário.
             </p>
           </div>
         )}
       </div>
 
-      {/* Busca em CÃ¡psula e Categorias */}
+      {/* Busca em Cápsula e Categorias */}
       <div className="space-y-3">
         <SearchField
           value={searchTerm}
@@ -739,7 +739,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           placeholder="Buscar por poder, camada, ferramenta ou chave..."
         />
 
-        {/* PÃ­lulas de Categoria */}
+        {/* Pílulas de Categoria */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs">
           <button
             type="button"
@@ -778,16 +778,16 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
         </div>
       </div>
 
-      {/* MATRIZ DE PODERES: Tabela Responsiva Apple com CabeÃ§alho Congelado */}
+      {/* MATRIZ DE PODERES: Tabela Responsiva Apple com Cabeçalho Congelado */}
       <div className="overflow-x-auto md:overflow-x-visible rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs">
         <table className="w-full text-left border-collapse min-w-[760px]">
-          {/* CabeÃ§alho da Matriz (Sticky no topo durante rolagem vertical) */}
+          {/* Cabeçalho da Matriz (Sticky no topo durante rolagem vertical) */}
           <thead>
             <tr>
               <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] md:rounded-tl-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-xs font-medium text-[#6C6C70] dark:text-[#98989D] uppercase tracking-wider w-[280px] align-bottom">
                 <div>Poder / Capacidade</div>
                 <div className="text-[11px] normal-case tracking-normal font-normal text-[#8E8E93] mt-0.5">
-                  PadrÃ£o aplicado por perfil
+                  Padrão aplicado por perfil
                 </div>
               </th>
 
@@ -805,7 +805,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('visitor')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualizaÃ§Ã£o como Visitante"
+                        title="Simular visualização como Visitante"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -829,7 +829,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('site_account')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualizaÃ§Ã£o como Conta do Site"
+                        title="Simular visualização como Conta do Site"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -839,13 +839,13 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 </th>
               )}
 
-              {/* Coluna 3: UsuÃ¡rio */}
+              {/* Coluna 3: Usuário */}
               {(isMaster || canEditUser) && (
                 <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[125px] align-bottom">
                   <div className="space-y-1 flex flex-col items-center">
                     <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100">
                       <User className="w-3.5 h-3.5 text-[#8E8E93]" strokeWidth={1.6} />
-                      <span>UsuÃ¡rio</span>
+                      <span>Usuário</span>
                     </div>
                     <span className="text-[10px] font-normal text-[#8E8E93]">Criado no painel</span>
                     {canSimulateProfile && onSimulateRole && (
@@ -853,7 +853,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('user')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualizaÃ§Ã£o como UsuÃ¡rio"
+                        title="Simular visualização como Usuário"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -877,7 +877,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('manager_user')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualizaÃ§Ã£o como Login gerado por Gerente"
+                        title="Simular visualização como Login gerado por Gerente"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -902,7 +902,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => onSimulateRole('manager')}
                         className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
-                        title="Simular visualizaÃ§Ã£o como Gerente"
+                        title="Simular visualização como Gerente"
                       >
                         <Eye className="w-3 h-3" strokeWidth={1.6} />
                         <span>Ver como</span>
@@ -913,7 +913,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         type="button"
                         onClick={() => handleToggleScope(managerScope.scope_type === 'team_only' ? 'all_users' : 'team_only')}
                         className="px-2.5 py-1 rounded-lg border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer min-h-[28px]"
-                        title="Alternar alcance padrÃ£o dos gerentes"
+                        title="Alternar alcance padrão dos gerentes"
                       >
                         {managerScope.scope_type === 'team_only' ? 'Equipe' : 'Todos'}
                       </button>
@@ -921,7 +921,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                   </div>
                   <div className="text-xs text-[#8E8E93] flex items-center gap-2 font-medium">
                     <span title="Pode usar este poder">Uso</span>
-                    <span>â€¢</span>
+                    <span>•</span>
                     <span title="Pode repassar este poder">Repasse</span>
                   </div>
                 </div>
@@ -936,7 +936,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
               <tr>
                 <td colSpan={totalColumns} className="p-8 text-center text-[#8E8E93]">
                   {!isMaster && !canManageRoles
-                    ? 'Nenhuma coluna de perfil padrÃ£o liberada para ediÃ§Ã£o. Ajuste permissÃµes individuais na ficha de cada usuÃ¡rio.'
+                    ? 'Nenhuma coluna de perfil padrão liberada para edição. Ajuste permissões individuais na ficha de cada usuário.'
                     : `Nenhum poder encontrado com o termo "${searchTerm}".`}
                 </td>
               </tr>
@@ -949,7 +949,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
                 return (
                   <React.Fragment key={groupKey}>
-                    {/* Linha de CabeÃ§alho do Grupo */}
+                    {/* Linha de Cabeçalho do Grupo */}
                     <tr
                       onClick={() => toggleGroupCollapse(groupKey)}
                       className="bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] cursor-pointer transition-colors"
@@ -992,10 +992,10 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                                   {item.name}
                                 </span>
                                 {item.riskLevel === 'high' && (
-                                  <StatusDot status="warning" label="AtenÃ§Ã£o" />
+                                  <StatusDot status="warning" label="Atenção" />
                                 )}
                                 {item.riskLevel === 'critical' && (
-                                  <StatusDot status="destructive" label="CrÃ­tico" />
+                                  <StatusDot status="destructive" label="Crítico" />
                                 )}
                               </div>
                               <div className="text-xs text-[#6C6C70] dark:text-[#98989D] line-clamp-1">
@@ -1008,7 +1008,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={visitorEntry.can_use}
@@ -1025,7 +1025,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={siteEntry.can_use}
@@ -1037,12 +1037,12 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               </td>
                             )}
 
-                            {/* Coluna UsuÃ¡rio Comum */}
+                            {/* Coluna Usuário Comum */}
                             {(isMaster || canEditUser) && (
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={userEntry.can_use}
@@ -1059,7 +1059,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                               <td className="p-4 text-center">
                                 <div className="flex items-center justify-center">
                                   {isAdminCapability(item.key) ? (
-                                    <span className="text-[11px] text-[#8E8E93] italic">NÃ£o se aplica</span>
+                                    <span className="text-[11px] text-[#8E8E93] italic">Não se aplica</span>
                                   ) : (
                                     <Toggle
                                       checked={managerUserEntry.can_use}
@@ -1091,11 +1091,11 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                                 ) : (
                                   <div className="flex items-center justify-center gap-3 text-[11px] font-medium">
                                     <span className={managerEntry.can_use ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
-                                      {managerEntry.can_use ? 'Sim' : 'NÃ£o'}
+                                      {managerEntry.can_use ? 'Sim' : 'Não'}
                                     </span>
-                                    <span className="text-[#8E8E93]">â€¢</span>
+                                    <span className="text-[#8E8E93]">•</span>
                                     <span className={managerEntry.can_grant ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#8E8E93]'}>
-                                      {managerEntry.can_grant ? 'Sim' : 'NÃ£o'}
+                                      {managerEntry.can_grant ? 'Sim' : 'Não'}
                                     </span>
                                   </div>
                                 )}
