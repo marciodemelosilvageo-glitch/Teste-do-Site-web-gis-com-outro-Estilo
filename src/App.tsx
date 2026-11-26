@@ -3962,7 +3962,7 @@ export default function App() {
             }
           }}
           onOpenAdminPanel={() => {
-            if (isAdmin) setIsAdminModalOpen(true);
+            if (isAdmin || isManager) setIsAdminModalOpen(true);
             else handleOpenAdminLogin();
           }}
           onOpenCnefeAddressSearch={() => {
@@ -4107,7 +4107,7 @@ export default function App() {
               isDarkMode={isDarkMode}
               onToggleDarkMode={toggleDarkModeWithTransition}
               onOpenAdminPanel={() => {
-                if (isAdmin) setIsAdminModalOpen(true);
+                if (isAdmin || isManager) setIsAdminModalOpen(true);
                 else handleOpenAdminLogin();
               }}
               onOpenProfileModal={() => {
@@ -4206,7 +4206,7 @@ export default function App() {
               isDarkMode={isDarkMode}
               onToggleDarkMode={toggleDarkModeWithTransition}
               onOpenAdminPanel={() => {
-                if (isAdmin) setIsAdminModalOpen(true);
+                if (isAdmin || isManager) setIsAdminModalOpen(true);
                 else handleOpenAdminLogin();
               }}
               onOpenProfileModal={() => {
