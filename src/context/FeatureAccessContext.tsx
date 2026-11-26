@@ -367,14 +367,14 @@ export const useFeatureAccessState = ({
 
     if (key === 'export_rows') {
       if (isManager) return 100000;
-      if (userRole === 'user') return 50000;
+      if (userRole === 'user' || userRole === 'manager_user') return 50000;
       if (isSiteAccount) return 10000;
       if (isVisitor) return 1000;
       return defaultValue || 10000;
     }
 
     if (key === 'query_results') {
-      if (isManager || userRole === 'user') return 50000;
+      if (isManager || userRole === 'user' || userRole === 'manager_user') return 50000;
       if (isSiteAccount) return 20000;
       if (isVisitor) return 5000;
       return defaultValue || 5000;

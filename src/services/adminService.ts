@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase, toSyntheticEmail, SUPABASE_URL, SUPABASE_ANON_KEY } from '../supabaseClient';
 
-export type UserRole = 'master' | 'manager' | 'user' | 'site_account' | 'visitor' | 'admin';
+export type UserRole = 'master' | 'manager' | 'manager_user' | 'user' | 'site_account' | 'visitor' | 'admin';
 
 export interface LayerPermission {
   name: string;
@@ -2593,7 +2593,7 @@ export const getCapabilityAuditLogsAsync = async (): Promise<CapabilityAuditLog[
         targetType: row.target_type,
         targetId: row.target_id,
         targetName: row.target_type === 'base_role'
-          ? (row.target_id === 'role:visitor' ? 'Visitante' : row.target_id === 'role:site_account' ? 'Conta do Site' : row.target_id === 'role:user' ? 'Usuário' : 'Gerente')
+          ? (row.target_id === 'role:visitor' ? 'Visitante' : row.target_id === 'role:site_account' ? 'Conta do Site' : row.target_id === 'role:user' ? 'Usuário' : row.target_id === 'role:manager_user' ? 'Login gerado por Gerente' : 'Gerente')
           : (row.target_type === 'global' ? 'Global' : `@${row.target_id}`),
         capabilityKey: row.capability_key,
         action: row.action,
@@ -2730,6 +2730,7 @@ export const buildFallbackCapabilitiesMap = (
   const isMaster = role === 'master' || role === 'admin';
   const isManager = role === 'manager';
   const isSiteAccount = role === 'site_account';
+  const isManagerUser = role === 'manager_user';
   const isUser = role === 'user';
 
   const map: Record<string, EffectiveCapability> = {};
@@ -2745,7 +2746,7 @@ export const buildFallbackCapabilitiesMap = (
 
   // 1. Matriz completa de poderes por papel base (camadas, ferramentas, dados, conta, admin)
   const baseMatrix = getBaseRolesMatrix(STANDARD_LAYER_NAMES);
-  const roleKey: BaseRoleKey = isManager ? 'manager' : isSiteAccount ? 'site_account' : isUser ? 'user' : 'visitor';
+  const roleKey: BaseRoleKey = isManager ? 'manager' : isSiteAccount ? 'site_account' : isManagerUser ? 'manager_user' : isUser ? 'user' : 'visitor';
   const roleEntries = baseMatrix[roleKey] || {};
 
   Object.entries(roleEntries).forEach(([capKey, entry]) => {
@@ -2997,7 +2998,7 @@ export interface CapabilityItem {
   riskLevel?: 'low' | 'medium' | 'high' | 'critical';
 }
 
-export type BaseRoleKey = 'visitor' | 'site_account' | 'user' | 'manager';
+export type BaseRoleKey = 'visitor' | 'site_account' | 'user' | 'manager_user' | 'manager';
 
 export interface RoleCapabilityEntry {
   can_use: boolean;
@@ -3088,6 +3089,7 @@ export const buildDefaultRolesMatrix = (layersList?: string[]): RoleCapabilities
     visitor: {},
     site_account: {},
     user: {},
+    manager_user: {},
     manager: {}
   };
 
@@ -3139,6 +3141,12 @@ export const buildDefaultRolesMatrix = (layersList?: string[]): RoleCapabilities
       can_grant: false
     };
 
+    // 3b. Login gerado por Gerente (ponto de partida idêntico ao perfil Usuário)
+    matrix.manager_user[item.key] = {
+      can_use: isUserAllowed,
+      can_grant: false
+    };
+
     // 4. Gerente
     const isManagerUse =
       item.group === 'camadas' ||
@@ -3175,6 +3183,9 @@ export const getBaseRolesMatrix = (layersList?: string[]): RoleCapabilitiesMatri
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.visitor && parsed.user && parsed.manager) {
+        if (!parsed.manager_user) {
+          parsed.manager_user = { ...parsed.user };
+        }
         return parsed;
       }
     }
@@ -3237,7 +3248,7 @@ export const saveRoleCapability = async (
         try {
           await supabase.from('base_roles').upsert({
             id: cleanRoleId,
-            name: cleanRoleId === 'visitor' ? 'Visitante Anônimo' : cleanRoleId === 'site_account' ? 'Conta do Site' : cleanRoleId === 'user' ? 'Usuário Credenciado' : 'Gerente de Equipe',
+            name: cleanRoleId === 'visitor' ? 'Visitante Anônimo' : cleanRoleId === 'site_account' ? 'Conta do Site' : cleanRoleId === 'user' ? 'Usuário Credenciado' : cleanRoleId === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente de Equipe',
             is_system: true
           }, { onConflict: 'id' });
         } catch { }

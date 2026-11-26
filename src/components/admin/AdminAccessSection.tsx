@@ -41,7 +41,7 @@ import {
 interface AdminAccessSectionProps {
   isMaster: boolean;
   isManager: boolean;
-  onSimulateRole?: (role: 'user' | 'manager' | 'site_account' | 'visitor') => void;
+  onSimulateRole?: (role: 'user' | 'manager_user' | 'manager' | 'site_account' | 'visitor') => void;
   onNavigateToAudit?: () => void;
   showToast?: (msg: string) => void;
 }
@@ -168,7 +168,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
       performedByName: isMaster ? 'Administrador Master' : 'Gerente Autorizado',
       targetType: 'base_role',
       targetId: `role:${role}`,
-      targetName: role === 'visitor' ? 'Visitante' : role === 'site_account' ? 'Conta do Site' : role === 'user' ? 'Usuário Comum' : 'Gerente',
+      targetName: role === 'visitor' ? 'Visitante' : role === 'site_account' ? 'Conta do Site' : role === 'user' ? 'Usuário Comum' : role === 'manager_user' ? 'Login gerado por Gerente' : 'Gerente',
       capabilityKey: capKey,
       action: field === 'can_use' ? (nextVal ? 'grant_use' : 'revoke_use') : (nextVal ? 'grant_delegate' : 'revoke_delegate'),
       beforeState: currentEntry,
@@ -244,7 +244,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
         {showProfileGuide && (
           <div className="px-4 pb-3.5 pt-1 border-t border-black/[0.05] dark:border-white/[0.06] space-y-2.5 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-1.5">
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
                 <div className="font-semibold text-slate-900 dark:text-slate-100">Visitante</div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
@@ -261,6 +261,12 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 <div className="font-semibold text-slate-900 dark:text-slate-100">Usuário</div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
                   Login criado pela gestão diretamente no painel administrativo.
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Login gerado por Gerente</div>
+                <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
+                  Contas criadas por um gerente no painel para sua equipe.
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
@@ -402,6 +408,28 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 </div>
               </th>
 
+              {/* Coluna 4: Login gerado por Gerente */}
+              <th className="sticky top-0 z-20 bg-[#FAFAFB] dark:bg-[#242426] shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[155px] align-bottom">
+                <div className="space-y-1 flex flex-col items-center">
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100 leading-tight">
+                    <User className="w-3.5 h-3.5 text-[#8E8E93] shrink-0" strokeWidth={1.6} />
+                    <span>Login gerado por Gerente</span>
+                  </div>
+                  <span className="text-[10px] font-normal text-[#8E8E93]">Logins que um gerente cria</span>
+                  {onSimulateRole && (
+                    <button
+                      type="button"
+                      onClick={() => onSimulateRole('manager_user')}
+                      className="px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.08] hover:bg-[#007AFF] hover:text-white dark:hover:bg-[#0A84FF] text-xs font-medium text-[#6C6C70] dark:text-[#98989D] transition-colors flex items-center gap-1 cursor-pointer min-h-[28px]"
+                      title="Simular visualização como Login gerado por Gerente"
+                    >
+                      <Eye className="w-3 h-3" strokeWidth={1.6} />
+                      <span>Ver como</span>
+                    </button>
+                  )}
+                </div>
+              </th>
+
               {/* Coluna 4: Gerente */}
               <th className="sticky top-0 z-20 bg-[#F4F4F6] dark:bg-[#2A2A2D] md:rounded-tr-3xl shadow-[0_1px_0_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] p-4 text-center w-[170px] align-bottom">
                 <div className="space-y-1 flex flex-col items-center">
@@ -447,7 +475,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
           <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.06] text-xs">
             {Object.keys(groupedCatalog).length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-[#8E8E93]">
+                <td colSpan={6} className="p-8 text-center text-[#8E8E93]">
                   Nenhum poder encontrado com o termo "{searchTerm}".
                 </td>
               </tr>
@@ -465,7 +493,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                       onClick={() => toggleGroupCollapse(groupKey)}
                       className="bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] cursor-pointer transition-colors"
                     >
-                      <td colSpan={5} className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">
+                      <td colSpan={6} className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {isCollapsed ? <ChevronRight className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} /> : <ChevronDown className="w-4 h-4 text-[#8E8E93]" strokeWidth={1.6} />}
@@ -486,6 +514,7 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                         const visitorEntry = matrix.visitor?.[item.key] || { can_use: false, can_grant: false };
                         const siteEntry = matrix.site_account?.[item.key] || { can_use: false, can_grant: false };
                         const userEntry = matrix.user?.[item.key] || { can_use: false, can_grant: false };
+                        const managerUserEntry = matrix.manager_user?.[item.key] || userEntry;
                         const managerEntry = matrix.manager?.[item.key] || { can_use: false, can_grant: false };
 
                         const isEditableByRequester = isMaster || canGrant(item.key);
@@ -546,6 +575,17 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                                 <Toggle
                                   checked={userEntry.can_use}
                                   onChange={() => handleToggleCapability('user', item.key, 'can_use')}
+                                  disabled={!isEditableByRequester}
+                                />
+                              </div>
+                            </td>
+
+                            {/* Coluna Login gerado por Gerente */}
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center">
+                                <Toggle
+                                  checked={managerUserEntry.can_use}
+                                  onChange={() => handleToggleCapability('manager_user', item.key, 'can_use')}
                                   disabled={!isEditableByRequester}
                                 />
                               </div>
