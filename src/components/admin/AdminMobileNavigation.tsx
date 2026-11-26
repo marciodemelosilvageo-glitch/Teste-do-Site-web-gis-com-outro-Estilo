@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'motion/react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -94,51 +93,7 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
   // Título amigável da seção ativa
   const currentSectionMeta = sections.find(s => s.id === currentSection);
 
-  const shortTabLabel = (id: AdminSection, fallback: string) => {
-    switch (id) {
-      case 'overview': return 'Resumo';
-      case 'users': return 'Equipe';
-      case 'access': return 'Acessos';
-      case 'activity': return 'Atividade';
-      case 'system': return 'Sincronizar';
-      default: return fallback;
-    }
-  };
-
-  const renderIosBottomTabBar = () => {
-    if (isMaster) return null;
-    const activeTab = currentSection || sections[0]?.id;
-    return (
-      <nav
-        aria-label="Navegação por abas"
-        className="shrink-0 bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-xl border-t border-black/[0.08] dark:border-white/[0.1] px-1 pt-1 pb-2 flex items-center justify-around select-none"
-      >
-        {sections.map((sec) => {
-          const TabIcon = sec.icon;
-          const isActive = activeTab === sec.id && currentSection !== null;
-          return (
-            <button
-              key={sec.id}
-              type="button"
-              onClick={() => onSelectSection(sec.id)}
-              className={`min-h-[44px] min-w-[44px] flex-1 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-transform active:scale-95 cursor-pointer ${
-                isActive
-                  ? 'text-[#007AFF] dark:text-[#0A84FF]'
-                  : 'text-[#8E8E93] dark:text-[#8E8E93]'
-              }`}
-            >
-              <TabIcon className="w-5 h-5" strokeWidth={isActive ? 2 : 1.6} />
-              <span className="text-[10px] font-medium leading-none truncate max-w-[68px]">
-                {shortTabLabel(sec.id, sec.label)}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-    );
-  };
-
-  // Se uma subseção estiver aberta, renderiza a tela empilhada com botão voltar (‹) e deslize
+  // Se uma subseção estiver aberta, renderiza a tela empilhada com botão voltar (‹)
   if (currentSection !== null) {
     return (
       <div className="flex flex-col h-full w-full bg-[#F2F2F7] dark:bg-[#000000] text-slate-900 dark:text-slate-100">
@@ -153,7 +108,7 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
             <span>Ajustes</span>
           </button>
 
-          <h2 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate text-center flex-1 px-2">
+          <h2 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate text-center flex-1 px-2">
             {currentSectionMeta?.label || 'Painel'}
           </h2>
 
@@ -168,26 +123,10 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
           </button>
         </header>
 
-        {/* Conteúdo da Subseção com transição de pilha iOS e voltar por deslize para Gerente */}
-        <motion.div
-          key={currentSection}
-          initial={isMaster ? false : { opacity: 0.4, x: 24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-          drag={!isMaster ? 'x' : false}
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={{ left: 0, right: 0.25 }}
-          onDragEnd={(_, info) => {
-            if (!isMaster && info.offset.x > 90 && info.velocity.x > 100) {
-              onSelectSection(null);
-            }
-          }}
-          className="flex-1 overflow-y-auto p-4 space-y-4"
-        >
+        {/* Conteúdo da Subseção */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {children}
-        </motion.div>
-
-        {renderIosBottomTabBar()}
+        </div>
       </div>
     );
   }
@@ -274,7 +213,6 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
           WebGIS • Ajustes e Políticas
         </div>
       </div>
-      {renderIosBottomTabBar()}
     </div>
   );
 };

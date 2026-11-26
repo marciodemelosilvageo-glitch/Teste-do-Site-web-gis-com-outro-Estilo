@@ -82,14 +82,11 @@ export const AdminUserFormModal: React.FC<AdminUserFormModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 z-[10000] bg-black/60 dark:bg-black/80 backdrop-blur-md flex ${!isMaster ? 'items-end sm:items-center p-0 sm:p-4' : 'items-center p-3 sm:p-4'} justify-center overflow-y-auto animate-fadeIn select-none`}>
+    <div className="fixed inset-0 z-[10000] bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn select-none">
       <div 
-        className={`w-full max-w-2xl bg-white dark:bg-[#1C1C1E] ${!isMaster ? 'rounded-t-3xl sm:rounded-3xl' : 'rounded-3xl'} border border-black/[0.08] dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp sm:my-auto`}
+        className="w-full max-w-2xl bg-white dark:bg-[#1C1C1E] rounded-3xl border border-black/[0.08] dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {!isMaster && (
-          <div className="w-9 h-1 rounded-full bg-black/20 dark:bg-white/25 mx-auto mt-2.5 sm:hidden shrink-0" />
-        )}
         {/* Cabeçalho Apple com Alça no Mobile */}
         <div className="p-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
