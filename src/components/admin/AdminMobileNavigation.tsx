@@ -33,6 +33,7 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
   currentSection,
   onSelectSection,
   isMaster,
+  isManager,
   currentActiveUser,
   onClose,
   pendingAlertsCount = 0,
@@ -76,11 +77,11 @@ export const AdminMobileNavigation: React.FC<AdminMobileNavigationProps> = ({
     }
   ];
 
-  if (isMaster) {
+  if (isMaster || isManager) {
     allSections.push({
       id: 'system',
-      label: 'Sistema',
-      description: 'Configurações de ambiente e manutenção',
+      label: isMaster ? 'Sistema' : 'Sincronizar',
+      description: isMaster ? 'Configurações de ambiente e manutenção' : 'Sincronizar dados e permissões',
       icon: Settings
     });
   }

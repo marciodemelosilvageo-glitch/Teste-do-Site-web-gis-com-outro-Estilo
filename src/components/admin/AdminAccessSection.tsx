@@ -209,34 +209,20 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
 
   return (
     <div className="space-y-5 animate-fadeIn pb-8 select-none">
-      {/* Barra de Topo: Título e Ações */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-black/[0.06] dark:border-white/[0.06]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-[28px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-8">
-              Acesso & Permissões
-            </h2>
-            <Badge variant="accent">Catálogo Central</Badge>
-          </div>
-          <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-1">
-            Matriz de poderes padrão por perfil. Exceções por usuário são atribuídas na ficha individual.
-          </p>
+      {/* Ação rápida alinhada à direita no topo do conteúdo */}
+      {onNavigateToAudit && (
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={onNavigateToAudit}
+            className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Abrir trilha de auditoria de mudanças de poder"
+          >
+            <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
+            <span>Trilha de Alterações</span>
+          </button>
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {onNavigateToAudit && (
-            <button
-              type="button"
-              onClick={onNavigateToAudit}
-              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] active:scale-[0.98] text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Abrir trilha de auditoria de mudanças de poder"
-            >
-              <History className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" strokeWidth={1.6} />
-              <span>Trilha de Alterações</span>
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Guia Rápido Recolhível dos Perfis */}
       <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#1C1C1E] shadow-xs overflow-hidden">

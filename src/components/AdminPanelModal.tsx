@@ -122,7 +122,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   }, [registeredUsers, currentActiveUser]);
 
   // Privilégios efetivos do Gerente via provedor universal de capacidades
-  const { can, canGrant } = useAccess();
+  const { can, canGrant, refreshAccess } = useAccess();
   const canManagerGenerateLogins = isMaster || can('admin:users:create');
   const canManagerCreateManagerRole = isMaster || can('admin:users:promote_manager');
   const canManagerChangePasswords = isMaster || can('admin:users:reset_password');
@@ -145,7 +145,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     if (canViewUsers) list.push('users');
     if (canViewAccess) list.push('access');
     if (canViewLogs) list.push('activity');
-    if (isMaster) list.push('system');
+    if (isMaster || isManager) list.push('system');
     return list;
   }, [canViewUsers, canViewAccess, canViewLogs, isMaster]);
 
@@ -701,19 +701,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         );
 
       case 'system':
-        return isMaster ? (
+        return (isMaster || isManager) ? (
           <AdminSystemSection
+            isMaster={isMaster}
+            isManager={isManager}
             onRefreshData={async () => {
-              const users = await getRegisteredUsersAsync();
+              const [users, s, l, al] = await Promise.all([
+                getRegisteredUsersAsync(),
+                getUserSessionsAsync(),
+                getActivityLogsAsync(),
+                getCapabilityAuditLogsAsync()
+              ]);
               setRegisteredUsers(users);
-              const s = await getUserSessionsAsync();
               setUserSessions(s);
-              const l = await getActivityLogsAsync();
               setLogs(l);
+              setCapabilityAuditLogs(al);
+              notifyPermissionsUpdated();
+              await refreshAccess();
             }}
             onClearLogs={handleClearLogs}
             showToast={showToast}
-            totalLogsCount={logs.length}
+            totalLogsCount={visibleLogs.length}
             totalSessionsCount={Object.keys(userSessions).length}
             totalUsersCount={registeredUsers.length}
           />
@@ -823,18 +831,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F2F2F7] dark:bg-[#000000]">
-          {/* Topbar Desktop Sóbria */}
-          <div className="h-14 px-6 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between shrink-0 bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-md select-none">
-            <div>
-              <h1 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
-                {currentSection === 'overview' && 'Visão Geral do WebGIS'}
-                {currentSection === 'users' && 'Gestão de Usuários & Equipe'}
-                {currentSection === 'access' && 'Políticas de Acesso & Permissões'}
-                {currentSection === 'activity' && 'Auditoria e Histórico de Logs'}
-                {currentSection === 'system' && 'Configurações do Sistema'}
-              </h1>
-            </div>
-
+          {/* Topbar Desktop Sóbria (sem título repetido, apenas ações) */}
+          <div className="h-14 px-6 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-end shrink-0 bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-md select-none">
             <div className="flex items-center gap-2">
               {(isMaster || canSimulateProfile) && onOpenSimulationChoice && (
                 <button

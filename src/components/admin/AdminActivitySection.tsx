@@ -374,18 +374,13 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
 
       {sectionMode === 'activity' ? (
         <>
-          {/* Barra de Topo: Atividades Gerais */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-black/[0.08] dark:border-white/[0.08]">
-            <div>
-              <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white">
-                Registros de Atividade ({filteredLogs.length} de {baseVisibleLogs.length})
-              </h2>
-              <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
-                Histórico completo de acessos, eventos espaciais e operações no WebGIS.
-              </p>
-            </div>
+          {/* Barra de Ações e Contador (sem título repetido) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+            <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">
+              {filteredLogs.length} de {baseVisibleLogs.length} registros
+            </span>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               {(isMaster || canExportLogs) && (
                 <button
                   type="button"
@@ -516,21 +511,13 @@ export const AdminActivitySection: React.FC<AdminActivitySectionProps> = ({
         </>
       ) : (
         <>
-          {/* Barra de Topo: Trilha de Mudança de Poderes */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-black/[0.08] dark:border-white/[0.08]">
-            <div>
-              <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>Auditoria de Mudança de Poderes</span>
-                <span className="text-xs font-normal text-[#6C6C70] dark:text-[#98989D]">
-                  ({filteredCapabilityAudit.length} de {baseVisibleAuditLogs.length})
-                </span>
-              </h2>
-              <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
-                Trilha auditada e imutável de concessões, revogações, repasses e exceções individuais.
-              </p>
-            </div>
+          {/* Barra de Ações e Contador da Trilha (sem título repetido) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+            <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">
+              {filteredCapabilityAudit.length} de {baseVisibleAuditLogs.length} registros
+            </span>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               {(isMaster || canExportLogs) && (
                 <button
                   type="button"

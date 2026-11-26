@@ -164,19 +164,9 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Cabeçalho da Seção com Título Grande Apple */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-black/[0.06] dark:border-white/[0.06]">
-        <div>
-          <h2 className="text-[28px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-8">
-            Visão Geral
-          </h2>
-          <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-1">
-            Resumo do estado da equipe, dispositivos e atividades do WebGIS.
-          </p>
-        </div>
-
-        {/* Ações Rápidas em Azul do Sistema ou Neutro */}
-        <div className="flex items-center gap-2">
+      {/* Ações Rápidas alinhadas à direita no topo do conteúdo */}
+      {(canManagerGenerateLogins && onOpenCreateUser) || onExportLogsCSV ? (
+        <div className="flex items-center justify-end gap-2">
           {canManagerGenerateLogins && onOpenCreateUser && (
             <button
               type="button"
@@ -200,7 +190,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
             </button>
           )}
         </div>
-      </div>
+      ) : null}
 
       {/* Cartões de Métricas Apple (Números semibold, ícones monocromáticos cinza) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

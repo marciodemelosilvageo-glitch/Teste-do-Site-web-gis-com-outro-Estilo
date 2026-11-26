@@ -12,7 +12,9 @@ import {
 } from './ui';
 
 interface AdminSystemSectionProps {
-  onRefreshData: () => void;
+  isMaster: boolean;
+  isManager?: boolean;
+  onRefreshData: () => void | Promise<void>;
   onClearLogs: () => void;
   showToast: (msg: string) => void;
   totalLogsCount: number;
@@ -21,6 +23,7 @@ interface AdminSystemSectionProps {
 }
 
 export const AdminSystemSection: React.FC<AdminSystemSectionProps> = ({
+  isMaster,
   onRefreshData,
   onClearLogs,
   showToast,
@@ -53,74 +56,66 @@ export const AdminSystemSection: React.FC<AdminSystemSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="pb-3 border-b border-black/[0.08] dark:border-white/[0.08]">
-        <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white">
-          Sistema e Manutenção
-        </h2>
-        <p className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
-          Diagnósticos da infraestrutura do WebGIS e operações administrativas exclusivas do Administrador Master.
-        </p>
-      </div>
+      {/* Informações da Plataforma (exclusivo Master) */}
+      {isMaster && (
+        <div className="space-y-2">
+          <SectionHeader title="Informações do Ambiente" />
 
-      {/* Informações da Plataforma */}
-      <div className="space-y-2">
-        <SectionHeader title="Informações do Ambiente" />
-
-        <AdminCard className="p-0 overflow-hidden">
-          <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08]">
-            {/* Linha 1: Versão */}
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
-              <span className="text-[#6C6C70] dark:text-[#98989D]">Versão da Aplicação</span>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-900 dark:text-white">WebGIS v1.0.0</span>
-                <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">• Produção</span>
+          <AdminCard className="p-0 overflow-hidden">
+            <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08]">
+              {/* Linha 1: Versão */}
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+                <span className="text-[#6C6C70] dark:text-[#98989D]">Versão da Aplicação</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-900 dark:text-white">WebGIS v1.0.0</span>
+                  <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">• Produção</span>
+                </div>
               </div>
-            </div>
 
-            {/* Linha 2: Banco de Dados */}
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
-              <span className="text-[#6C6C70] dark:text-[#98989D]">Banco de Dados & Autenticação</span>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-900 dark:text-white">Supabase</span>
-                <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-                  <StatusDot status={isSupabaseConfigured ? 'online' : 'warning'} />
-                  <span>{isSupabaseConfigured ? 'Conectado (RLS ativo)' : 'Offline'}</span>
+              {/* Linha 2: Banco de Dados */}
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+                <span className="text-[#6C6C70] dark:text-[#98989D]">Banco de Dados & Autenticação</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-900 dark:text-white">Supabase</span>
+                  <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                    <StatusDot status={isSupabaseConfigured ? 'online' : 'warning'} />
+                    <span>{isSupabaseConfigured ? 'Conectado (RLS ativo)' : 'Offline'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Linha 3: Criptografia */}
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+                <span className="text-[#6C6C70] dark:text-[#98989D]">Segurança e Criptografia</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-900 dark:text-white">SHA-256</span>
+                  <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">• Hash protegido</span>
+                </div>
+              </div>
+
+              {/* Métricas do Sistema */}
+              <div className="p-4 bg-black/[0.02] dark:bg-white/[0.02] grid grid-cols-3 gap-2 text-center text-xs">
+                <div>
+                  <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Contas</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalUsersCount}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Sessões</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalSessionsCount}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Logs</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalLogsCount}</div>
                 </div>
               </div>
             </div>
+          </AdminCard>
+        </div>
+      )}
 
-            {/* Linha 3: Criptografia */}
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
-              <span className="text-[#6C6C70] dark:text-[#98989D]">Segurança e Criptografia</span>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-900 dark:text-white">SHA-256</span>
-                <span className="text-xs text-[#6C6C70] dark:text-[#98989D]">• Hash protegido</span>
-              </div>
-            </div>
-
-            {/* Métricas do Sistema */}
-            <div className="p-4 bg-black/[0.02] dark:bg-white/[0.02] grid grid-cols-3 gap-2 text-center text-xs">
-              <div>
-                <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Contas</div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalUsersCount}</div>
-              </div>
-              <div>
-                <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Sessões</div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalSessionsCount}</div>
-              </div>
-              <div>
-                <div className="text-xs text-[#6C6C70] dark:text-[#98989D]">Logs</div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">{totalLogsCount}</div>
-              </div>
-            </div>
-          </div>
-        </AdminCard>
-      </div>
-
-      {/* Ações de Manutenção Seguras */}
+      {/* Ações de Manutenção / Sincronização */}
       <div className="space-y-2">
-        <SectionHeader title="Ações de Manutenção" />
+        {isMaster && <SectionHeader title="Ações de Manutenção" />}
 
         <AdminCard className="p-0 overflow-hidden">
           <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08]">
@@ -146,26 +141,28 @@ export const AdminSystemSection: React.FC<AdminSystemSectionProps> = ({
               </button>
             </div>
 
-            {/* Ação 2: Limpar Logs de Auditoria */}
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-              <div className="min-w-0">
-                <div className="font-semibold text-slate-900 dark:text-white">
-                  Limpar Histórico de Auditoria
+            {/* Ação 2: Limpar Logs de Auditoria (exclusivo Master) */}
+            {isMaster && (
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900 dark:text-white">
+                    Limpar Histórico de Auditoria
+                  </div>
+                  <div className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
+                    Esvazia a lista de registros de logs armazenados. Recomendado exportar o CSV antes de limpar.
+                  </div>
                 </div>
-                <div className="text-xs text-[#6C6C70] dark:text-[#98989D] mt-0.5">
-                  Esvazia a lista de registros de logs armazenados. Recomendado exportar o CSV antes de limpar.
-                </div>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => setShowClearLogsConfirm(true)}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-[#FF3B30] text-xs font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Limpar Logs</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setShowClearLogsConfirm(true)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-[#FF3B30] text-xs font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Limpar Logs</span>
+                </button>
+              </div>
+            )}
           </div>
         </AdminCard>
       </div>

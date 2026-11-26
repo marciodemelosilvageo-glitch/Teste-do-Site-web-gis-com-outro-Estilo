@@ -32,6 +32,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   currentSection,
   onSelectSection,
   isMaster,
+  isManager,
   currentActiveUser,
   onClose,
   pendingAlertsCount = 0,
@@ -69,10 +70,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     }
   ];
 
-  if (isMaster) {
+  if (isMaster || isManager) {
     allNavItems.push({
       id: 'system',
-      label: 'Sistema',
+      label: isMaster ? 'Sistema' : 'Sincronizar',
       icon: Settings
     });
   }
