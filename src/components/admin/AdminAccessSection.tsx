@@ -294,7 +294,9 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
-                <div className="font-semibold text-slate-900 dark:text-slate-100">Login gerado por Gerente</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {isMaster ? 'Login gerado por Gerente' : 'Meus logins'}
+                </div>
                 <p className="text-[11px] text-[#6C6C70] dark:text-[#98989D] mt-0.5 leading-relaxed">
                   Contas criadas por um gerente no painel para sua equipe.
                 </p>
@@ -451,9 +453,11 @@ export const AdminAccessSection: React.FC<AdminAccessSectionProps> = ({
                   <div className="space-y-1 flex flex-col items-center">
                     <div className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100 leading-tight">
                       <User className="w-3.5 h-3.5 text-[#8E8E93] shrink-0" strokeWidth={1.6} />
-                      <span>Login gerado por Gerente</span>
+                      <span>{isMaster ? 'Login gerado por Gerente' : 'Meus logins'}</span>
                     </div>
-                    <span className="text-[10px] font-normal text-[#8E8E93]">Logins que um gerente cria</span>
+                    <span className="text-[10px] font-normal text-[#8E8E93]">
+                      {isMaster ? 'Logins que um gerente cria' : 'Gerente'}
+                    </span>
                     {canSimulateProfile && onSimulateRole && (
                       <button
                         type="button"
