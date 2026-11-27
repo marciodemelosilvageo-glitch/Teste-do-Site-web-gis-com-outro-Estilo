@@ -349,14 +349,18 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     setManuallyShownEmptyKeys(new Set());
   }, [results]);
 
+  const isColumnPermitted = useCallback((colKey: string) => {
+    // A coluna principal 'endereco' é essencial na busca e fica visível para todos os perfis
+    if (colKey === 'endereco') return true;
+    if (allowedColumns && allowedColumns[colKey] === false) return false;
+    if (!canViewAddressColumn(colKey)) return false;
+    if (!can('data:column:address') && ['numero_logradouro', 'complemento', 'cep'].includes(colKey)) return false;
+    return true;
+  }, [allowedColumns, can, canViewAddressColumn]);
+
   const baseVisibleColumns = useMemo(() => {
-    return tableColumns.filter(c => {
-      if (allowedColumns && allowedColumns[c.key] === false) return false;
-      if (!canViewAddressColumn(c.key)) return false;
-      if (!can('data:column:address') && ['endereco', 'numero_logradouro', 'complemento', 'cep'].includes(c.key)) return false;
-      return userVisibleKeys.includes(c.key);
-    });
-  }, [allowedColumns, userVisibleKeys, can, canViewAddressColumn]);
+    return tableColumns.filter(c => isColumnPermitted(c.key) && userVisibleKeys.includes(c.key));
+  }, [isColumnPermitted, userVisibleKeys]);
 
   // Oculta automaticamente colunas vazias em todas as linhas da pesquisa atual,
   // mantendo 'endereco' e qualquer coluna reativada manualmente pelo usuário no menu Colunas
@@ -634,15 +638,10 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
   const filteredModalColumns = useMemo(() => {
     const q = normalizeString(columnSearchText);
-    const base = tableColumns.filter(c => {
-      if (allowedColumns && allowedColumns[c.key] === false) return false;
-      if (!canViewAddressColumn(c.key)) return false;
-      if (!can('data:column:address') && ['endereco', 'numero_logradouro', 'complemento', 'cep'].includes(c.key)) return false;
-      return true;
-    });
+    const base = tableColumns.filter(c => isColumnPermitted(c.key));
     if (!q) return base;
     return base.filter(c => normalizeString(c.label).includes(q) || normalizeString(c.key).includes(q));
-  }, [columnSearchText, allowedColumns, can, canViewAddressColumn]);
+  }, [columnSearchText, isColumnPermitted]);
 
   // Ordenação nas colunas
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
