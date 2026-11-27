@@ -1061,10 +1061,17 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     return list;
   }, [results, debouncedColumnFilters, sortConfig]);
 
-  // Notifica contagem visível/total para o cabeçalho desktop sem alterar onSearchStateChange
+  const hasActiveColumnFilter = useMemo(
+    () => Object.values(debouncedColumnFilters).some(text => Boolean(text && text.trim())),
+    [debouncedColumnFilters]
+  );
+
+  // Notifica contagem real encontrada (totalEncontrado) ou filtrada (processedResults.length) para o cabeçalho desktop
   useEffect(() => {
-    onResultsCountChange?.(processedResults.length, results.length);
-  }, [processedResults.length, results.length, onResultsCountChange]);
+    const realTotal = results.length > 0 ? Math.max(totalEncontrado, results.length) : 0;
+    const visible = hasActiveColumnFilter ? processedResults.length : realTotal;
+    onResultsCountChange?.(visible, realTotal);
+  }, [hasActiveColumnFilter, processedResults.length, results.length, totalEncontrado, onResultsCountChange]);
 
   const exportToCSV = useCallback(() => {
     const hasActiveFilters = Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim()));
