@@ -55,6 +55,134 @@ const formatTitle = (text: string): string => {
     .join(' ');
 };
 
+export interface DashboardHousingStats {
+  hasData: boolean;
+  title: string;
+  municipio: string;
+  bairro: string;
+  areaKm2: string | null;
+  sumPop: number;
+  sumDomTotal: number;
+  sumDomPart: number;
+  sumDomOcup: number;
+  sumVagos: number;
+  taxaVac: string;
+  densidade: string;
+  sumDomCol: number;
+  taxaOcupacao: string;
+  pctOcup: number;
+  pctVagos: number;
+  pctCol: number;
+  pctSemClassificacao: number;
+  count: number;
+}
+
+export function computeDashboardHousingStats(validDashboardFeatures: SelectedFeature[]): DashboardHousingStats {
+  if (!validDashboardFeatures || validDashboardFeatures.length === 0) {
+    return {
+      hasData: false,
+      title: '',
+      municipio: '',
+      bairro: '',
+      areaKm2: null,
+      sumPop: 0,
+      sumDomTotal: 0,
+      sumDomPart: 0,
+      sumDomOcup: 0,
+      sumVagos: 0,
+      taxaVac: '0.0',
+      densidade: '0.00',
+      sumDomCol: 0,
+      taxaOcupacao: '0.0',
+      pctOcup: 0,
+      pctVagos: 0,
+      pctCol: 0,
+      pctSemClassificacao: 0,
+      count: 0
+    };
+  }
+
+  const totalCount = validDashboardFeatures.length;
+  let localTitle = totalCount === 1 ? (validDashboardFeatures[0].name || 'Área Selecionada') : `Seleção Múltipla (${totalCount} áreas)`;
+  let munName = '';
+  let bairroName = '';
+  let totalArea = 0;
+
+  let pop = 0;
+  let domPart = 0;
+  let domOcup = 0;
+  let domCol = 0;
+  let domTotal = 0;
+  let v0002DivergenceCount = 0;
+
+  if (totalCount === 1) {
+    const props = validDashboardFeatures[0].properties || {};
+    munName = props.NM_MUN || props.nm_mun || props.municipio || props.MUNICIPIO || '';
+    bairroName = props.NM_BAIRRO || props.nm_bairro || props.bairro || props.BAIRRO || '';
+  }
+
+  validDashboardFeatures.forEach(feat => {
+    const props = feat.properties || {};
+    const featArea = getNumVal(props, ['AREA_KM2', 'area_km2', 'Area_km2', 'area']);
+    const featPop = getNumVal(props, ['V0001', 'Total de pessoas', 'POPULACAO', 'populacao']);
+    const featDomPart = getNumVal(props, ['V0003', 'Total de Domicílios Particulares']);
+    const featDomOcup = getNumVal(props, ['V0007', 'Total de Domicílios Particulares Ocupados']);
+    const featDomCol = getNumVal(props, ['V0004', 'Total de Domicílios Coletivos']);
+    const featV0002 = getNumVal(props, ['V0002', 'Total de Domicílios (Particulares + Coletivos)']);
+
+    const featTotal = featDomPart + featDomCol;
+    if (featV0002 > 0 && featV0002 !== featTotal) {
+      v0002DivergenceCount += 1;
+    }
+
+    totalArea += featArea;
+    pop += featPop;
+    domPart += featDomPart;
+    domOcup += featDomOcup;
+    domCol += featDomCol;
+    domTotal += featTotal;
+  });
+
+  if (v0002DivergenceCount > 0) {
+    console.warn(
+      `[Dashboard] Divergência detectada em V0002 em ${v0002DivergenceCount} área(s); utilizando Particulares + Coletivos (${domTotal}).`
+    );
+  }
+
+  const vagos = Math.max(0, domPart - domOcup);
+  const vacRate = domPart > 0 ? ((vagos / domPart) * 100).toFixed(1) : '0.0';
+  const density = domOcup > 0 ? (pop / domOcup).toFixed(2) : '0.00';
+
+  const pOcup = domTotal > 0 ? Math.min(100, (domOcup / domTotal) * 100) : 0;
+  const pVagos = domTotal > 0 ? Math.min(100 - pOcup, (vagos / domTotal) * 100) : 0;
+  const pCol = domTotal > 0 ? Math.min(100 - pOcup - pVagos, (domCol / domTotal) * 100) : 0;
+  const rawRemaining = Math.max(0, 100 - pOcup - pVagos - pCol);
+  const pSemClassificacao = rawRemaining > 0.5 ? rawRemaining : 0;
+  const ocupRate = pOcup.toFixed(1);
+
+  return {
+    hasData: true,
+    title: formatTitle(localTitle),
+    municipio: formatTitle(munName),
+    bairro: formatTitle(bairroName),
+    areaKm2: totalArea > 0 ? totalArea.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : null,
+    sumPop: pop,
+    sumDomTotal: domTotal,
+    sumDomPart: domPart,
+    sumDomOcup: domOcup,
+    sumVagos: vagos,
+    taxaVac: vacRate,
+    densidade: density,
+    sumDomCol: domCol,
+    taxaOcupacao: ocupRate,
+    pctOcup: pOcup,
+    pctVagos: pVagos,
+    pctCol: pCol,
+    pctSemClassificacao: pSemClassificacao,
+    count: totalCount
+  };
+}
+
 interface AnimatedNumberProps {
   value: number;
   decimals?: number;
@@ -239,112 +367,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     pctOcup,
     pctVagos,
     pctCol,
+    pctSemClassificacao,
     count
-  } = useMemo(() => {
-    if (!validDashboardFeatures || validDashboardFeatures.length === 0) {
-      return {
-        hasData: false,
-        title: '',
-        municipio: '',
-        bairro: '',
-        areaKm2: null,
-        sumPop: 0,
-        sumDomTotal: 0,
-        sumDomPart: 0,
-        sumDomOcup: 0,
-        sumVagos: 0,
-        taxaVac: '0.0',
-        densidade: '0.00',
-        sumDomCol: 0,
-        taxaOcupacao: '0.0',
-        pctOcup: 0,
-        pctVagos: 0,
-        pctCol: 0,
-        count: 0
-      };
-    }
-
-    const totalCount = validDashboardFeatures.length;
-    let localTitle = 'Selecione um local';
-    let munName = '';
-    let bairroName = '';
-    let totalArea = 0;
-
-    let pop = 0;
-    let domPart = 0;
-    let domOcup = 0;
-    let domCol = 0;
-    let domTotal = 0;
-
-    if (totalCount === 1) {
-      const feat = validDashboardFeatures[0];
-      localTitle = feat.name || 'Área Selecionada';
-      const props = feat.properties || {};
-
-      munName = props.NM_MUN || props.nm_mun || props.municipio || props.MUNICIPIO || '';
-      bairroName = props.NM_BAIRRO || props.nm_bairro || props.bairro || props.BAIRRO || '';
-      totalArea = getNumVal(props, ['AREA_KM2', 'area_km2', 'Area_km2', 'area']);
-
-      pop = getNumVal(props, ['V0001', 'Total de pessoas', 'POPULACAO', 'populacao']);
-      domPart = getNumVal(props, ['V0003', 'Total de Domicílios Particulares']);
-      domOcup = getNumVal(props, ['V0007', 'Total de Domicílios Particulares Ocupados']);
-      domCol = getNumVal(props, ['V0004', 'Total de Domicílios Coletivos']);
-      
-      let totalD = getNumVal(props, ['V0002', 'Total de Domicílios (Particulares + Coletivos)']);
-      if (totalD === 0) {
-        totalD = domPart + domCol;
-      }
-      domTotal = totalD;
-    } else {
-      localTitle = `Seleção Múltipla (${totalCount} áreas)`;
-      validDashboardFeatures.forEach(feat => {
-        const props = feat.properties || {};
-        pop += getNumVal(props, ['V0001', 'Total de pessoas', 'POPULACAO', 'populacao']);
-        domPart += getNumVal(props, ['V0003', 'Total de Domicílios Particulares']);
-        domOcup += getNumVal(props, ['V0007', 'Total de Domicílios Particulares Ocupados']);
-        domCol += getNumVal(props, ['V0004', 'Total de Domicílios Coletivos']);
-        totalArea += getNumVal(props, ['AREA_KM2', 'area_km2', 'Area_km2', 'area']);
-        
-        let totalD = getNumVal(props, ['V0002', 'Total de Domicílios (Particulares + Coletivos)']);
-        if (totalD === 0) {
-          totalD = domPart + domCol;
-        }
-        domTotal += totalD;
-      });
-    }
-
-    const vagos = Math.max(0, domPart - domOcup);
-    const vacRate = domPart > 0 ? ((vagos / domPart) * 100).toFixed(1) : '0.0';
-    const density = domOcup > 0 ? (pop / domOcup).toFixed(2) : '0.00';
-    const ocupRate = domTotal > 0 ? ((domOcup / domTotal) * 100).toFixed(1) : '0.0';
-
-    // Percentuais relativos para a barra segmentada
-    const safeTotal = domTotal > 0 ? domTotal : 1;
-    const pOcup = Math.min(100, (domOcup / safeTotal) * 100);
-    const pVagos = Math.min(100 - pOcup, (vagos / safeTotal) * 100);
-    const pCol = Math.max(0, 100 - pOcup - pVagos);
-
-    return {
-      hasData: true,
-      title: formatTitle(localTitle),
-      municipio: formatTitle(munName),
-      bairro: formatTitle(bairroName),
-      areaKm2: totalArea > 0 ? totalArea.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : null,
-      sumPop: pop,
-      sumDomTotal: domTotal,
-      sumDomPart: domPart,
-      sumDomOcup: domOcup,
-      sumVagos: vagos,
-      taxaVac: vacRate,
-      densidade: density,
-      sumDomCol: domCol,
-      taxaOcupacao: ocupRate,
-      pctOcup: pOcup,
-      pctVagos: pVagos,
-      pctCol: pCol,
-      count: totalCount
-    };
-  }, [validDashboardFeatures]);
+  } = useMemo(() => computeDashboardHousingStats(validDashboardFeatures), [validDashboardFeatures]);
 
   // Resumo textual demográfico para cópia (calculado com todos os hooks antes dos returns condicionais)
   const summaryText = useMemo(() => {
@@ -353,11 +378,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 👥 População Total: ${sumPop.toLocaleString('pt-BR')} habitantes
 📈 Média por Domicílio: ${densidade} moradores/dom.
 🏠 Total de Domicílios: ${sumDomTotal.toLocaleString('pt-BR')}
-  • Particulares Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${taxaOcupacao}%)
-  • Vagos / Uso Ocasional: ${sumVagos.toLocaleString('pt-BR')} (Vacância: ${taxaVac}%)
-  • Coletivos (Instituições): ${sumDomCol.toLocaleString('pt-BR')}
+  • Particulares Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${taxaOcupacao}% do total)
+  • Vagos / Uso Ocasional: ${sumVagos.toLocaleString('pt-BR')} (${pctVagos.toFixed(1)}% do total · taxa de vacância particulares: ${taxaVac}%)
+  • Coletivos (Instituições): ${sumDomCol.toLocaleString('pt-BR')} (${pctCol.toFixed(1)}% do total)
 ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebGIS Geocodificando`;
-  }, [hasData, title, sumPop, densidade, sumDomTotal, sumDomOcup, taxaOcupacao, sumVagos, taxaVac, sumDomCol, areaKm2]);
+  }, [hasData, title, sumPop, densidade, sumDomTotal, sumDomOcup, taxaOcupacao, sumVagos, pctVagos, taxaVac, sumDomCol, pctCol, areaKm2]);
 
   if (isOnlyPlotPoints) {
     return (
@@ -653,33 +678,51 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
         {/* Barra de Distribuição Segmentada Estilo Apple */}
         <div className="space-y-1.5">
           <div className="w-full h-3 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden flex gap-0.5 p-0.5">
-            <div 
-              style={{ width: `${pctOcup}%` }} 
-              className="h-full rounded-full bg-[#34C759] transition-all duration-500" 
-              title={`Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${pctOcup.toFixed(1)}%)`}
-            />
-            <div 
-              style={{ width: `${pctVagos}%` }} 
-              className="h-full rounded-full bg-[#FF9500] transition-all duration-500" 
-              title={`Vagos / Ocasional: ${sumVagos.toLocaleString('pt-BR')} (${pctVagos.toFixed(1)}%)`}
-            />
-            <div 
-              style={{ width: `${pctCol}%` }} 
-              className="h-full rounded-full bg-[#AF52DE] transition-all duration-500" 
-              title={`Coletivos: ${sumDomCol.toLocaleString('pt-BR')} (${pctCol.toFixed(1)}%)`}
-            />
+            {pctOcup > 0 && (
+              <div 
+                style={{ width: `${pctOcup}%` }} 
+                className="h-full rounded-full bg-[#34C759] transition-all duration-500" 
+                title={`Ocupados: ${sumDomOcup.toLocaleString('pt-BR')} (${pctOcup.toFixed(1)}% do total)`}
+              />
+            )}
+            {pctVagos > 0 && (
+              <div 
+                style={{ width: `${pctVagos}%` }} 
+                className="h-full rounded-full bg-[#FF9500] transition-all duration-500" 
+                title={`Vagos / Ocasional: ${sumVagos.toLocaleString('pt-BR')} (${pctVagos.toFixed(1)}% do total)`}
+              />
+            )}
+            {sumDomCol > 0 && pctCol > 0 && (
+              <div 
+                style={{ width: `${pctCol}%` }} 
+                className="h-full rounded-full bg-[#AF52DE] transition-all duration-500" 
+                title={`Coletivos: ${sumDomCol.toLocaleString('pt-BR')} (${pctCol.toFixed(1)}% do total)`}
+              />
+            )}
+            {pctSemClassificacao > 0.5 && (
+              <div 
+                style={{ width: `${pctSemClassificacao}%` }} 
+                className="h-full rounded-full bg-slate-400 dark:bg-slate-500 transition-all duration-500" 
+                title={`Sem classificação: ${pctSemClassificacao.toFixed(1)}%`}
+              />
+            )}
           </div>
 
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-0.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] font-bold text-slate-400 px-0.5">
             <span className="text-[#34C759] flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#34C759]" /> Ocupados (<AnimatedNumber value={pctOcup} decimals={0} suffix="%" />)
+              <span className="w-2 h-2 rounded-full bg-[#34C759]" /> Ocupados (<AnimatedNumber value={pctOcup} decimals={1} suffix="%" />)
             </span>
             <span className="text-[#FF9500] flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#FF9500]" /> Vagos (<AnimatedNumber value={pctVagos} decimals={0} suffix="%" />)
+              <span className="w-2 h-2 rounded-full bg-[#FF9500]" /> Vagos (<AnimatedNumber value={pctVagos} decimals={1} suffix="%" />)
             </span>
-            <span className="text-[#AF52DE] flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#AF52DE]" /> Coletivos
+            <span className={`flex items-center gap-1 ${sumDomCol > 0 ? 'text-[#AF52DE]' : 'text-slate-400/70 dark:text-slate-500/70'}`}>
+              <span className={`w-2 h-2 rounded-full ${sumDomCol > 0 ? 'bg-[#AF52DE]' : 'bg-slate-300 dark:bg-slate-600'}`} /> Coletivos (<AnimatedNumber value={pctCol} decimals={sumDomCol > 0 ? 1 : 0} suffix="%" />)
             </span>
+            {pctSemClassificacao > 0.5 && (
+              <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500" /> Sem classificação ({pctSemClassificacao.toFixed(1)}%)
+              </span>
+            )}
           </div>
         </div>
 
@@ -691,7 +734,7 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
               <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-[#34C759] flex items-center justify-center">
                 <Home className="w-3.5 h-3.5" />
               </div>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400" title="Percentual sobre o total de domicílios (particulares + coletivos)">
                 <AnimatedNumber value={parseFloat(taxaOcupacao) || 0} decimals={1} suffix="%" />
               </span>
             </div>
@@ -711,8 +754,8 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
               <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-[#FF9500] flex items-center justify-center">
                 <ShieldAlert className="w-3.5 h-3.5" />
               </div>
-              <span id="dash-taxa-vac" className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                <AnimatedNumber value={parseFloat(taxaVac) || 0} decimals={1} suffix="% vac." />
+              <span id="dash-taxa-vac" className="text-[10px] font-bold text-amber-600 dark:text-amber-400" title="Percentual sobre o total de domicílios (particulares + coletivos)">
+                <AnimatedNumber value={pctVagos} decimals={1} suffix="%" />
               </span>
             </div>
             <div>
@@ -722,6 +765,9 @@ ${areaKm2 ? `🗺️ Área Territorial: ${areaKm2} km²\n` : ''}📍 Fonte: WebG
               <p id="dash-vagos" className="text-base font-black text-[#FF9500] truncate">
                 <AnimatedNumber value={sumVagos} />
               </p>
+              <span className="text-[9px] text-slate-400 font-medium block truncate">
+                taxa de vacância (particulares): {taxaVac}%
+              </span>
             </div>
           </div>
 
