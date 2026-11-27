@@ -565,6 +565,7 @@ export default function App() {
 
   // Referência para controlar se o Raio-X foi aberto automaticamente por seleção múltipla (2+ feições)
   const isAutoOpenedDashboardRef = useRef<boolean>(false);
+  const prevSelectedCountRef = useRef<number>(0);
 
   // Referência e estado para controlar quando a seleção de feição foi disparada pela lista de resultados de busca
   // Nesse cenário, o mapa centraliza e seleciona silenciosamente sem trocar de aba (permanece na aba de busca 'search').
@@ -655,6 +656,10 @@ export default function App() {
   // - Se o usuário abriu manualmente o Raio-X, mantém nele se permitido.
   // - Feições sem dashboard (plot-, Localidades, Comunidades Rurais) abrem "details" apenas se permitido.
   useEffect(() => {
+    const prevCount = prevSelectedCountRef.current;
+    const nextCount = selectedFeatures.length;
+    prevSelectedCountRef.current = nextCount;
+
     // Se a seleção partiu de um clique na lista de resultados da busca, mantemos a aba atual ('search')
     const isSilent = isSilentSearchSelectionRef.current && (Date.now() - lastSilentSearchTimestampRef.current < 2500);
     if (isSilent) {
@@ -725,8 +730,10 @@ export default function App() {
       }
     } else {
       isAutoOpenedDashboardRef.current = false;
-      // Quando o usuário desmarca a feição (nada selecionado), fecha a barra de detalhes da feição
-      setSidebarTab(prev => (prev === 'details' ? null : prev));
+      // Quando a seleção transiciona de > 0 para 0 feições, fecha Detalhes ou Raio-X
+      if (prevCount > 0) {
+        setSidebarTab(prev => (prev === 'details' || prev === 'dashboard' ? null : prev));
+      }
     }
   }, [selectedFeatures, isMobile, can]);
 
