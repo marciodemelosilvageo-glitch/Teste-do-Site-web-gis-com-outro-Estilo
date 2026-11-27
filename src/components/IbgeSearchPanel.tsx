@@ -799,6 +799,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
         setSortConfig(null);
         setPolygonSearchTitle(externalPolygonResult.title);
         setErrorMsg(null);
+        setIsFormCollapsed(externalPolygonResult.results.length > 0);
 
         // Scroll suave para o painel de endereços CNEFE
         setTimeout(() => {
@@ -817,6 +818,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       setPolygonSearchTitle(null);
       setColumnFilters({});
       setSortConfig(null);
+      setIsFormCollapsed(false);
     }
   }, [externalPolygonResult, polygonSearchTitle]);
 
@@ -1269,7 +1271,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
               </button>
             </div>
           </div>
-        ) : (
+        ) : !isMobile && isFormCollapsed && (externalPolygonResult || polygonSearchTitle) && hasSearched && results.length > 0 ? null : (
           /* Formulário de Busca Estilo Apple */
           <form onSubmit={(e) => { e.preventDefault(); handleSearch(undefined, e); }} className="flex flex-col lg:flex-row items-stretch lg:items-start gap-4 mb-6">
             {/* Município */}
