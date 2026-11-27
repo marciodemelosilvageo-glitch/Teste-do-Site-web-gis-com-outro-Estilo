@@ -27,7 +27,7 @@ export interface CnefeBottomBarProps {
   onToggleExpand: () => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
-  onPlotAddress: (address: any) => void;
+  onPlotAddress: (address: any, options?: { multiSelect?: boolean }) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
   onUnplot?: () => void;
@@ -35,6 +35,7 @@ export interface CnefeBottomBarProps {
   externalPolygonResult?: ExternalPolygonSearchResult | null;
   allowedColumns?: Record<string, boolean>;
   hasPlottedMarkers?: boolean;
+  searchCoordinates?: Array<{ lat: number; lng: number; rawAddress?: any; label?: string }> | null;
   isStage2Open?: boolean;
   isSearchingExternal?: boolean;
   isMobile?: boolean;
@@ -55,6 +56,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   externalPolygonResult,
   allowedColumns,
   hasPlottedMarkers = false,
+  searchCoordinates = null,
   isStage2Open = false,
   isSearchingExternal = false,
   isMobile = false,
@@ -749,6 +751,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
               externalPolygonResult={externalPolygonResult}
               allowedColumns={allowedColumns}
               hasPlottedMarkers={hasPlottedMarkers}
+              searchCoordinates={searchCoordinates}
               isExternalSearching={isSearchingExternal}
               onSearchStateChange={onSearchStateChange}
             />
@@ -818,7 +821,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             ? 'h-12 border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]' 
             : 'h-[46px] border-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
         }`}
-        title={isExpanded ? "Clique no botão Recolher para fechar" : "Clique para abrir a busca de endereços"}
+        title={isExpanded ? "Clique em Recolher para minimizar" : "Clique para abrir a busca de endereços"}
       >
         {/* Esquerda: Identificação da Ferramenta */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -827,7 +830,12 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
           </div>
 
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <span className="font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight">
+            <span
+              className={`font-black text-slate-900 dark:text-white truncate text-xs sm:text-sm tracking-tight transition-all duration-200 ${
+                isExpanded ? 'max-w-0 opacity-0 overflow-hidden m-0' : 'max-w-[260px] opacity-100'
+              }`}
+              aria-hidden={isExpanded}
+            >
               Busca de Endereços Avançado
             </span>
 
@@ -891,8 +899,8 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
 
         {/* Direita: Ações Rápidas & Toggle de Expandir/Recolher */}
         <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {/* Botão de Limpar Marcadores no Mapa / Pesquisa */}
-          {(hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
+          {/* Botão de Limpar Marcadores no Mapa / Pesquisa (visível apenas minimizada) */}
+          {!isExpanded && (hasPlottedMarkers || externalPolygonResult) && onClearPlot && (
             <button
               type="button"
               onClick={() => {
@@ -969,6 +977,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             externalPolygonResult={externalPolygonResult}
             allowedColumns={allowedColumns}
             hasPlottedMarkers={hasPlottedMarkers}
+            searchCoordinates={searchCoordinates}
             isExternalSearching={isSearchingExternal}
             onSearchStateChange={onSearchStateChange}
           />

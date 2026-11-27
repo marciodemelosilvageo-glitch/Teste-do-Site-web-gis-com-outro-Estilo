@@ -2448,3 +2448,57 @@ html[data-cnefe-animating="true"] .cnefe-drag-no-transition {
     line-height: 1.4 !important;
   }
 }
+
+/* Indicador iOS de carregamento de camadas (12 traços radiais + cápsula suave) */
+@keyframes iosActivityTickFade {
+  0% { opacity: 1; }
+  100% { opacity: 0.22; }
+}
+
+.ios-activity-tick {
+  animation: iosActivityTickFade 1s linear infinite;
+}
+
+@keyframes iosLoadingCapsuleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes iosLoadingCapsuleOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+.ios-loading-capsule-enter {
+  animation: iosLoadingCapsuleIn 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.ios-loading-capsule-exit {
+  animation: iosLoadingCapsuleOut 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes iosLoadingCapsuleIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes iosLoadingCapsuleOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  .ios-activity-tick {
+    animation-duration: 1.8s;
+  }
+}

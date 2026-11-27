@@ -881,6 +881,150 @@ const SatelliteSvg: React.FC<{ className?: string }> = ({ className = "w-4 h-4" 
   </svg>
 );
 
+const IOS_SPINNER_TICKS = Array.from({ length: 12 }, (_, i) => i);
+
+const LoadingLayersCapsule: React.FC<{
+  isLoading: boolean;
+  statusText: string;
+  isMobile?: boolean;
+  loadingCount?: number;
+}> = ({ isLoading, statusText, isMobile = false, loadingCount = 1 }) => {
+  const [shouldRender, setShouldRender] = React.useState(false);
+  const [isExiting, setIsExiting] = React.useState(false);
+  const visibleSinceRef = React.useRef<number | null>(null);
+  const showTimerRef = React.useRef<number | null>(null);
+  const hideTimerRef = React.useRef<number | null>(null);
+  const unmountTimerRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    const clearAllTimers = () => {
+      if (showTimerRef.current !== null) {
+        window.clearTimeout(showTimerRef.current);
+        showTimerRef.current = null;
+      }
+      if (hideTimerRef.current !== null) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      if (unmountTimerRef.current !== null) {
+        window.clearTimeout(unmountTimerRef.current);
+        unmountTimerRef.current = null;
+      }
+    };
+
+    if (isLoading) {
+      if (hideTimerRef.current !== null) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      if (unmountTimerRef.current !== null) {
+        window.clearTimeout(unmountTimerRef.current);
+        unmountTimerRef.current = null;
+      }
+
+      if (shouldRender) {
+        setIsExiting(false);
+      } else if (showTimerRef.current === null) {
+        showTimerRef.current = window.setTimeout(() => {
+          showTimerRef.current = null;
+          visibleSinceRef.current = Date.now();
+          setIsExiting(false);
+          setShouldRender(true);
+        }, 250);
+      }
+    } else {
+      if (showTimerRef.current !== null) {
+        window.clearTimeout(showTimerRef.current);
+        showTimerRef.current = null;
+      }
+
+      if (shouldRender && !isExiting) {
+        const elapsed = visibleSinceRef.current ? Date.now() - visibleSinceRef.current : 400;
+        const remainingHold = Math.max(0, 400 - elapsed);
+
+        hideTimerRef.current = window.setTimeout(() => {
+          hideTimerRef.current = null;
+          setIsExiting(true);
+          unmountTimerRef.current = window.setTimeout(() => {
+            unmountTimerRef.current = null;
+            visibleSinceRef.current = null;
+            setShouldRender(false);
+            setIsExiting(false);
+          }, 200);
+        }, remainingHold);
+      }
+    }
+
+    return clearAllTimers;
+  }, [isLoading, shouldRender, isExiting]);
+
+  if (!shouldRender) return null;
+
+  return (
+    <div
+      id="loading-overlay"
+      role="status"
+      aria-live="polite"
+      style={{
+        zIndex: isMobile ? MOBILE_Z_INDEX.LOADING_OVERLAY : 1000,
+        ...(isMobile
+          ? { bottom: 'calc(var(--mobile-bottom-inset, 80px) + 12px)' }
+          : undefined),
+      }}
+      className={`pointer-events-none fixed sm:absolute left-1/2 -translate-x-1/2 flex justify-center px-3 ${
+        isMobile ? '' : 'top-4'
+      }`}
+    >
+      <div
+        className={`pointer-events-none flex items-center gap-3 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-lg max-w-[calc(100vw-2rem)] sm:max-w-md ${
+          isExiting ? 'ios-loading-capsule-exit' : 'ios-loading-capsule-enter'
+        }`}
+      >
+        <svg
+          className="w-5 h-5 shrink-0 text-slate-700 dark:text-slate-200"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          {IOS_SPINNER_TICKS.map((i) => (
+            <line
+              key={i}
+              x1="12"
+              y1="2.75"
+              x2="12"
+              y2="6.25"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              transform={`rotate(${i * 30} 12 12)`}
+              style={{
+                animation: 'iosActivityTickFade 1s linear infinite',
+                animationDelay: `${((i - 12) / 12).toFixed(3)}s`,
+              }}
+            />
+          ))}
+        </svg>
+        <div className="min-w-0 text-left leading-tight">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            <span>Carregando camadas</span>
+            {loadingCount > 1 && (
+              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                • {loadingCount} em andamento
+              </span>
+            )}
+          </div>
+          <p
+            id="status"
+            className="text-[11px] font-normal text-slate-600 dark:text-slate-300 truncate max-w-[220px] sm:max-w-[280px]"
+          >
+            {statusText || 'Atualizando camada...'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MapComponentInner: React.FC<MapComponentProps> = ({
   isPrintMode,
   onTogglePrintMode,
@@ -4163,23 +4307,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
         />
 
         {/* Loading Overlay */}
-        {isLoading && (
-          <div 
-            id="loading-overlay" 
-            style={{ zIndex: isMobile ? MOBILE_Z_INDEX.LOADING_OVERLAY : 1000 }}
-            className="absolute inset-0 bg-white/40 dark:bg-slate-900/40 flex items-center justify-center rounded-2xl pointer-events-none"
-          >
-            <div className="text-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 pointer-events-none">
-              <svg className="animate-spin h-9 w-9 text-red-700 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <p id="status" className="text-slate-700 dark:text-slate-300 mt-3 text-sm font-bold" role="status" aria-live="polite">
-                {statusText}
-              </p>
-            </div>
-          </div>
-        )}
+        <LoadingLayersCapsule
+          isLoading={isLoading}
+          statusText={statusText}
+          isMobile={isMobile}
+        />
 
         {/* CARD FLUTUANTE DE MEDIÇÃO APPLE MAPS (MAPS.APPLE.COM) */}
         {isMeasuringActive && !isPrintMode && (

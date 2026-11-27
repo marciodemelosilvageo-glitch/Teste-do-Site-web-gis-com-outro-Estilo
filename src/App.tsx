@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import L from 'leaflet';
 
 import { MapComponent } from './components/MapComponent';
-import { IbgeSearchPanel, ExternalPolygonSearchResult } from './components/IbgeSearchPanel';
+import { IbgeSearchPanel, ExternalPolygonSearchResult, getStableAddressId } from './components/IbgeSearchPanel';
 import { PropertyTable } from './components/PropertyTable';
 import { AppleSidebar, SidebarTab } from './components/AppleSidebar';
 import { CnefeBottomBar } from './components/CnefeBottomBar';
@@ -365,7 +365,7 @@ export default function App() {
     }
   }, [allowedLayerNames, canViewLayer]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }> | null>(null);
+  const [searchCoordinates, setSearchCoordinates] = useState<Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any; rowKey?: string; plotId?: string }> | null>(null);
   const [hasCnefeResults, setHasCnefeResults] = useState<boolean>(false);
   const hasCnefeSearch = hasCnefeResults || Boolean(searchCoordinates && searchCoordinates.length > 0);
 
@@ -2995,8 +2995,9 @@ export default function App() {
 
     const detectedOrigem = getDetectedCategoryOrigem(point.origem, raw);
 
+    const plotFeatureId = point.plotId || `plot-${index}`;
     const plotFeature: SelectedFeature = {
-      id: `plot-${index}`,
+      id: plotFeatureId,
       name: featName,
       sourceName: 'Endereços plotados',
       layer: marker,
@@ -3010,7 +3011,7 @@ export default function App() {
     };
 
     setSelectedFeatures(prev => {
-      const filtered = prev.filter(f => !f.id.startsWith('plot-'));
+      const filtered = prev.filter(f => f.id !== plotFeatureId);
       return [...filtered, plotFeature];
     });
 
@@ -3019,7 +3020,7 @@ export default function App() {
     }
   };
 
-  const handlePlotAddress = useCallback((row: any) => {
+  const handlePlotAddress = useCallback((row: any, options?: { multiSelect?: boolean }) => {
     const lat = parseFloat(row.latitude || row.LATITUDE);
     const lng = parseFloat(row.longitude || row.LONGITUDE);
     
@@ -3028,6 +3029,8 @@ export default function App() {
       return;
     }
 
+    const rowKey = getStableAddressId(row) || `coord:${lat.toFixed(6)},${lng.toFixed(6)}`;
+    const plotId = `plot-${rowKey}`;
     const addrLabel = row.endereco || row.ENDERECO || 'Endereço IBGE';
     const estabRaw = row.estabelecimento || row.ESTABELECIMENTO || row['Identificação do estabelecimento'] || '';
     const numeroRaw = row.numero_logradouro || row.NUMERO_LOGRADOURO || row['Número no logradouro'] || row['número'] || '';
@@ -3041,21 +3044,50 @@ export default function App() {
       featName = addrLabel;
     }
 
+    const currentCoords = searchCoordinates || [];
+    const getCoordRowKey = (c: { lat: number; lng: number; rawAddress?: any; rowKey?: string }) =>
+      c.rowKey || (c.rawAddress ? getStableAddressId(c.rawAddress) : null) || `coord:${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
+
+    const existingCoord = currentCoords.find(c => getCoordRowKey(c) === rowKey);
+    const isMulti = Boolean(options?.multiSelect && !isMobile);
+
+    // Se já está plotado: clique normal ou Ctrl+clique desplota somente esta linha
+    if (existingCoord) {
+      const nextCoords = currentCoords.filter(c => getCoordRowKey(c) !== rowKey);
+      const targetPlotId = existingCoord.plotId || plotId;
+      setSearchCoordinates(nextCoords.length > 0 ? nextCoords : null);
+
+      setSelectedFeatures(prev => {
+        const removedWasActive = prev.length > 0 && prev[prev.length - 1].id === targetPlotId;
+        const nextFeatures = prev.filter(f => f.id !== targetPlotId);
+        if (!isMulti && (nextFeatures.length === 0 || (removedWasActive && !nextFeatures.some(f => f.id.startsWith('plot-'))))) {
+          setSidebarTab(current => (current === 'details' ? null : current));
+        }
+        return nextFeatures;
+      });
+
+      logActivity('ENDERECO', `Removeu endereço plotado do mapa: "${addrLabel}"`, userRole);
+      showToast('Endereço removido do mapa.');
+      return;
+    }
+
     const details = formatAddressDetails(row);
     const detectedOrigem = getDetectedCategoryOrigem(undefined, row);
 
-    setSearchCoordinates([{ 
-      lat, 
-      lng, 
-      label: addrLabel, 
+    const newPoint = {
+      lat,
+      lng,
+      label: addrLabel,
       details,
       isCoordSearch: false,
       origem: detectedOrigem,
-      rawAddress: row
-    }]);
+      rawAddress: row,
+      rowKey,
+      plotId
+    };
 
     const plotFeature: SelectedFeature = {
-      id: 'plot-0',
+      id: plotId,
       name: featName,
       sourceName: 'Endereços plotados',
       layer: null as any,
@@ -3067,6 +3099,19 @@ export default function App() {
         ...row
       }
     };
+
+    // Ctrl+clique em linha não plotada: soma aos plotados sem mover o mapa e sem fechar nada
+    if (isMulti) {
+      const nextCoords = [...currentCoords, newPoint];
+      setSearchCoordinates(nextCoords);
+      setSelectedFeatures(prev => [...prev.filter(f => f.id !== plotId), plotFeature]);
+      logActivity('ENDERECO', `Adicionou endereço ao mapa: "${addrLabel}"`, userRole, `Município: ${row.municipio || row.MUNICIPIO || '-'}`);
+      showToast(`Endereço adicionado (${nextCoords.length} plotados).`);
+      return;
+    }
+
+    // Clique normal em linha não plotada: plota só ela e move o mapa até o ponto
+    setSearchCoordinates([newPoint]);
 
     setSelectedFeatures(prev => {
       const filtered = prev.filter(f => !f.id.startsWith('plot-'));
@@ -3101,7 +3146,7 @@ export default function App() {
     
     // Rolar a tela para o topo para ver o mapa
     // map is already visible on screen
-  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile, can]);
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile, can, searchCoordinates]);
 
   const handlePlotAllAddresses = useCallback((results: any[]) => {
     const validCoords = results
@@ -3110,6 +3155,7 @@ export default function App() {
         const lng = parseFloat(row.longitude || row.LONGITUDE);
         if (isNaN(lat) || isNaN(lng)) return null;
         const rowOrigem = getDetectedCategoryOrigem(undefined, row);
+        const rowKey = getStableAddressId(row) || `coord:${lat.toFixed(6)},${lng.toFixed(6)}`;
         return {
           lat,
           lng,
@@ -3117,10 +3163,12 @@ export default function App() {
           details: formatAddressDetails(row),
           isCoordSearch: false,
           origem: rowOrigem,
-          rawAddress: row
+          rawAddress: row,
+          rowKey,
+          plotId: `plot-${rowKey}`
         };
       })
-      .filter(Boolean) as Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any }>;
+      .filter(Boolean) as Array<{ lat: number; lng: number; label?: string; details?: string[]; isCoordSearch?: boolean; origem?: string; rawAddress?: any; rowKey?: string; plotId?: string }>;
 
     if (validCoords.length === 0) {
       showToast('Nenhuma coordenada válida encontrada nos resultados.');
@@ -4044,6 +4092,7 @@ export default function App() {
               externalPolygonResult={cnefeExternalResult}
               allowedColumns={effectiveSession?.addressColumnsPermissions}
               hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
+              searchCoordinates={searchCoordinates}
               isSearchingExternal={isAddressSearching || isHospitalSearching}
               onSearchStateChange={setHasCnefeResults}
             />
@@ -4302,6 +4351,7 @@ export default function App() {
               externalPolygonResult={cnefeExternalResult}
               allowedColumns={effectiveSession?.addressColumnsPermissions}
               hasPlottedMarkers={!!(searchCoordinates && searchCoordinates.length > 0)}
+              searchCoordinates={searchCoordinates}
               isSearchingExternal={isAddressSearching || isHospitalSearching}
               onSearchStateChange={setHasCnefeResults}
             />

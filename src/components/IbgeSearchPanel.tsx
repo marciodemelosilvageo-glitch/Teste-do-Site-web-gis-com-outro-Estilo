@@ -40,7 +40,7 @@ export interface ExternalPolygonSearchResult {
 }
 
 interface IbgeSearchPanelProps {
-  onPlotAddress: (address: any) => void;
+  onPlotAddress: (address: any, options?: { multiSelect?: boolean }) => void;
   onPlotAllAddresses?: (addresses: any[]) => void;
   onClearPlot?: () => void;
   onUnplot?: () => void;
@@ -50,6 +50,7 @@ interface IbgeSearchPanelProps {
   embedded?: boolean;
   isMaximized?: boolean;
   hasPlottedMarkers?: boolean;
+  searchCoordinates?: Array<{ lat: number; lng: number; rawAddress?: any; rowKey?: string; plotId?: string }> | null;
   isExternalSearching?: boolean;
   isMobile?: boolean;
   onSearchStateChange?: (hasResults: boolean) => void;
@@ -144,13 +145,68 @@ export function attachRowKeys(items: any[]): any[] {
   }));
 }
 
+export function getStableAddressId(row: any): string | null {
+  if (!row || typeof row !== 'object') return null;
+  const rawCode = row.codigo_unico ?? row.CODIGO_UNICO ?? row['Código único do endereço'];
+  if (rawCode !== null && rawCode !== undefined && String(rawCode).trim() !== '') {
+    return `cnefe:${String(rawCode).trim()}`;
+  }
+  const lat = parseFloat(row.latitude ?? row.LATITUDE);
+  const lng = parseFloat(row.longitude ?? row.LONGITUDE);
+  if (!isNaN(lat) && !isNaN(lng)) {
+    return `coord:${lat.toFixed(6)},${lng.toFixed(6)}`;
+  }
+  if (row.__rowKey !== null && row.__rowKey !== undefined && String(row.__rowKey).trim() !== '') {
+    return `row:${String(row.__rowKey).trim()}`;
+  }
+  return null;
+}
+
+export function filterIbgeRows(rows: any[], columnFilters: Record<string, string>): any[] {
+  const activeFilters = Object.entries(columnFilters).filter(([_, text]) => Boolean(text && text.trim()));
+  if (activeFilters.length === 0) return rows;
+
+  return rows.filter(row => {
+    return activeFilters.every(([colKey, filterVal]) => {
+      const rawFilter = filterVal.trim();
+      if (!rawFilter) return true;
+
+      const displayStr = getFormattedDisplayValue(row, colKey);
+      if (!displayStr) return false;
+
+      if (colKey === 'latitude' || colKey === 'longitude') {
+        const normalizedDisplay = displayStr.replace(',', '.');
+        const normalizedFilter = rawFilter.replace(',', '.');
+        return normalizedDisplay.includes(normalizedFilter);
+      }
+
+      if (colKey === 'cep') {
+        const cleanDisplay = displayStr.replace(/\D/g, '');
+        const cleanFilter = rawFilter.replace(/\D/g, '');
+        return cleanDisplay.includes(cleanFilter);
+      }
+
+      if (colKey === 'complemento' || colKey === 'endereco' || colKey === 'bairro' || colKey === 'localidade') {
+        const normDisplay = normalizeSearchText(displayStr);
+        const normFilter = normalizeSearchText(rawFilter);
+        return normDisplay.includes(normFilter);
+      }
+
+      const normDisplay = normalizeString(displayStr);
+      const normFilter = normalizeString(rawFilter);
+      return normDisplay.includes(normFilter);
+    });
+  });
+}
+
 interface IbgeTableRowProps {
   row: any;
   index: number;
   visibleTableColumns: Array<{ key: string; label: string }>;
   columnWidths: Record<string, number>;
-  onPlotAddress: (address: any) => void;
+  onPlotAddress: (address: any, options?: { multiSelect?: boolean }) => void;
   isSelected?: boolean;
+  isMobile?: boolean;
 }
 
 const IbgeTableRow = React.memo<IbgeTableRowProps>(({
@@ -160,6 +216,7 @@ const IbgeTableRow = React.memo<IbgeTableRowProps>(({
   columnWidths,
   onPlotAddress,
   isSelected = false,
+  isMobile = false,
 }) => {
   // Memoizar também o cálculo dos valores exibidos por linha para não reexecutar getFormattedDisplayValue a cada render
   const formattedCells = useMemo(() => {
@@ -174,19 +231,34 @@ const IbgeTableRow = React.memo<IbgeTableRowProps>(({
     });
   }, [row, visibleTableColumns, columnWidths]);
 
-  const handleClick = useCallback(() => {
-    onPlotAddress(row);
-  }, [onPlotAddress, row]);
+  const handleClick = useCallback((e: React.MouseEvent<HTMLTableRowElement>) => {
+    const multiSelect = !isMobile && (e.ctrlKey || e.metaKey);
+    onPlotAddress(row, { multiSelect });
+  }, [onPlotAddress, row, isMobile]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTableRowElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const multiSelect = !isMobile && e.key === 'Enter' && (e.ctrlKey || e.metaKey);
+      onPlotAddress(row, { multiSelect });
+    }
+  }, [onPlotAddress, row, isMobile]);
 
   return (
     <tr 
+      tabIndex={0}
+      aria-selected={isSelected}
       onClick={handleClick}
-      className={`transition-colors cursor-pointer group ${
+      onKeyDown={handleKeyDown}
+      className={`transition-colors cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#007AFF] ${
         isSelected
           ? 'bg-[#007AFF]/15 dark:bg-[#007AFF]/25 border-l-[3px] border-[#007AFF]'
           : 'hover:bg-[#007AFF]/[0.05] dark:hover:bg-[#007AFF]/[0.10]'
       }`}
-      title="Clique para navegar e destacar este endereço no mapa"
+      title={isMobile
+        ? (isSelected ? 'Toque para remover este endereço do mapa' : 'Toque para destacar este endereço no mapa')
+        : (isSelected ? 'Clique para desplotar ou Ctrl+clique para manter/alternar' : 'Clique para plotar ou Ctrl+clique para somar no mapa')
+      }
     >
       <td className={`px-3 py-2.5 text-center font-bold sticky left-0 z-10 shadow-r border-r border-black/5 dark:border-white/10 select-none text-[11px] ${
         isSelected
@@ -222,6 +294,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   embedded = false,
   isMaximized = false,
   hasPlottedMarkers = false,
+  searchCoordinates,
   isExternalSearching = false,
   isMobile = false,
   onSearchStateChange
@@ -523,6 +596,18 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
   // Filtros individuais por coluna via inputs no cabeçalho da tabela
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (Object.keys(columnFilters).length === 0) {
+      setDebouncedColumnFilters({});
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setDebouncedColumnFilters(columnFilters);
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [columnFilters]);
 
   const [municipio, setMunicipio] = useState('Todos');
   const [municipiosList, setMunicipiosList] = useState<string[]>(() => {
@@ -890,56 +975,31 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     }
   }, [hasPlottedMarkers]);
 
-  // Handler para selecionar a linha e plotar o ponto
-  const handleSelectAndPlot = useCallback((row: any) => {
-    const key = row.codigo_unico != null ? String(row.codigo_unico) : (row.CODIGO_UNICO != null ? String(row.CODIGO_UNICO) : null);
+  // Fonte única de verdade para linhas destacadas = searchCoordinates (quando fornecido)
+  const plottedRowKeys = useMemo(() => {
+    if (searchCoordinates === undefined) {
+      return selectedRowKey != null ? new Set<string>([selectedRowKey]) : new Set<string>();
+    }
+    const set = new Set<string>();
+    for (const coord of searchCoordinates || []) {
+      const id = coord.rowKey
+        || (coord.rawAddress ? getStableAddressId(coord.rawAddress) : null)
+        || getStableAddressId({ latitude: coord.lat, longitude: coord.lng });
+      if (id) set.add(id);
+    }
+    return set;
+  }, [searchCoordinates, selectedRowKey]);
+
+  // Handler para selecionar a linha e plotar/desplotar o ponto
+  const handleSelectAndPlot = useCallback((row: any, options?: { multiSelect?: boolean }) => {
+    const key = getStableAddressId(row);
     setSelectedRowKey(key);
-    onPlotAddress(row);
+    onPlotAddress(row, options);
   }, [onPlotAddress]);
 
   // Filtragem e ordenação dos resultados diretamente no cliente
   const processedResults = useMemo(() => {
-    let list = results;
-
-    // 1. Filtragem individual por coluna (inputs sticky no cabeçalho)
-    const activeFilters = Object.entries(columnFilters).filter(([_, text]) => Boolean(text && text.trim()));
-    if (activeFilters.length > 0) {
-      list = list.filter(row => {
-        return activeFilters.every(([colKey, filterVal]) => {
-          const rawFilter = filterVal.trim();
-          if (!rawFilter) return true;
-
-          const displayStr = getFormattedDisplayValue(row, colKey);
-          if (!displayStr) return false;
-
-          // Se for latitude ou longitude, aceita busca com vírgula ou ponto
-          if (colKey === 'latitude' || colKey === 'longitude') {
-            const normalizedDisplay = displayStr.replace(',', '.');
-            const normalizedFilter = rawFilter.replace(',', '.');
-            return normalizedDisplay.includes(normalizedFilter);
-          }
-
-          // Para CEP, se digitado com hífen, aceita sem hífen
-          if (colKey === 'cep') {
-            const cleanDisplay = displayStr.replace(/\D/g, '');
-            const cleanFilter = rawFilter.replace(/\D/g, '');
-            return cleanDisplay.includes(cleanFilter);
-          }
-
-          // Para complemento e colunas de texto em geral, normaliza sem pontuação para que 'quadra o' case com 'QUADRA: O'
-          if (colKey === 'complemento' || colKey === 'endereco' || colKey === 'bairro' || colKey === 'localidade') {
-            const normDisplay = normalizeSearchText(displayStr);
-            const normFilter = normalizeSearchText(rawFilter);
-            return normDisplay.includes(normFilter);
-          }
-
-          // Para colunas de texto e código, ignora maiúsculas e acentos
-          const normDisplay = normalizeString(displayStr);
-          const normFilter = normalizeString(rawFilter);
-          return normDisplay.includes(normFilter);
-        });
-      });
-    }
+    let list = filterIbgeRows(results, debouncedColumnFilters);
 
     // 2. Ordenação por coluna clicada
     if (sortConfig) {
@@ -978,7 +1038,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     }
 
     return list;
-  }, [results, columnFilters, sortConfig]);
+  }, [results, debouncedColumnFilters, sortConfig]);
 
   const exportToCSV = useCallback(() => {
     const hasActiveFilters = Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim()));
@@ -1498,7 +1558,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                     }
                   </span>
                 </div>
-                {polygonSearchTitle && (
+                {isMobile && !embedded && polygonSearchTitle && (
                   <div className={`bg-amber-500/10 dark:bg-amber-950/70 border border-amber-500/20 text-amber-900 dark:text-amber-200 font-black rounded-xl flex items-center gap-1 shadow-2xs truncate ${
                     isMobile ? 'text-[11px] px-2 py-1 max-w-[130px]' : 'text-xs px-3.5 py-1.5'
                   }`}>
@@ -1873,26 +1933,25 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
             {results.length > 0 ? (
               <>
-                {processedResults.length > 0 ? (
-                  <div 
-                    style={isMobile ? {
-                      height: 'calc(var(--cnefe-sheet-h, 55dvh) - 175px)',
-                      minHeight: '180px',
-                      maxHeight: 'calc(var(--cnefe-sheet-h, 90dvh) - 100px)',
-                      overflow: 'auto',
-                      overscrollBehavior: 'contain',
-                      touchAction: 'pan-x pan-y',
-                      WebkitOverflowScrolling: 'touch',
-                    } : undefined}
-                    className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
-                      isMobile
-                        ? 'w-full flex-1'
-                        : embedded 
-                        ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
-                        : 'max-h-[580px]'
-                    }`}
-                  >
-                    <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
+                <div 
+                  style={isMobile ? {
+                    height: 'calc(var(--cnefe-sheet-h, 55dvh) - 175px)',
+                    minHeight: '180px',
+                    maxHeight: 'calc(var(--cnefe-sheet-h, 90dvh) - 100px)',
+                    overflow: 'auto',
+                    overscrollBehavior: 'contain',
+                    touchAction: 'pan-x pan-y',
+                    WebkitOverflowScrolling: 'touch',
+                  } : undefined}
+                  className={`cnefe-table-scroll-container overflow-x-auto overflow-y-auto custom-scrollbar ${
+                    isMobile
+                      ? 'w-full flex-1'
+                      : embedded 
+                      ? 'max-h-[calc(var(--cnefe-bottom-height,46vh)-135px)] min-h-[160px]' 
+                      : 'max-h-[580px]'
+                  }`}
+                >
+                  <table className="text-left text-xs whitespace-nowrap border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
                       <thead className="bg-slate-100/95 dark:bg-[#2c2c2e]/95 backdrop-blur-xl text-slate-600 dark:text-slate-300 sticky top-0 z-20 shadow-xs select-none border-b border-black/10 dark:border-white/10">
                         {/* Linha 1: Títulos das Colunas, Ordenação e Alça de Redimensionamento */}
                         <tr ref={firstHeaderRowRef} className="sticky top-0 z-20 bg-slate-100 dark:bg-[#2c2c2e]">
@@ -2043,37 +2102,76 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
-                        {processedResults.map((row, i) => {
-                          const rowKey = row.codigo_unico != null ? String(row.codigo_unico) : (row.CODIGO_UNICO != null ? String(row.CODIGO_UNICO) : null);
-                          const isSelected = selectedRowKey != null && rowKey === selectedRowKey;
-                          return (
-                            <IbgeTableRow
-                              key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`}
-                              row={row}
-                              index={i}
-                              visibleTableColumns={visibleTableColumns}
-                              columnWidths={columnWidths}
-                              onPlotAddress={handleSelectAndPlot}
-                              isSelected={isSelected}
-                            />
-                          );
-                        })}
+                        {processedResults.length > 0 ? (
+                          processedResults.map((row, i) => {
+                            const rowKey = getStableAddressId(row);
+                            const isSelected = rowKey != null && plottedRowKeys.has(rowKey);
+                            return (
+                              <IbgeTableRow
+                                key={row.__rowKey || `${row.codigo_unico ?? 'cnefe'}_${i}`}
+                                row={row}
+                                index={i}
+                                visibleTableColumns={visibleTableColumns}
+                                columnWidths={columnWidths}
+                                onPlotAddress={handleSelectAndPlot}
+                                isSelected={isSelected}
+                                isMobile={isMobile}
+                              />
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={visibleTableColumns.length + 1}
+                              className="p-8 text-center text-slate-400"
+                            >
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <Search size={28} className="text-slate-300 dark:text-slate-600" />
+                                <p className="font-bold text-sm text-slate-600 dark:text-slate-300">
+                                  Nenhum resultado para esse filtro
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  Verifique a grafia ou ajuste os filtros nas colunas acima.
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                                  {((activeFilterColKey && columnFilters[activeFilterColKey]) || Object.keys(columnFilters).length === 1) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const targetCol = activeFilterColKey && columnFilters[activeFilterColKey]
+                                          ? activeFilterColKey
+                                          : Object.keys(columnFilters)[0];
+                                        if (targetCol) {
+                                          setColumnFilters(prev => {
+                                            const copy = { ...prev };
+                                            delete copy[targetCol];
+                                            return copy;
+                                          });
+                                        }
+                                      }}
+                                      className="text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 px-3 py-1.5 rounded-xl cursor-pointer transition-colors"
+                                    >
+                                      Limpar filtro desta coluna
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setColumnFilters({});
+                                      setActiveFilterColKey(null);
+                                    }}
+                                    className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 px-3 py-1.5 rounded-xl cursor-pointer transition-colors"
+                                  >
+                                    Limpar todos os filtros
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
-                ) : (
-                  <div className="p-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-                    <Search size={30} className="text-slate-300 dark:text-slate-600" />
-                    <p className="font-bold text-sm text-slate-600 dark:text-slate-300">Nenhum resultado corresponde ao filtro atual</p>
-                    <p className="text-xs text-slate-400">Verifique a grafia ou selecione outra coluna para pesquisar.</p>
-                    <button
-                      onClick={() => { setColumnFilters({}); }}
-                      className="mt-2 text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 px-3.5 py-1.5 rounded-xl cursor-pointer"
-                    >
-                      Limpar Filtro nos Resultados
-                    </button>
-                  </div>
-                )}
 
                 {/* Rodapé Informativo: Total Contínuo e Dica de Uso */}
                 <div className="px-3 sm:px-5 py-2.5 sm:py-3 bg-slate-50/90 dark:bg-[#2c2c2e]/90 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -2089,7 +2187,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                   </div>
                   {!isMobile && (
                     <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                      💡 Clique em qualquer linha para navegar e destacar no mapa
+                      💡 Clique para plotar ou desplotar. Ctrl+clique para escolher várias.
                     </span>
                   )}
                 </div>
