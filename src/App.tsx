@@ -29,7 +29,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SelectedFeature, GroupedSearchResults, SearchResultItem } from './types';
 import { dataSources, PRIORITY_KEYS, propertyNames, DEFAULT_ACTIVE_LAYERS } from './data';
-import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase, getUserPosition } from './utils';
+import { normalizeString, levenshteinDistance, getIdentifier, getTranslatedValue, haversineDistanceMeters, toTitleCase, getUserPosition, getVisibleMapInsets, centerMapPointWithInsets } from './utils';
 import { buscarEnderecosPorPoligono, buscarEnderecosPorLocalidade, buscarEnderecosPorEspecie, buscarEnderecosPorCategoria, buscarEnderecosPorCategoriaEmRaio, buscarEnderecosPorCategoriaEmPoligonos, CATEGORY_CONFIGS, buscarEnderecosPorRaio, listarMunicipios } from './duckdb';
 import { RecentSearchItem, detectCategoryFromData } from './categories';
 import { FeatureAccessProvider, useFeatureAccess } from './context/FeatureAccessContext';
@@ -2746,7 +2746,26 @@ export default function App() {
         setIsSearchResultsVisible(false);
 
         if (mapInstance) {
-          mapInstance.setView([searchLat, searchLng], Math.max(mapInstance.getZoom(), 15));
+          const zoom = Math.max(mapInstance.getZoom(), 15);
+          if (isMobile) {
+            mapInstance.setView([searchLat, searchLng], zoom);
+          } else {
+            centerMapPointWithInsets(
+              mapInstance,
+              searchLat,
+              searchLng,
+              zoom,
+              getVisibleMapInsets({
+                willOpenDetails: can('tool:feature_specs'),
+                isDetailsOpen: !!sidebarTab,
+                isSidebarCollapsed,
+                isCnefeOpen: isCnefeBottomBarOpen && (isMaster || can('tool:cnefe_search') || can('tool:advanced_search')),
+                isCnefeExpanded: isCnefeBottomBarExpanded && can('tool:advanced_search'),
+                isCnefeMaximized: isCnefeBottomBarMaximized,
+                isPrintMode,
+              })
+            );
+          }
         }
 
         // 3. No mapa, mantém apenas o pino da coordenada pesquisada
@@ -2807,7 +2826,25 @@ export default function App() {
         details: item.polygonLayer.feature.properties._details,
         isCoordSearch: true
       }]);
-      mapInstance.setView([lat, lng], 14);
+      if (isMobile) {
+        mapInstance.setView([lat, lng], 14);
+      } else {
+        centerMapPointWithInsets(
+          mapInstance,
+          lat,
+          lng,
+          14,
+          getVisibleMapInsets({
+            willOpenDetails: can('tool:feature_specs'),
+            isDetailsOpen: !!sidebarTab,
+            isSidebarCollapsed,
+            isCnefeOpen: isCnefeBottomBarOpen && (isMaster || can('tool:cnefe_search') || can('tool:advanced_search')),
+            isCnefeExpanded: isCnefeBottomBarExpanded && can('tool:advanced_search'),
+            isCnefeMaximized: isCnefeBottomBarMaximized,
+            isPrintMode,
+          })
+        );
+      }
       
       const featureId = 'coord-search';
       const newFeature: SelectedFeature = {
@@ -3140,11 +3177,26 @@ export default function App() {
         mapInstance.setView(adjustedLatLng, targetZoom);
       }
     } else {
-      if (can('tool:feature_specs')) {
+      const willOpenDetails = can('tool:feature_specs');
+      if (willOpenDetails) {
         setSidebarTab('details');
       }
       if (mapInstance) {
-        mapInstance.setView([lat, lng], 17);
+        centerMapPointWithInsets(
+          mapInstance,
+          lat,
+          lng,
+          17,
+          getVisibleMapInsets({
+            willOpenDetails,
+            isDetailsOpen: !!sidebarTab,
+            isSidebarCollapsed,
+            isCnefeOpen: isCnefeBottomBarOpen && (isMaster || can('tool:cnefe_search') || can('tool:advanced_search')),
+            isCnefeExpanded: isCnefeBottomBarExpanded && can('tool:advanced_search'),
+            isCnefeMaximized: isCnefeBottomBarMaximized,
+            isPrintMode,
+          })
+        );
       }
     }
     
@@ -3153,7 +3205,7 @@ export default function App() {
     
     // Rolar a tela para o topo para ver o mapa
     // map is already visible on screen
-  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile, can, searchCoordinates]);
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile, can, searchCoordinates, sidebarTab, isSidebarCollapsed, isCnefeBottomBarOpen, isMaster, isCnefeBottomBarExpanded, isCnefeBottomBarMaximized, isPrintMode]);
 
   const handlePlotAllAddresses = useCallback((results: any[]) => {
     const validCoords = results
@@ -3185,18 +3237,38 @@ export default function App() {
     setSearchCoordinates(validCoords);
 
     if (mapInstance && validCoords.length > 0) {
-      if (validCoords.length === 1) {
-        mapInstance.setView([validCoords[0].lat, validCoords[0].lng], 17);
+      if (isMobile) {
+        if (validCoords.length === 1) {
+          mapInstance.setView([validCoords[0].lat, validCoords[0].lng], 17);
+        } else {
+          const bounds = L.latLngBounds(validCoords.map(c => [c.lat, c.lng]));
+          mapInstance.fitBounds(bounds, { padding: [50, 50] });
+        }
       } else {
-        const bounds = L.latLngBounds(validCoords.map(c => [c.lat, c.lng]));
-        mapInstance.fitBounds(bounds, { padding: [50, 50] });
+        const insets = getVisibleMapInsets({
+          isDetailsOpen: !!sidebarTab,
+          isSidebarCollapsed,
+          isCnefeOpen: isCnefeBottomBarOpen && (isMaster || can('tool:cnefe_search') || can('tool:advanced_search')),
+          isCnefeExpanded: isCnefeBottomBarExpanded && can('tool:advanced_search'),
+          isCnefeMaximized: isCnefeBottomBarMaximized,
+          isPrintMode,
+        });
+        if (validCoords.length === 1) {
+          centerMapPointWithInsets(mapInstance, validCoords[0].lat, validCoords[0].lng, 17, insets);
+        } else {
+          const bounds = L.latLngBounds(validCoords.map(c => [c.lat, c.lng]));
+          mapInstance.fitBounds(bounds, {
+            paddingTopLeft: L.point(insets.left + 40, insets.top + 40),
+            paddingBottomRight: L.point(insets.right + 40, insets.bottom + 40),
+          });
+        }
       }
     }
     
     logActivity('ENDERECO', `Plotou ${validCoords.length} endereços simultâneos no mapa`, userRole);
     showToast(`Plotando ${validCoords.length} endereços no mapa...`);
     // map is already visible on screen
-  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem]);
+  }, [mapInstance, userRole, showToast, getDetectedCategoryOrigem, isMobile, sidebarTab, isSidebarCollapsed, isCnefeBottomBarOpen, isMaster, can, isCnefeBottomBarExpanded, isCnefeBottomBarMaximized, isPrintMode]);
 
   const handleClearPlot = useCallback(() => {
     setSearchCoordinates(null);

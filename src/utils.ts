@@ -883,4 +883,98 @@ export const getUserPosition = async (fallbackKnown?: UserPosition | null): Prom
   }
 };
 
+export interface VisibleMapInsets {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+}
+
+export interface VisibleMapInsetsOptions {
+  willOpenDetails?: boolean;
+  isDetailsOpen?: boolean;
+  isSidebarCollapsed?: boolean;
+  isCnefeOpen?: boolean;
+  isCnefeExpanded?: boolean;
+  isCnefeMaximized?: boolean;
+  isPrintMode?: boolean;
+}
+
+/**
+ * Calcula os recuos em pixels ({ top, left, right, bottom }) da área visível do mapa no desktop,
+ * considerando barra lateral, painel de detalhes (390px), barra inferior CNEFE e controles à direita.
+ */
+export const getVisibleMapInsets = (options: VisibleMapInsetsOptions = {}): VisibleMapInsets => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return { top: 20, left: 20, right: 20, bottom: 20 };
+  }
+
+  let sidebarWidth = 0;
+  if (!options.isPrintMode) {
+    if (options.isSidebarCollapsed !== undefined) {
+      sidebarWidth = options.isSidebarCollapsed ? 68 : 215;
+    } else {
+      const container = document.querySelector('[style*="--sidebar-width"]') as HTMLElement | null;
+      const cssSidebar = container ? parseFloat(getComputedStyle(container).getPropertyValue('--sidebar-width')) : NaN;
+      sidebarWidth = !isNaN(cssSidebar) && cssSidebar > 0 ? cssSidebar : 215;
+    }
+  }
+
+  let detailsWidth = 0;
+  if (options.willOpenDetails || options.isDetailsOpen) {
+    detailsWidth = 390 + 12;
+  } else if (options.willOpenDetails === undefined && options.isDetailsOpen === undefined) {
+    const secondaryPanel = document.querySelector('aside .w-\\[390px\\]') as HTMLElement | null;
+    if (secondaryPanel && secondaryPanel.getBoundingClientRect().width > 0) {
+      detailsWidth = secondaryPanel.getBoundingClientRect().width + 12;
+    }
+  }
+
+  const controlsEl = document.getElementById('custom-map-controls');
+  const controlsWidth = controlsEl ? controlsEl.getBoundingClientRect().width : 60;
+
+  let bottomInset = 0;
+  if (options.isCnefeOpen === false) {
+    bottomInset = 0;
+  } else if (options.isCnefeOpen === true) {
+    if (!options.isCnefeExpanded) {
+      bottomInset = 46;
+    } else if (options.isCnefeMaximized) {
+      bottomInset = Math.round(window.innerHeight * 0.85);
+    } else {
+      const cssBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cnefe-bottom-height'));
+      bottomInset = !isNaN(cssBottom) && cssBottom > 46 ? cssBottom : Math.round(window.innerHeight * 0.46);
+    }
+  } else {
+    const cssBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cnefe-bottom-height'));
+    bottomInset = !isNaN(cssBottom) && cssBottom > 0 ? cssBottom : 0;
+  }
+
+  return {
+    top: 20,
+    left: Math.round(sidebarWidth + detailsWidth + 16),
+    right: Math.round((controlsWidth > 0 ? controlsWidth : 60) + 20),
+    bottom: Math.round(bottomInset),
+  };
+};
+
+/**
+ * Centraliza um ponto (lat, lng) no centro geométrico da área visível do mapa no desktop,
+ * compensando os recuos dos painéis sem alterar o nível de zoom desejado.
+ */
+export const centerMapPointWithInsets = (
+  map: L.Map,
+  lat: number,
+  lng: number,
+  zoom: number,
+  insets: VisibleMapInsets
+): void => {
+  const pt = map.project([lat, lng], zoom);
+  const offsetX = (insets.left - insets.right) / 2;
+  const offsetY = (insets.top - insets.bottom) / 2;
+  const adjustedLatLng = map.unproject(L.point(pt.x - offsetX, pt.y - offsetY), zoom);
+  map.setView(adjustedLatLng, zoom);
+};
+
+
 

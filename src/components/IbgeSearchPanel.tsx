@@ -54,6 +54,7 @@ interface IbgeSearchPanelProps {
   isExternalSearching?: boolean;
   isMobile?: boolean;
   onSearchStateChange?: (hasResults: boolean) => void;
+  onResultsCountChange?: (visible: number, total: number) => void;
 }
 
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -297,7 +298,8 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   searchCoordinates,
   isExternalSearching = false,
   isMobile = false,
-  onSearchStateChange
+  onSearchStateChange,
+  onResultsCountChange
 }) => {
   const { can, canViewAddressColumn } = useFeatureAccess();
   // Estado para linha selecionada na tabela (baseado em codigo_unico)
@@ -968,6 +970,25 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     onSearchStateChange?.(results.length > 0);
   }, [results.length, onSearchStateChange]);
 
+  // Permite limpar os resultados via pílula de resumo no cabeçalho da barra
+  useEffect(() => {
+    const onClearEvent = () => {
+      setTextoBusca('');
+      setResults([]);
+      setTotalEncontrado(0);
+      setHasSearched(false);
+      setIsPlotted(false);
+      setSelectedRowKey(null);
+      setPolygonSearchTitle(null);
+      setErrorMsg(null);
+      setColumnFilters({});
+      setSortConfig(null);
+      setIsFormCollapsed(false);
+    };
+    window.addEventListener('cnefe-clear-search', onClearEvent);
+    return () => window.removeEventListener('cnefe-clear-search', onClearEvent);
+  }, []);
+
   // Limpa linha selecionada se os marcadores forem removidos do mapa
   useEffect(() => {
     if (!hasPlottedMarkers) {
@@ -1039,6 +1060,11 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
 
     return list;
   }, [results, debouncedColumnFilters, sortConfig]);
+
+  // Notifica contagem visível/total para o cabeçalho desktop sem alterar onSearchStateChange
+  useEffect(() => {
+    onResultsCountChange?.(processedResults.length, results.length);
+  }, [processedResults.length, results.length, onResultsCountChange]);
 
   const exportToCSV = useCallback(() => {
     const hasActiveFilters = Object.entries(columnFilters).some(([_, text]) => Boolean(text && text.trim()));

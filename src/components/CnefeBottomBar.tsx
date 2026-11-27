@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { 
   Home, 
   Search, 
@@ -65,6 +65,13 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
   const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
   const isMaximized = isMaximizedProp !== undefined ? isMaximizedProp : internalMaximized;
   const { can, guardAction } = useAccess();
+
+  // Contagem local de resultados da tabela (usada apenas no cabeçalho desktop; evita estado no App.tsx)
+  const [resultsCount, setResultsCount] = useState<{ visible: number; total: number }>({ visible: 0, total: 0 });
+  const handleResultsCountChange = useCallback((visible: number, total: number) => {
+    if (isMobile) return;
+    setResultsCount(prev => (prev.visible === visible && prev.total === total ? prev : { visible, total }));
+  }, [isMobile]);
 
   // Fecha ou recolhe automaticamente a barra se a permissão de busca avançada for revogada
   useEffect(() => {
@@ -754,6 +761,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
               searchCoordinates={searchCoordinates}
               isExternalSearching={isSearchingExternal}
               onSearchStateChange={onSearchStateChange}
+              onResultsCountChange={handleResultsCountChange}
             />
           </div>
         </div>
@@ -825,8 +833,18 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
       >
         {/* Esquerda: Identificação da Ferramenta */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shrink-0 shadow-sm">
+          <div className="relative w-7 h-7 rounded-xl bg-gradient-to-tr from-[#007AFF] to-[#5856D6] text-white flex items-center justify-center shrink-0 shadow-sm">
             <Home className="w-4 h-4" />
+            {!isSearchingExternal && resultsCount.visible > 0 && (
+              <span
+                className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-[#007AFF] text-white text-[9px] font-black leading-none flex items-center justify-center ring-2 ring-white dark:ring-[#1c1c1e] shadow-xs pointer-events-none"
+                title={`${resultsCount.visible.toLocaleString('pt-BR')} resultado(s) na tabela`}
+              >
+                {resultsCount.visible >= 10000
+                  ? `${Math.floor(resultsCount.visible / 1000)}k+`
+                  : resultsCount.visible.toLocaleString('pt-BR')}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -844,6 +862,34 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#007AFF] dark:text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full animate-pulse shrink-0">
                 <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                 <span>Buscando endereços...</span>
+              </span>
+            )}
+
+            {/* Pílula de Pesquisa Ativa (minimizada, com resultados e sem polígono) */}
+            {!isExpanded && !isSearchingExternal && !externalPolygonResult && resultsCount.visible > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-blue-50 dark:bg-blue-950/70 text-[#007AFF] dark:text-blue-300 pl-2 pr-1.5 py-0.5 rounded-full border border-blue-200/80 dark:border-blue-800/60 truncate max-w-[260px] shadow-2xs shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF] shrink-0" />
+                <span className="truncate">
+                  Pesquisa ativa •{' '}
+                  {resultsCount.total > 0 && resultsCount.visible < resultsCount.total
+                    ? `${resultsCount.visible.toLocaleString('pt-BR')} de ${resultsCount.total.toLocaleString('pt-BR')}`
+                    : `${resultsCount.visible.toLocaleString('pt-BR')} ${resultsCount.visible === 1 ? 'resultado' : 'resultados'}`}
+                </span>
+                {(onClearExternalResult || onClearPlot) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent('cnefe-clear-search'));
+                      if (onClearExternalResult) onClearExternalResult();
+                      if (onClearPlot) onClearPlot();
+                    }}
+                    className="p-0.5 hover:bg-blue-200/70 dark:hover:bg-blue-800/60 rounded-full text-[#007AFF] dark:text-blue-200 transition-colors cursor-pointer shrink-0"
+                    title="Limpar pesquisa"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </span>
             )}
 
@@ -980,6 +1026,7 @@ export const CnefeBottomBar: React.FC<CnefeBottomBarProps> = React.memo(({
             searchCoordinates={searchCoordinates}
             isExternalSearching={isSearchingExternal}
             onSearchStateChange={onSearchStateChange}
+            onResultsCountChange={handleResultsCountChange}
           />
         )}
       </div>

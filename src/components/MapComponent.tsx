@@ -19,7 +19,7 @@ import { union } from '@turf/union';
 import { featureCollection } from '@turf/helpers';
 import { DataSource, SelectedFeature, ContextMenuState, SavedStylePreset } from '../types';
 import { dataSources, situationMap, typeMap, propertyNames, getLayerColor, DEFAULT_ACTIVE_LAYERS } from '../data';
-import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition, escapeHtml } from '../utils';
+import { getIdentifier, getTranslatedValue, getFeatureCenter, patchMeasureControl, haversineDistanceMeters, formatDistance, calculateGeodesicAreaMeters, formatArea, toTitleCase, exportSelectionToCSV, exportSelectionToKML, downloadFile, sanitizeFilename, setLastKnownUserPosition, escapeHtml, getVisibleMapInsets, centerMapPointWithInsets } from '../utils';
 import { createCategoryPinIcon, detectCategoryFromData, getCategoryConfig } from '../categories';
 import { MOBILE_Z_INDEX } from '../constants/mobileZIndex';
 import { useFeatureAccess } from '../context/FeatureAccessContext';
@@ -3331,18 +3331,24 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       },
       zoomToFeature: (layer: L.Layer) => {
         if (!mapRef.current) return;
+        const isMob = isMobileRef.current;
         if (typeof (layer as any).getBounds === 'function' && (layer as any).getBounds().isValid()) {
           const bounds = (layer as any).getBounds();
-          const isMob = isMobileRef.current;
+          const insets = !isMob ? getVisibleMapInsets() : null;
           mapRef.current.fitBounds(bounds, {
-            paddingTopLeft: isMob ? L.point(20, 60) : L.point(280, 50),
-            paddingBottomRight: isMob ? L.point(20, 260) : L.point(50, 50),
+            paddingTopLeft: isMob ? L.point(20, 60) : L.point(insets!.left + 40, insets!.top + 40),
+            paddingBottomRight: isMob ? L.point(20, 260) : L.point(insets!.right + 40, insets!.bottom + 40),
             maxZoom: 15,
             animate: true,
             duration: 0.3
           });
         } else if (typeof (layer as any).getLatLng === 'function') {
-          mapRef.current.setView((layer as any).getLatLng(), 14);
+          const ll = (layer as any).getLatLng();
+          if (isMob) {
+            mapRef.current.setView(ll, 14);
+          } else {
+            centerMapPointWithInsets(mapRef.current, ll.lat, ll.lng, 14, getVisibleMapInsets());
+          }
         }
       },
       selectFeature: (layer: L.Layer, feature: any, sourceName: string) => {
