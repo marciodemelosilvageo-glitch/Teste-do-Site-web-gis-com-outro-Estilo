@@ -342,6 +342,12 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   });
 
   const [results, setResults] = useState<any[]>([]);
+  const [manuallyShownEmptyKeys, setManuallyShownEmptyKeys] = useState<Set<string>>(new Set());
+
+  // Sempre que chegar um novo conjunto de resultados, limpa overrides manuais de colunas vazias
+  useEffect(() => {
+    setManuallyShownEmptyKeys(new Set());
+  }, [results]);
 
   const baseVisibleColumns = useMemo(() => {
     return tableColumns.filter(c => {
@@ -352,23 +358,49 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     });
   }, [allowedColumns, userVisibleKeys, can, canViewAddressColumn]);
 
-  // Oculta automaticamente colunas que estejam totalmente vazias em todas as linhas da pesquisa atual
+  // Oculta automaticamente colunas vazias em todas as linhas da pesquisa atual,
+  // mantendo 'endereco' e qualquer coluna reativada manualmente pelo usuário no menu Colunas
   const visibleTableColumns = useMemo(() => {
     if (!results || results.length === 0) return baseVisibleColumns;
     const populatedKeys = getNonEmptyColumnKeys(results, baseVisibleColumns);
-    const filtered = baseVisibleColumns.filter(c => populatedKeys.has(c.key));
+    const filtered = baseVisibleColumns.filter(
+      c => c.key === 'endereco' || populatedKeys.has(c.key) || manuallyShownEmptyKeys.has(c.key)
+    );
     return filtered.length > 0 ? filtered : baseVisibleColumns;
-  }, [baseVisibleColumns, results]);
+  }, [baseVisibleColumns, results, manuallyShownEmptyKeys]);
 
   const toggleColumnVisibility = (key: string) => {
+    const isCurrentlyVisibleInTable = visibleTableColumns.some(c => c.key === key);
+
+    if (!isCurrentlyVisibleInTable) {
+      // Se estava oculta (seja por estar vazia ou desmarcada pelo usuário), ativa imediatamente na tabela
+      setManuallyShownEmptyKeys(prev => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+      setUserVisibleKeys(prev => {
+        if (prev.includes(key)) return prev;
+        const updated = [...prev, key];
+        try {
+          localStorage.setItem('cnefe_user_visible_columns', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+      return;
+    }
+
+    if (visibleTableColumns.length <= 1) return; // Mantém no mínimo 1 coluna visível na tabela
+
+    setManuallyShownEmptyKeys(prev => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setUserVisibleKeys(prev => {
-      let updated: string[];
-      if (prev.includes(key)) {
-        if (prev.length <= 1) return prev; // Mantém no mínimo 1 coluna ativa
-        updated = prev.filter(k => k !== key);
-      } else {
-        updated = [...prev, key];
-      }
+      if (!prev.includes(key) || prev.length <= 1) return prev;
+      const updated = prev.filter(k => k !== key);
       try {
         localStorage.setItem('cnefe_user_visible_columns', JSON.stringify(updated));
       } catch (e) {}
@@ -379,6 +411,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   const handleSelectAllColumns = () => {
     const allKeys = tableColumns.map(c => c.key);
     setUserVisibleKeys(allKeys);
+    setManuallyShownEmptyKeys(new Set(allKeys));
     try {
       localStorage.setItem('cnefe_user_visible_columns', JSON.stringify(allKeys));
     } catch (e) {}
@@ -387,6 +420,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   const handleResetColumns = () => {
     const allKeys = tableColumns.map(c => c.key);
     setUserVisibleKeys(allKeys);
+    setManuallyShownEmptyKeys(new Set());
     try {
       localStorage.removeItem('cnefe_user_visible_columns');
     } catch (e) {}
@@ -1861,7 +1895,7 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                 {/* Lista de colunas com checkboxes */}
                 <div className={`overflow-y-auto ${isMobile ? 'max-h-[min(240px,45vh)]' : 'max-h-60'} custom-scrollbar flex flex-col gap-0.5 pr-1`}>
                   {filteredModalColumns.map(col => {
-                    const isChecked = userVisibleKeys.includes(col.key);
+                    const isChecked = visibleTableColumns.some(c => c.key === col.key);
                     return (
                       <label
                         key={col.key}
