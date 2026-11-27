@@ -2225,6 +2225,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       }
     });
 
+    // Restaura a borda tracejada animada individual quando a dissolução é desfeita
+    if (selectedFeatures.length > 0 && selectedSvgOverlayRef.current && mapRef.current && !mapRef.current.hasLayer(selectedSvgOverlayRef.current)) {
+      selectedSvgOverlayRef.current.addTo(mapRef.current);
+    }
+
     setIsDissolved(false);
     setIsDissolving(false);
   }, [selectedFeatures]);
@@ -2319,6 +2324,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
             el.removeAttribute('stroke-dasharray');
           }
         });
+
+        // Ocultar a borda tracejada animada (marching ants) das feições individuais durante a dissolução
+        if (selectedSvgOverlayRef.current && map.hasLayer(selectedSvgOverlayRef.current)) {
+          map.removeLayer(selectedSvgOverlayRef.current);
+        }
 
         // Adicionar camada de contorno externo dissolvido em pane superior não interativo
         const newDissolvedLayer = L.geoJSON(unionResult as any, {
