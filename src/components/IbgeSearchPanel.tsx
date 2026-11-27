@@ -137,6 +137,25 @@ export function getFormattedDisplayValue(row: any, colKey: string): string {
   return isTextCol ? toTitleCase(valStr) : valStr;
 }
 
+export function getNonEmptyColumnKeys(
+  rows: any[],
+  columns: Array<{ key: string; label: string }>
+): Set<string> {
+  const populated = new Set<string>();
+  if (!Array.isArray(rows) || rows.length === 0) return populated;
+
+  for (const col of columns) {
+    for (let i = 0; i < rows.length; i++) {
+      const displayVal = getFormattedDisplayValue(rows[i], col.key).trim();
+      if (displayVal !== '' && displayVal !== '-') {
+        populated.add(col.key);
+        break;
+      }
+    }
+  }
+  return populated;
+}
+
 // Helper para anexar uma chave interna única e estável para cada linha de resultado
 export function attachRowKeys(items: any[]): any[] {
   if (!Array.isArray(items)) return [];
@@ -322,7 +341,9 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
     return tableColumns.map(c => c.key);
   });
 
-  const visibleTableColumns = useMemo(() => {
+  const [results, setResults] = useState<any[]>([]);
+
+  const baseVisibleColumns = useMemo(() => {
     return tableColumns.filter(c => {
       if (allowedColumns && allowedColumns[c.key] === false) return false;
       if (!canViewAddressColumn(c.key)) return false;
@@ -330,6 +351,14 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
       return userVisibleKeys.includes(c.key);
     });
   }, [allowedColumns, userVisibleKeys, can, canViewAddressColumn]);
+
+  // Oculta automaticamente colunas que estejam totalmente vazias em todas as linhas da pesquisa atual
+  const visibleTableColumns = useMemo(() => {
+    if (!results || results.length === 0) return baseVisibleColumns;
+    const populatedKeys = getNonEmptyColumnKeys(results, baseVisibleColumns);
+    const filtered = baseVisibleColumns.filter(c => populatedKeys.has(c.key));
+    return filtered.length > 0 ? filtered : baseVisibleColumns;
+  }, [baseVisibleColumns, results]);
 
   const toggleColumnVisibility = (key: string) => {
     setUserVisibleKeys(prev => {
@@ -635,7 +664,6 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
   const [limit, setLimit] = useState(500);
   const [modoAvancado, setModoAvancado] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
   const [totalEncontrado, setTotalEncontrado] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
   const [isPlotted, setIsPlotted] = useState(false);
@@ -1654,35 +1682,33 @@ const IbgeSearchPanelComponent: React.FC<IbgeSearchPanelProps> = ({
                       <span>{isMobile ? 'Desplotar' : 'Desplotar do Mapa'}</span>
                     </button>
                   )}
-                  {/* Botão Limpar */}
+                  {/* Botão Limpar (somente ícone) */}
                   <button 
                     type="button"
                     onClick={handleClear}
                     className={`font-bold bg-rose-500/10 hover:bg-rose-500/20 text-[#FF3B30] dark:text-[#FF453A] rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs ${
                       isMobile 
                         ? 'w-11 h-11 min-w-[44px] min-h-[44px]' 
-                        : 'text-xs px-3.5 py-2 gap-1.5'
+                        : 'w-9 h-9'
                     }`}
                     title="Limpar pesquisa e remover resultados"
                     aria-label="Limpar pesquisa"
                   >
-                    <Trash2 size={isMobile ? 15 : 13} />
-                    {!isMobile && <span>Limpar</span>}
+                    <Trash2 size={15} />
                   </button>
-                  {/* Botão Exportar CSV */}
+                  {/* Botão Exportar CSV (somente ícone) */}
                   <button 
                     type="button"
                     onClick={exportToCSV}
                     className={`font-bold bg-white dark:bg-[#3a3a3c] border border-black/10 dark:border-white/10 text-slate-700 dark:text-slate-200 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer shadow-2xs active:scale-95 ${
                       isMobile 
                         ? 'w-11 h-11 min-w-[44px] min-h-[44px]' 
-                        : 'text-xs px-3.5 py-2 gap-1.5'
+                        : 'w-9 h-9'
                     }`}
                     title="Exportar CSV"
                     aria-label="Exportar CSV"
                   >
-                    <Download size={isMobile ? 15 : 14} />
-                    {!isMobile && <span>Exportar CSV</span>}
+                    <Download size={15} />
                   </button>
 
                   {/* Botão Configurar Colunas (Engrenagem no Mobile) */}

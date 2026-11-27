@@ -126,6 +126,7 @@ test('IbgeSearchPanel keeps table/header mounted on empty filter and never zeroe
   const source = fs.readFileSync(panelPath, 'utf8');
 
   assert.match(source, /export function filterIbgeRows/);
+  assert.match(source, /export function getNonEmptyColumnKeys/);
   assert.match(source, /Nenhum resultado para esse filtro/);
   assert.match(source, /Limpar filtro desta coluna/);
   assert.match(source, /Limpar todos os filtros/);
